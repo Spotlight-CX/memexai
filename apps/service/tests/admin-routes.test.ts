@@ -14,7 +14,8 @@ const adminHeaders = { "x-memex-admin-secret": "admin-secret" }
 function createAdminDb() {
   return {
     query: async (sql: string, values?: unknown[]) => {
-      if (sql.includes("split_part(physical_path")) {
+      if (sql.includes("WITH user_files AS")) {
+        expect(sql).not.toContain("split_part(mx_file.physical_path")
         return { rows: [{ user_id: "user_123", file_count: "2", last_write_at: new Date("2026-05-09T08:00:00Z"), last_read_at: null }] }
       }
 

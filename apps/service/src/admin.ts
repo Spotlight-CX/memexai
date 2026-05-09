@@ -10,20 +10,32 @@ export async function listAdminUsers(db: Db) {
     last_write_at: Date | null
     last_read_at: Date | null
   }>(`
+    WITH user_files AS (
+      SELECT
+        split_part(physical_path, '/', 2) AS user_id,
+        COUNT(*) AS file_count,
+        MAX(updated_at) AS last_write_at
+      FROM mx_file
+      WHERE physical_path LIKE 'users/%/%'
+      GROUP BY split_part(physical_path, '/', 2)
+    ),
+    user_reads AS (
+      SELECT
+        user_id,
+        MAX(created_at) AS last_read_at
+      FROM mx_access_log
+      WHERE operation = 'read'
+        AND user_id IS NOT NULL
+      GROUP BY user_id
+    )
     SELECT
-      split_part(physical_path, '/', 2) AS user_id,
-      COUNT(*) AS file_count,
-      MAX(updated_at) AS last_write_at,
-      (
-        SELECT MAX(created_at)
-        FROM mx_access_log
-        WHERE mx_access_log.user_id = split_part(mx_file.physical_path, '/', 2)
-          AND mx_access_log.operation = 'read'
-      ) AS last_read_at
-    FROM mx_file
-    WHERE physical_path LIKE 'users/%/%'
-    GROUP BY split_part(physical_path, '/', 2)
-    ORDER BY last_write_at DESC NULLS LAST, user_id ASC
+      user_files.user_id,
+      user_files.file_count,
+      user_files.last_write_at,
+      user_reads.last_read_at
+    FROM user_files
+    LEFT JOIN user_reads ON user_reads.user_id = user_files.user_id
+    ORDER BY user_files.last_write_at DESC NULLS LAST, user_files.user_id ASC
   `)
 
   return {
