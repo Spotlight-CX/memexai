@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "bun run --cwd ../../packages/sdk build && tsc -p tsconfig.json --noEmit",
+    "inspect": "bun run src/inspect.ts",
     "start": "bun run src/index.ts",
     "test": "vitest run"
   },

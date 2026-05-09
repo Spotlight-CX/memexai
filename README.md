@@ -49,6 +49,24 @@ MEMEX_API_KEY=dev-agent-key \
 bun run demo:agent -- --smoke
 ```
 
+Inspect demo memory:
+
+```bash
+MEMEX_URL=http://localhost:8080 \
+MEMEX_API_KEY=dev-agent-key \
+bun run demo:inspect
+```
+
+The inspector keeps prompting for file paths until you press Enter on a blank prompt or type `q`.
+
+Non-interactive read:
+
+```bash
+MEMEX_URL=http://localhost:8080 \
+MEMEX_API_KEY=dev-agent-key \
+bun run demo:inspect -- --user demo_user --path user/preferences.md
+```
+
 Live agent:
 
 ```bash

@@ -26,6 +26,24 @@ This verifies service auth, writes `user/demo-agent.md`, reads it back, and prin
 
 Open `http://localhost:8080/admin`, enter `dev-admin-secret`, and inspect `demo_user` in Users, Files, Revisions, and Access Logs.
 
+You can inspect memory from the terminal too:
+
+```bash
+MEMEX_URL=http://localhost:8080 \
+MEMEX_API_KEY=dev-agent-key \
+bun run demo:inspect
+```
+
+The inspector keeps prompting for file paths until you press Enter on a blank prompt or type `q`.
+
+Or read one file directly:
+
+```bash
+MEMEX_URL=http://localhost:8080 \
+MEMEX_API_KEY=dev-agent-key \
+bun run demo:inspect -- --user demo_user --path user/preferences.md
+```
+
 ## Live Agent
 
 ```bash

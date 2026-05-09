@@ -12,6 +12,7 @@
     "build:service": "bun run --cwd apps/service build",
     "build:sdk": "bun run --cwd packages/sdk build",
     "demo:agent": "bun run --cwd apps/demo-agent start",
+    "demo:inspect": "bun run --cwd apps/demo-agent inspect",
     "dev": "bun run --cwd apps/service dev",
     "test": "vitest run",
     "test:watch": "vitest"
