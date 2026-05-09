@@ -238,7 +238,6 @@ function FilesView({ secret, selectedPath, onSelectPath }: { secret: string; sel
               data={filteredTree}
               tree={tree}
               levelOffset={18}
-              withLines
               renderNode={(payload) => (
                 <FileTreeItem
                   payload={payload}
@@ -402,8 +401,8 @@ function FileTreeItem({ payload, isFile, onSelectPath }: { payload: RenderTreeNo
   return (
     <UnstyledButton
       w="100%"
-      px={6}
-      py={4}
+      px={8}
+      py={6}
       style={{
         borderRadius: 6,
         background: selected && isFile ? "var(--mantine-color-blue-0)" : "transparent",
@@ -413,12 +412,12 @@ function FileTreeItem({ payload, isFile, onSelectPath }: { payload: RenderTreeNo
         else if (hasChildren) tree.toggleExpanded(node.value)
       }}
     >
-      <Group gap={6} wrap="nowrap">
-        <Text size="xs" c="dimmed" w={14} ta="center">{hasChildren ? (expanded ? "v" : ">") : ""}</Text>
+      <Group gap={8} wrap="nowrap">
+        <Text size="xs" c="dimmed" w={12} ta="center" fw={600}>{hasChildren ? (expanded ? "v" : ">") : ""}</Text>
         <Text
           size="sm"
           fw={isFile && selected ? 600 : 400}
-          c={isFile ? "gray.8" : "gray.7"}
+          c={isFile ? "gray.8" : "gray.6"}
           truncate
         >
           {node.label}

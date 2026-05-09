@@ -82,3 +82,11 @@ bun run demo:agent -- "Remember that I prefer quiet projects near good schools"
 bun run build
 bun run test
 ```
+
+
+
+slide 
+```
+npm_config_registry=https://registry.npmmirror.com \
+bunx -p @slidev/cli slidev docs/hackathon-deck.md
+```
