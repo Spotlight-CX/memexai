@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify"
 import { ZodError } from "zod"
+import { getAdminFile, listAdminAccessLogs, listAdminFiles, listAdminRevisions, listAdminUsers } from "./admin"
 import { requireAdminSecret, requireApiKey } from "./auth"
 import type { Config } from "./config"
 import type { Db } from "./db"
@@ -7,6 +8,7 @@ import { errorResponse, HttpError } from "./errors"
 import { buildPromptBlock } from "./prompt-block"
 import { executeToolRequestSchema, promptBlockQuerySchema } from "./schemas"
 import { executeTool, listTools } from "./tools"
+import { registerAdminStaticRoutes } from "./static-admin"
 
 export function buildServer(input: { db: Db; config: Config }): FastifyInstance {
   const app = Fastify({ logger: true })
@@ -54,6 +56,25 @@ export function buildServer(input: { db: Db; config: Config }): FastifyInstance 
   })
 
   app.get("/v1/admin/health", { preHandler: adminAuth }, async () => ({ ok: true, admin: true }))
+  app.get("/v1/admin/users", { preHandler: adminAuth }, async () => listAdminUsers(db))
+  app.get("/v1/admin/files", { preHandler: adminAuth }, async (request) => {
+    const query = request.query as { prefix?: string }
+    return listAdminFiles(db, { prefix: query.prefix })
+  })
+  app.get("/v1/admin/files/*", { preHandler: adminAuth }, async (request) => {
+    const params = request.params as { "*": string }
+    return getAdminFile(db, decodeURIComponent(params["*"]))
+  })
+  app.get("/v1/admin/revisions", { preHandler: adminAuth }, async (request) => {
+    const query = request.query as { physicalPath?: string }
+    return listAdminRevisions(db, { physicalPath: query.physicalPath })
+  })
+  app.get("/v1/admin/access-logs", { preHandler: adminAuth }, async (request) => {
+    const query = request.query as { physicalPath?: string }
+    return listAdminAccessLogs(db, { physicalPath: query.physicalPath })
+  })
+
+  registerAdminStaticRoutes(app)
 
   return app
 }

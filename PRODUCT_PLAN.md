@@ -190,7 +190,7 @@ Parallelization:
 - Vercel and OpenAI adapters can be parallel after SDK signatures stabilize.
 - LangChain waits.
 
-### Milestone 4: Embedded Admin UI
+### Milestone 4: Embedded Admin UI - Done
 Tasks:
 - Build Vite React admin app with Mantine.
 - Use single-page tabs: Users, Files, Revisions, Access Logs.
