@@ -234,7 +234,7 @@ Parallelization:
 - Dockerfile can start once service boot exists.
 - Final validation waits for service, admin, and SDK.
 
-### Milestone 6: Propx Integration
+### Milestone 6: Propx Integration - Done
 Tasks:
 - Add MemexAI URL/API key config to `propx`.
 - Route memory operations through SDK.
