@@ -1,8 +1,14 @@
 {
   "name": "@memexai/sdk",
   "version": "0.1.0",
-  "private": true,
+  "description": "TypeScript SDK and agent tool adapters for MemexAI persistent memory.",
   "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "package.json"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -23,11 +29,29 @@
   },
   "scripts": {
     "build": "tsup src/index.ts src/adapters/openai.ts src/adapters/vercel-ai.ts src/adapters/langchain.ts --format esm --dts --platform neutral --target es2022 --out-dir dist --clean",
+    "prepublishOnly": "bun run build",
     "test": "vitest run"
   },
   "peerDependencies": {
     "ai": "^5.0.0"
   },
+  "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soorajshankar/memexai.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/soorajshankar/memexai/issues"
+  },
+  "homepage": "https://github.com/soorajshankar/memexai#readme",
   "devDependencies": {
     "ai": "^5.0.98",
     "tsup": "^8.5.1"
