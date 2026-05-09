@@ -173,7 +173,7 @@ Parallelization:
 - SDK can start once endpoint contracts are stubbed.
 - Mocked HTTP tests can run before service integration.
 
-### Milestone 3: Tool Adapters
+### Milestone 3: Tool Adapters - Done
 Tasks:
 - Add Vercel AI SDK adapter.
 - Add OpenAI adapter.
