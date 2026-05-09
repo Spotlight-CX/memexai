@@ -154,7 +154,7 @@ Parallelization:
 - Tool execution waits for path utilities.
 - Integration tests wait for migrations.
 
-### Milestone 2: TypeScript SDK
+### Milestone 2: TypeScript SDK - Done
 Tasks:
 - Create `packages/sdk`.
 - Add `new MemexAI({ url, apiKey })`.

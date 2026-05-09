@@ -70,3 +70,11 @@ export type PatchFileResult = {
   changed: boolean
   noOp: boolean
 }
+
+export type JsonSchema = Record<string, unknown>
+
+export type ToolDefinition = {
+  name: string
+  description: string
+  inputSchema: JsonSchema
+}

@@ -1,6 +1,8 @@
 export { MemexAI, MemexMemory } from "./client"
 export { MemexAIError } from "./errors"
+export { memoryToolDefinitions } from "./tool-definitions"
 export type {
+  JsonSchema,
   ListFilesInput,
   MemoryContext,
   MemoryFile,
@@ -10,6 +12,7 @@ export type {
   ReadFileInput,
   ReadFileResult,
   RequestContext,
+  ToolDefinition,
   WriteFileInput,
   WriteFileResult,
 } from "./types"

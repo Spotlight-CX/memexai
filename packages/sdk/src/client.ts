@@ -125,6 +125,14 @@ export class MemexMemory {
       arguments: args,
     })
   }
+
+  async executeTool<T = unknown>(input: { name: string; arguments: unknown; toolCallId?: string }): Promise<T> {
+    return this.client.executeTool({
+      name: input.name,
+      context: withToolCallId(this.context, input.toolCallId),
+      arguments: input.arguments,
+    })
+  }
 }
 
 function withToolCallId(context: MemoryContext, toolCallId: string | undefined): RequestContext {
