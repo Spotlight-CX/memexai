@@ -7,9 +7,11 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "bun run build:service && bun run build:sdk",
+    "build": "bun run build:service && bun run build:sdk && bun run build:demo",
+    "build:demo": "bun run --cwd apps/demo-agent build",
     "build:service": "bun run --cwd apps/service build",
     "build:sdk": "bun run --cwd packages/sdk build",
+    "demo:agent": "bun run --cwd apps/demo-agent start",
     "dev": "bun run --cwd apps/service dev",
     "test": "vitest run",
     "test:watch": "vitest"

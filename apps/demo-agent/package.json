@@ -1,0 +1,16 @@
+{
+  "name": "@memexai/demo-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun run --cwd ../../packages/sdk build && tsc -p tsconfig.json --noEmit",
+    "start": "bun run src/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^2.0.46",
+    "@memexai/sdk": "workspace:*",
+    "ai": "^5.0.98"
+  }
+}

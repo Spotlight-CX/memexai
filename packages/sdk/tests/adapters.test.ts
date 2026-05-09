@@ -45,6 +45,7 @@ describe("tool adapters", () => {
     const tools = createVercelAITools(createMemory(fetchMock))
 
     expect(Object.keys(tools)).toContain("memory_write")
+    expect(tools.memory_write.inputSchema).toBeDefined()
     await tools.memory_write.execute(
       { path: "user/profile.md", content: "# Profile" },
       { toolCallId: "call_vercel" },

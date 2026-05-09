@@ -251,6 +251,35 @@ Testable outcomes:
 Parallelization:
 - Waits for service, SDK, and adapters.
 
+### Milestone 7: Demo Agent - Done
+Tasks:
+- Create `apps/demo-agent` as a Bun/TypeScript package in the MemexAI workspace.
+- Use `@memexai/sdk`, `@memexai/sdk/adapters/vercel-ai`, `ai`, and `@ai-sdk/openai`.
+- Add a CLI command: `bun run demo:agent -- "Remember that I prefer quiet projects near good schools"`.
+- Require `MEMEX_URL`, `MEMEX_API_KEY`, and `OPENAI_API_KEY` for live agent mode.
+- Support optional `OPENAI_MODEL`, default `gpt-4.1-mini`.
+- Support optional `MEMEX_DEMO_USER_ID`, default `demo_user`.
+- Create `new MemexAI({ url, apiKey })`.
+- Create `memory = memex.forUser({ userId, actor: "demo-agent" })`.
+- Fetch and inject `await memory.getPromptBlock()` into the Vercel AI SDK system prompt.
+- Pass Memex tools via `createVercelAITools(memory)`.
+- Allow multi-step tool use so the model can write/read memory.
+- Add `--smoke` mode that does not call OpenAI.
+- In smoke mode, verify service auth, write `user/demo-agent.md`, read it back, and print admin dashboard details.
+- Add README instructions for Docker startup, env vars, smoke command, live agent command, and admin verification.
+
+Testable outcomes:
+- `bun run --cwd apps/demo-agent build` succeeds.
+- `bun run --cwd apps/demo-agent test` passes without OpenAI network calls.
+- `bun run demo:agent -- --smoke` succeeds against the Docker service.
+- Live agent calls create Memex revisions/access logs visible under `demo_user` in admin.
+- Tool call IDs are preserved when Vercel AI SDK provides them.
+
+Parallelization:
+- CLI/package scaffolding and README can be built together.
+- Live-agent command waits for adapter compatibility.
+- Smoke verification waits for Docker service.
+
 ## Minimal SDK Usage
 ```ts
 import { MemexAI } from "@memexai/sdk"

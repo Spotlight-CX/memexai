@@ -1,9 +1,10 @@
+import { jsonSchema } from "ai"
 import type { MemexMemory } from "../client"
 import { memoryToolDefinitions } from "../tool-definitions"
 
 type VercelAITool = {
   description: string
-  parameters: Record<string, unknown>
+  inputSchema: ReturnType<typeof jsonSchema>
   execute: (args: unknown, options?: { toolCallId?: string }) => Promise<unknown>
 }
 
@@ -13,7 +14,7 @@ export function createVercelAITools(memory: MemexMemory): Record<string, VercelA
       tool.name,
       {
         description: tool.description,
-        parameters: tool.inputSchema,
+        inputSchema: jsonSchema(tool.inputSchema),
         execute: (args: unknown, options?: { toolCallId?: string }) => memory.executeTool({
           name: tool.name,
           arguments: args,
