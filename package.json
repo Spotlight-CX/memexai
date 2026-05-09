@@ -1,0 +1,21 @@
+{
+  "name": "memexai-root",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "bun run --cwd apps/service build",
+    "dev": "bun run --cwd apps/service dev",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.25",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.15"
+  },
+  "packageManager": "bun@1.3.10"
+}
