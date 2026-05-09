@@ -14,6 +14,8 @@
     "demo:agent": "bun run --cwd apps/demo-agent start",
     "demo:inspect": "bun run --cwd apps/demo-agent inspect",
     "dev": "bun run --cwd apps/service dev",
+    "dev:admin": "bun run --cwd apps/service dev:admin",
+    "seed:admin": "DATABASE_URL=\"postgresql://memexai:memexai@localhost:5433/memexai\" bun run --cwd apps/service seed:admin",
     "test": "vitest run",
     "test:watch": "vitest"
   },
