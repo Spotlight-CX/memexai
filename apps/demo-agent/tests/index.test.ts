@@ -73,6 +73,24 @@ describe("demo agent CLI", () => {
     expect(log).toHaveBeenCalledWith("MemexAI demo smoke check passed.")
   })
 
+  test("smoke mode waits for the service to become ready", async () => {
+    const fetchMock = createFetchMock()
+    fetchMock.mockRejectedValueOnce(new Error("socket closed"))
+
+    await runSmoke({
+      env: {
+        MEMEX_URL: "http://localhost:8080",
+        MEMEX_API_KEY: "dev-agent-key",
+      },
+      fetchImpl: fetchMock as never,
+      log: vi.fn(),
+      retryDelayMs: 1,
+    })
+
+    const listCalls = fetchMock.mock.calls.filter(([url]) => String(url).endsWith("/v1/tools/memory_list/execute"))
+    expect(listCalls).toHaveLength(2)
+  })
+
   test("live agent injects prompt block and Vercel tools without calling OpenAI in tests", async () => {
     const fetchMock = createFetchMock()
     const generate = vi.fn(async (_input: unknown) => ({ text: "Saved that preference." }))

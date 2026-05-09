@@ -1,7 +1,13 @@
-FROM oven/bun:1.3.10 AS deps
+FROM node:20-slim AS bun-base
+ENV BUN_INSTALL=/usr/local
+RUN npm config set registry https://registry.npmmirror.com \
+  && npm install -g bun@1.3.10
+
+FROM bun-base AS deps
 WORKDIR /app
 COPY package.json bun.lock tsconfig.base.json ./
 COPY apps/service/package.json apps/service/package.json
+COPY apps/demo-agent/package.json apps/demo-agent/package.json
 COPY packages/sdk/package.json packages/sdk/package.json
 RUN bun install --registry=https://registry.npmmirror.com --frozen-lockfile
 
@@ -15,6 +21,8 @@ ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/service/node_modules ./apps/service/node_modules
 COPY --from=build /app/apps/service/dist ./apps/service/dist
+COPY --from=build /app/apps/service/migrations ./apps/service/migrations
+COPY --from=build /app/apps/service/admin/dist ./apps/service/admin/dist
 COPY --from=build /app/apps/service/package.json ./apps/service/package.json
 EXPOSE 8080
 CMD ["node", "apps/service/dist/index.js"]

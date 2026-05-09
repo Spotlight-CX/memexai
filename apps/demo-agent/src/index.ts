@@ -42,6 +42,7 @@ export async function runSmoke(input: {
   env?: Env
   fetchImpl?: typeof fetch
   log?: Logger
+  retryDelayMs?: number
 } = {}) {
   const env = input.env ?? process.env
   const log = input.log ?? console.log
@@ -54,7 +55,7 @@ export async function runSmoke(input: {
     "- This file was written through the MemexAI TypeScript SDK.",
   ].join("\n")
 
-  await memory.listFiles({ prefix: "user/" })
+  await retryUntilReady(() => memory.listFiles(), input.retryDelayMs ?? 500)
   await memory.writeFile({
     path: "user/demo-agent.md",
     content,
@@ -128,6 +129,21 @@ function requireEnv(env: Env, key: string) {
   const value = env[key]
   if (!value) throw new Error(`${key} is required`)
   return value
+}
+
+async function retryUntilReady<T>(fn: () => Promise<T>, delayMs: number): Promise<T> {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= 20; attempt += 1) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+      if (attempt === 20) break
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+    }
+  }
+
+  throw lastError
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
