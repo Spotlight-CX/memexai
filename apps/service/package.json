@@ -9,6 +9,7 @@
     "build:assets": "rm -rf dist/admin dist/migrations && mkdir -p dist/admin dist/migrations && cp -R admin/dist dist/admin/dist && cp migrations/*.sql dist/migrations/",
     "build:server": "tsup src/index.ts --format esm --platform node --target node20 --out-dir dist --clean",
     "dev": "tsx watch src/index.ts",
+    "seed:admin": "tsx scripts/seed-admin.ts",
     "start": "node dist/index.js",
     "test": "vitest run"
   },
