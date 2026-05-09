@@ -31,13 +31,14 @@ Open `http://localhost:8080/admin`, enter `dev-admin-secret`, and inspect `demo_
 ```bash
 MEMEX_URL=http://localhost:8080 \
 MEMEX_API_KEY=dev-agent-key \
-OPENAI_API_KEY=sk-... \
+GEMINI_API_KEY=... \
 bun run demo:agent -- "Remember that I prefer quiet projects near good schools"
 ```
 
 Optional environment variables:
 
-- `OPENAI_MODEL`, default `gpt-4.1-mini`
+- `GEMINI_MODEL`, default `gemini-2.5-flash`
+- `OPENAI_API_KEY` and `OPENAI_MODEL`, fallback provider when no Gemini key is set
 - `MEMEX_DEMO_USER_ID`, default `demo_user`
 
 The live agent fetches the Memex prompt block, gives the model Memex memory tools, and allows up to five Vercel AI SDK tool steps.

@@ -1,3 +1,4 @@
+import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { openai } from "@ai-sdk/openai"
 import { generateText, stepCountIs } from "ai"
 import { MemexAI } from "@memexai/sdk"
@@ -8,6 +9,7 @@ type Env = Record<string, string | undefined>
 type Logger = (message: string) => void
 type GenerateText = typeof generateText
 type OpenAIModelFactory = typeof openai
+type GoogleModelFactory = ReturnType<typeof createGoogleGenerativeAI>
 
 export type CliOptions = {
   smoke: boolean
@@ -79,19 +81,18 @@ export async function runLiveAgent(input: {
   log?: Logger
   generate?: GenerateText
   modelFactory?: OpenAIModelFactory
+  googleModelFactory?: GoogleModelFactory
 }) {
   const env = input.env ?? process.env
   const log = input.log ?? console.log
-  const modelName = env.OPENAI_MODEL || "gpt-4.1-mini"
-  requireEnv(env, "OPENAI_API_KEY")
+  const modelConfig = createModelConfig(env, input.modelFactory, input.googleModelFactory)
 
   const { userId, memory } = createDemoMemory(env, input.fetchImpl)
   const promptBlock = await memory.getPromptBlock()
   const runGenerateText = input.generate ?? generateText
-  const makeModel = input.modelFactory ?? openai
 
   const result = await runGenerateText({
-    model: makeModel(modelName),
+    model: modelConfig.model,
     system: [
       "You are a concise MemexAI demo agent.",
       "Use MemexAI memory tools whenever the user asks you to remember, retrieve, update, or inspect durable memory.",
@@ -106,6 +107,7 @@ export async function runLiveAgent(input: {
 
   log(result.text)
   log("")
+  log(`Model: ${modelConfig.provider}/${modelConfig.modelName}`)
   log(`Demo user: ${userId}`)
   return result
 }
@@ -129,6 +131,28 @@ function requireEnv(env: Env, key: string) {
   const value = env[key]
   if (!value) throw new Error(`${key} is required`)
   return value
+}
+
+function createModelConfig(env: Env, openaiFactory?: OpenAIModelFactory, googleFactory?: GoogleModelFactory) {
+  const geminiApiKey = env.GEMINI_API_KEY || env.GOOGLE_GENERATIVE_AI_API_KEY
+  if (geminiApiKey) {
+    const modelName = env.GEMINI_MODEL || env.GOOGLE_GENERATIVE_AI_MODEL || "gemini-2.5-flash"
+    const google = googleFactory ?? createGoogleGenerativeAI({ apiKey: geminiApiKey })
+    return {
+      provider: "google",
+      modelName,
+      model: google(modelName),
+    }
+  }
+
+  const modelName = env.OPENAI_MODEL || "gpt-4.1-mini"
+  requireEnv(env, "OPENAI_API_KEY")
+  const makeOpenAIModel = openaiFactory ?? openai
+  return {
+    provider: "openai",
+    modelName,
+    model: makeOpenAIModel(modelName),
+  }
 }
 
 async function retryUntilReady<T>(fn: () => Promise<T>, delayMs: number): Promise<T> {

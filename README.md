@@ -31,11 +31,11 @@ MEMEX_API_KEY=dev-agent-key
 MEMEX_ADMIN_SECRET=dev-admin-secret
 ```
 
-For the live Vercel AI SDK demo agent, also set:
+For the live Vercel AI SDK demo agent, also set a Gemini key:
 
 ```bash
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4.1-mini
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.5-flash
 MEMEX_DEMO_USER_ID=demo_user
 ```
 
@@ -54,7 +54,7 @@ Live agent:
 ```bash
 MEMEX_URL=http://localhost:8080 \
 MEMEX_API_KEY=dev-agent-key \
-OPENAI_API_KEY=sk-... \
+GEMINI_API_KEY=... \
 bun run demo:agent -- "Remember that I prefer quiet projects near good schools"
 ```
 

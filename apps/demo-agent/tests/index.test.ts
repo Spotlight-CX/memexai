@@ -91,10 +91,48 @@ describe("demo agent CLI", () => {
     expect(listCalls).toHaveLength(2)
   })
 
-  test("live agent injects prompt block and Vercel tools without calling OpenAI in tests", async () => {
+  test("live agent prefers Gemini when a Gemini key is present", async () => {
     const fetchMock = createFetchMock()
     const generate = vi.fn(async (_input: unknown) => ({ text: "Saved that preference." }))
-    const modelFactory = vi.fn(() => "mock-model")
+    const googleModelFactory = vi.fn(() => "mock-google-model")
+    const openaiModelFactory = vi.fn(() => "mock-openai-model")
+
+    await runLiveAgent({
+      prompt: "Remember quiet projects.",
+      env: {
+        MEMEX_URL: "http://localhost:8080",
+        MEMEX_API_KEY: "dev-agent-key",
+        GEMINI_API_KEY: "test-gemini-key",
+        GEMINI_MODEL: "gemini-test",
+      },
+      fetchImpl: fetchMock as never,
+      log: vi.fn(),
+      generate: generate as never,
+      modelFactory: openaiModelFactory as never,
+      googleModelFactory: googleModelFactory as never,
+    })
+
+    expect(googleModelFactory).toHaveBeenCalledWith("gemini-test")
+    expect(openaiModelFactory).not.toHaveBeenCalled()
+    const generateInput = generate.mock.calls[0]?.[0] as {
+      model: string
+      prompt: string
+      system: string
+      tools: Record<string, { inputSchema: unknown }>
+    }
+
+    expect(generateInput).toMatchObject({
+      model: "mock-google-model",
+      prompt: "Remember quiet projects.",
+    })
+    expect(generateInput.system).toContain("<memexai_memory>")
+    expect(generateInput.tools.memory_write.inputSchema).toBeDefined()
+  })
+
+  test("live agent falls back to OpenAI when no Gemini key is present", async () => {
+    const fetchMock = createFetchMock()
+    const generate = vi.fn(async (_input: unknown) => ({ text: "Saved that preference." }))
+    const modelFactory = vi.fn(() => "mock-openai-model")
 
     await runLiveAgent({
       prompt: "Remember quiet projects.",
@@ -111,18 +149,5 @@ describe("demo agent CLI", () => {
     })
 
     expect(modelFactory).toHaveBeenCalledWith("gpt-test")
-    const generateInput = generate.mock.calls[0]?.[0] as {
-      model: string
-      prompt: string
-      system: string
-      tools: Record<string, { inputSchema: unknown }>
-    }
-
-    expect(generateInput).toMatchObject({
-      model: "mock-model",
-      prompt: "Remember quiet projects.",
-    })
-    expect(generateInput.system).toContain("<memexai_memory>")
-    expect(generateInput.tools.memory_write.inputSchema).toBeDefined()
   })
 })
