@@ -1,0 +1,9 @@
+.git
+node_modules
+dist
+coverage
+.env
+.DS_Store
+apps/service/admin/dist
+apps/service/dist
+packages/sdk/dist

@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: memexai
+      POSTGRES_PASSWORD: memexai
+      POSTGRES_DB: memexai
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - memexai_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memexai -d memexai"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  memexai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      DATABASE_URL: postgresql://memexai:memexai@postgres:5432/memexai
+      MEMEX_API_KEY: ${MEMEX_API_KEY:-dev-agent-key}
+      MEMEX_ADMIN_SECRET: ${MEMEX_ADMIN_SECRET:-dev-admin-secret}
+    ports:
+      - "${MEMEX_PORT:-8080}:8080"
+
+volumes:
+  memexai_postgres_data:

@@ -215,7 +215,7 @@ Parallelization:
 - Admin API waits for storage schema.
 - Real integration waits for admin API.
 
-### Milestone 5: Docker Product
+### Milestone 5: Docker Product - Done
 Tasks:
 - Add Dockerfile using Node runtime for compiled output.
 - Add compose file with `memexai` and `postgres`.
