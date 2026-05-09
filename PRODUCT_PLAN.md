@@ -113,7 +113,7 @@ Rules:
 - No `create_folder` tool.
 
 ## Milestones
-### Milestone 0: Subrepo Foundation
+### Milestone 0: Subrepo Foundation - Done
 Tasks:
 - Create `memexai/` nested git repo.
 - Add this plan as `PRODUCT_PLAN.md`.
@@ -127,7 +127,7 @@ Testable outcomes:
 Parallelization:
 - Must happen first.
 
-### Milestone 1: Service And Storage
+### Milestone 1: Service And Storage - Done
 Tasks:
 - Create `apps/service`.
 - Add Fastify service skeleton.

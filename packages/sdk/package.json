@@ -1,0 +1,19 @@
+{
+  "name": "@memexai/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --platform neutral --target es2022 --out-dir dist --clean",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1"
+  }
+}

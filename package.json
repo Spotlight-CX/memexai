@@ -7,7 +7,9 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "bun run --cwd apps/service build",
+    "build": "bun run build:service && bun run build:sdk",
+    "build:service": "bun run --cwd apps/service build",
+    "build:sdk": "bun run --cwd packages/sdk build",
     "dev": "bun run --cwd apps/service dev",
     "test": "vitest run",
     "test:watch": "vitest"
