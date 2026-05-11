@@ -26,6 +26,7 @@
       "dependencies": {
         "@mantine/core": "^9.0.1",
         "@mantine/hooks": "^9.0.1",
+        "@mantine/spotlight": "^9.1.1",
         "fastify": "^5.6.2",
         "pg": "^8.16.3",
         "react": "^19.2.4",
@@ -199,6 +200,10 @@
     "@mantine/core": ["@mantine/core@9.1.1", "https://registry.npmmirror.com/@mantine/core/-/core-9.1.1.tgz", { "dependencies": { "@floating-ui/react": "^0.27.19", "clsx": "^2.1.1", "react-number-format": "^5.4.5", "react-remove-scroll": "^2.7.2", "type-fest": "^5.6.0" }, "peerDependencies": { "@mantine/hooks": "9.1.1", "react": "^19.2.0", "react-dom": "^19.2.0" } }, "sha512-vClOZdCeZ4oLYuA/3jAOgKGQ6dXbF6ZkzpYz09Gied9nZpB7HcQeb3dcMh8UPBE4f+EM7KlYWk6dch7GoASeaA=="],
 
     "@mantine/hooks": ["@mantine/hooks@9.1.1", "https://registry.npmmirror.com/@mantine/hooks/-/hooks-9.1.1.tgz", { "peerDependencies": { "react": "^19.2.0" } }, "sha512-tTJK73nGFyy1v214TLdvBq0be7QCoc6osfbXVuJgOH3YG85lWk9Mvvor6k+w6hC6HXSqKMqLKePyiGm83xGcMg=="],
+
+    "@mantine/spotlight": ["@mantine/spotlight@9.1.1", "", { "dependencies": { "@mantine/store": "9.1.1" }, "peerDependencies": { "@mantine/core": "9.1.1", "@mantine/hooks": "9.1.1", "react": "^19.2.0", "react-dom": "^19.2.0" } }, "sha512-UWeL3ADxfMKltxSygdzoUlVH5PO9CbbEu41kXs5sBItU87SQxppyG35wCsYfZ0plIJ7/LBAjnl5lQcKWl8AOxA=="],
+
+    "@mantine/store": ["@mantine/store@9.1.1", "", { "peerDependencies": { "react": "^19.2.0" } }, "sha512-kbxEU8wVGbobHlmQmk0lu9M+xCILKjuAPcMAshgzPznGLfXeE9zrB0gNT2cbk11Ik8dlV9J6Vsn9cuACyOSpfQ=="],
 
     "@memexai/demo-agent": ["@memexai/demo-agent@workspace:apps/demo-agent"],
 
