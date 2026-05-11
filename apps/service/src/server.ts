@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify"
 import { ZodError } from "zod"
-import { getAdminFile, listAdminAccessLogs, listAdminFiles, listAdminRevisions, listAdminUsers } from "./admin"
+import { getAdminFile, listAdminAccessLogs, listAdminFiles, listAdminRevisions, listAdminUsers, writeAdminFile } from "./admin"
 import { requireAdminSecret, requireApiKey } from "./auth"
 import type { Config } from "./config"
 import type { Db } from "./db"
@@ -64,6 +64,11 @@ export function buildServer(input: { db: Db; config: Config }): FastifyInstance 
   app.get("/v1/admin/files/*", { preHandler: adminAuth }, async (request) => {
     const params = request.params as { "*": string }
     return getAdminFile(db, decodeURIComponent(params["*"]))
+  })
+  app.put("/v1/admin/files/*", { preHandler: adminAuth }, async (request) => {
+    const params = request.params as { "*": string }
+    const { content, reason } = request.body as { content: string; reason?: string }
+    return writeAdminFile(db, decodeURIComponent(params["*"]), content, reason)
   })
   app.get("/v1/admin/revisions", { preHandler: adminAuth }, async (request) => {
     const query = request.query as { physicalPath?: string }

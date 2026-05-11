@@ -45,6 +45,15 @@ export function DotsHorizontalIcon() {
   )
 }
 
+export function PencilIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 15 15" fill="none">
+      <path d="M11.5 1.5l2 2-9 9H2.5v-2l9-9z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M9.5 3.5l2 2" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  )
+}
+
 export function SearchIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 15 15" fill="none">

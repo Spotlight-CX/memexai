@@ -1,4 +1,6 @@
 import {
+  ActionIcon,
+  Anchor,
   Badge,
   Box,
   Button,
@@ -9,6 +11,7 @@ import {
   ScrollArea,
   Stack,
   Text,
+  Textarea,
   TextInput,
   Tree,
   UnstyledButton,
@@ -17,8 +20,10 @@ import {
   useTree,
 } from "@mantine/core"
 import { useEffect, useMemo, useState } from "react"
+import ReactMarkdown from "react-markdown"
 import { useAdminData } from "../hooks"
 import { FileTreeItem } from "./FileTree"
+import { PencilIcon } from "../icons"
 import type { AdminFile, AdminRevision } from "../types"
 import { deriveTree, formatDate, isCodeLike, relativeTime } from "../utils"
 import { ErrorText } from "./TableViews"
@@ -35,15 +40,22 @@ export function FilesView({
   const [search, setSearch] = useState("")
   const [selectedRevision, setSelectedRevision] = useState<AdminRevision | null>(null)
   const [copied, setCopied] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [draftContent, setDraftContent] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   const { data, error } = useAdminData<{ files: AdminFile[] }>("/v1/admin/files", secret)
   const { data: selected } = useAdminData<{ file: AdminFile }>(
     selectedPath ? `/v1/admin/files/${encodeURIComponent(selectedPath)}` : null,
     secret,
+    refreshKey,
   )
   const { data: revisions, error: revisionsError } = useAdminData<{ revisions: AdminRevision[] }>(
     selectedPath ? `/v1/admin/revisions?physicalPath=${encodeURIComponent(selectedPath)}` : null,
     secret,
+    refreshKey,
   )
 
   const tree = useTree()
@@ -65,6 +77,8 @@ export function FilesView({
 
   const handleSelectPath = (path: string) => {
     setSelectedRevision(null)
+    setIsEditing(false)
+    setSaveError(null)
     onSelectPath(path)
     tree.select(path)
   }
@@ -74,6 +88,40 @@ export function FilesView({
     navigator.clipboard.writeText(selectedPath)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
+  }
+
+  const handleEdit = () => {
+    setDraftContent(visibleContent)
+    setIsEditing(true)
+    setSaveError(null)
+  }
+
+  const handleCancelEdit = () => {
+    setIsEditing(false)
+    setSaveError(null)
+  }
+
+  const handleSave = async () => {
+    if (!selectedPath) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const response = await fetch(`/v1/admin/files/${encodeURIComponent(selectedPath)}`, {
+        method: "PUT",
+        headers: { "x-memex-admin-secret": secret, "content-type": "application/json" },
+        body: JSON.stringify({ content: draftContent, reason: "admin edit" }),
+      })
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error((body as any)?.error?.message ?? "Save failed")
+      }
+      setIsEditing(false)
+      setRefreshKey((k) => k + 1)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Save failed")
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (error) return <ErrorText error={error} />
@@ -137,80 +185,48 @@ export function FilesView({
           <Box maw={860} mx="auto">
             {selectedPath ? (
               <Stack gap="xl">
-                {/* File header */}
-                <Stack gap={6}>
-                  <Text fw={600} size="lg" c="gray.9" style={{ lineHeight: 1.2 }}>
-                    {fileName}
+                {/* File header — compact breadcrumb */}
+                <Group gap={8} align="center" wrap="nowrap">
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                    ff="monospace"
+                    style={{ cursor: "pointer", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    onClick={handleCopyPath}
+                    title={`${selectedPath} — click to copy`}
+                  >
+                    {selectedPath?.split("/").map((seg, i, arr) => (
+                      <span key={i}>
+                        {i > 0 && <span style={{ margin: "0 3px", opacity: 0.4 }}>/</span>}
+                        <span style={i === arr.length - 1 ? { color: "var(--mantine-color-gray-7)", fontWeight: 500 } : {}}>
+                          {seg}
+                        </span>
+                      </span>
+                    ))}
+                    {copied && <span style={{ marginLeft: 6, color: "var(--mantine-color-teal-6)" }}>copied</span>}
                   </Text>
-                  <Group gap={6} wrap="nowrap" align="center">
-                    <Text
-                      ff="monospace"
-                      size="xs"
-                      c="dimmed"
-                      style={{ overflowWrap: "anywhere", cursor: "pointer", flex: 1 }}
-                      onClick={handleCopyPath}
-                      title="Click to copy"
-                    >
-                      {selectedPath}
+                  {latestRevision && (
+                    <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap", flexShrink: 0 }}>
+                      {latestRevision.actor ? `${latestRevision.actor} · ` : ""}{relativeTime(latestRevision.createdAt)}
                     </Text>
-                    {copied && (
-                      <Text size="xs" c="teal.6" fw={500} style={{ whiteSpace: "nowrap" }}>Copied!</Text>
-                    )}
-                  </Group>
-
-                  {/* Last write strip */}
-                  {latestRevision ? (
-                    <Group gap={8} wrap="wrap" align="center" mt={2}>
-                      {latestRevision.actor && (
-                        <Badge
-                          size="sm"
-                          variant="light"
-                          color={latestRevision.actor.includes("admin") ? "orange" : "blue"}
-                          style={{ textTransform: "none", fontWeight: 500 }}
-                        >
-                          {latestRevision.actor}
-                        </Badge>
-                      )}
-                      <Badge size="sm" variant="outline" color="gray" style={{ textTransform: "none" }}>
-                        {latestRevision.operation}
-                      </Badge>
-                      {latestRevision.reason && (
-                        <Text
-                          size="xs"
-                          c="gray.6"
-                          style={{
-                            flex: "1 1 auto",
-                            minWidth: 0,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            maxWidth: 480,
-                          }}
-                        >
-                          {latestRevision.reason}
-                        </Text>
-                      )}
-                      <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
-                        {relativeTime(latestRevision.createdAt)}
-                      </Text>
+                  )}
+                  {selectedRevision
+                    ? <Badge variant="light" color="yellow" size="xs" style={{ flexShrink: 0 }}>historical</Badge>
+                    : <Badge variant="dot" color="green" size="xs" style={{ flexShrink: 0 }}>latest</Badge>
+                  }
+                  {!selectedRevision && !isEditing && (
+                    <ActionIcon size="xs" variant="subtle" color="gray" onClick={handleEdit} title="Edit file">
+                      <PencilIcon />
+                    </ActionIcon>
+                  )}
+                  {isEditing && (
+                    <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
+                      <Button size="xs" variant="filled" color="blue" loading={saving} onClick={handleSave}>Save</Button>
+                      <Button size="xs" variant="subtle" color="gray" disabled={saving} onClick={handleCancelEdit}>Cancel</Button>
                     </Group>
-                  ) : null}
-
-                  {/* Stats row */}
-                  <Group gap={16} mt={2}>
-                    {selectedFile ? (
-                      <Text size="xs" c="dimmed">
-                        {selectedFile.size} bytes
-                        {revisionCount > 0 ? ` · ${revisionCount} revision${revisionCount !== 1 ? "s" : ""}` : ""}
-                        {` · created ${formatDate(selectedFile.createdAt)}`}
-                      </Text>
-                    ) : null}
-                    {selectedRevision
-                      ? <Badge variant="light" color="yellow" size="xs">Historical revision</Badge>
-                      : <Badge variant="light" color="green" size="xs">Latest</Badge>
-                    }
-                  </Group>
-                </Stack>
+                  )}
+                </Group>
+                {saveError && <Text size="xs" c="red.6">{saveError}</Text>}
 
                 {selectedRevision ? (
                   <Paper withBorder p="sm" radius="sm" bg="yellow.0">
@@ -225,7 +241,12 @@ export function FilesView({
                   </Paper>
                 ) : null}
 
-                <DocumentBody content={visibleContent} path={selectedPath} />
+                <DocumentBody
+                  content={isEditing ? draftContent : visibleContent}
+                  path={selectedPath}
+                  isEditing={isEditing}
+                  onChange={setDraftContent}
+                />
               </Stack>
             ) : (
               <Box pt={120} ta="center">
@@ -302,10 +323,103 @@ function RevisionRow({
   )
 }
 
-function DocumentBody({ content, path }: { content: string; path: string }) {
-  const codeLike = isCodeLike(content, path)
+function DocumentBody({
+  content,
+  path,
+  isEditing,
+  onChange,
+}: {
+  content: string
+  path: string
+  isEditing: boolean
+  onChange: (value: string) => void
+}) {
+  if (isEditing) {
+    return (
+      <Textarea
+        value={content}
+        onChange={(e) => onChange(e.currentTarget.value)}
+        autosize
+        minRows={12}
+        styles={{
+          input: {
+            fontFamily: "var(--mantine-font-family-monospace)",
+            fontSize: 13,
+            lineHeight: 1.7,
+            background: "var(--mantine-color-gray-0)",
+          },
+        }}
+      />
+    )
+  }
 
-  if (codeLike) {
+  const isMd = path.endsWith(".md")
+
+  if (isMd) {
+    return (
+      <Box
+        style={{
+          fontSize: 15,
+          lineHeight: 1.75,
+          color: "var(--mantine-color-gray-9)",
+        }}
+      >
+        <ReactMarkdown
+          components={{
+            h1: ({ children }) => (
+              <Text component="h1" fw={700} style={{ fontSize: 26, lineHeight: 1.3, marginTop: "1.5em", marginBottom: "0.5em" }}>{children}</Text>
+            ),
+            h2: ({ children }) => (
+              <Text component="h2" fw={600} style={{ fontSize: 20, lineHeight: 1.35, marginTop: "1.4em", marginBottom: "0.4em" }}>{children}</Text>
+            ),
+            h3: ({ children }) => (
+              <Text component="h3" fw={600} style={{ fontSize: 16, lineHeight: 1.4, marginTop: "1.2em", marginBottom: "0.3em" }}>{children}</Text>
+            ),
+            p: ({ children }) => (
+              <Text component="p" style={{ margin: "0.6em 0", lineHeight: 1.75, fontSize: 15 }}>{children}</Text>
+            ),
+            ul: ({ children }) => <Box component="ul" style={{ paddingLeft: "1.5em", margin: "0.5em 0" }}>{children}</Box>,
+            ol: ({ children }) => <Box component="ol" style={{ paddingLeft: "1.5em", margin: "0.5em 0" }}>{children}</Box>,
+            li: ({ children }) => <Text component="li" style={{ lineHeight: 1.75, fontSize: 15, marginBottom: "0.2em" }}>{children}</Text>,
+            a: ({ href, children }) => <Anchor href={href} size="sm" target="_blank" rel="noreferrer">{children}</Anchor>,
+            blockquote: ({ children }) => (
+              <Box
+                component="blockquote"
+                style={{
+                  borderLeft: "3px solid var(--mantine-color-gray-3)",
+                  paddingLeft: "1em",
+                  margin: "1em 0",
+                  color: "var(--mantine-color-gray-6)",
+                }}
+              >
+                {children}
+              </Box>
+            ),
+            hr: () => <Divider my="lg" />,
+            pre: ({ children }) => <>{children}</>,
+            code: ({ className, children }) => {
+              const isBlock = /language-/.test(className ?? "") || String(children).includes("\n")
+              if (isBlock) {
+                return (
+                  <Code
+                    block
+                    style={{ fontSize: 13, lineHeight: 1.6, margin: "0.75em 0", background: "var(--mantine-color-gray-0)" }}
+                  >
+                    {String(children).replace(/\n$/, "")}
+                  </Code>
+                )
+              }
+              return <Code>{children}</Code>
+            },
+          }}
+        >
+          {content}
+        </ReactMarkdown>
+      </Box>
+    )
+  }
+
+  if (isCodeLike(content, path)) {
     return (
       <Code
         block

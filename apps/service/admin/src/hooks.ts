@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 
-export function useAdminData<T>(path: string | null, secret: string) {
+export function useAdminData<T>(path: string | null, secret: string, refreshKey?: number) {
   const [data, setData] = useState<T | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -20,7 +20,7 @@ export function useAdminData<T>(path: string | null, secret: string) {
         if (!cancelled) setError(nextError instanceof Error ? nextError.message : "Request failed")
       })
     return () => { cancelled = true }
-  }, [path, secret])
+  }, [path, secret, refreshKey])
 
   return { data, error }
 }

@@ -1,5 +1,6 @@
 import type { Db } from "./db"
 import { HttpError } from "./errors"
+import { newId } from "./ids"
 
 type QueryResult<T> = { rows: T[] }
 
@@ -147,6 +148,34 @@ export async function listAdminRevisions(db: Db, input: { physicalPath?: string 
       createdAt: row.created_at,
     })),
   }
+}
+
+export async function writeAdminFile(
+  db: Db,
+  physicalPath: string,
+  content: string,
+  reason?: string,
+) {
+  if (!physicalPath) throw new HttpError(400, "PHYSICAL_PATH_REQUIRED", "physicalPath is required")
+  if (typeof content !== "string") throw new HttpError(400, "CONTENT_REQUIRED", "content is required")
+
+  const { rows } = await db.query<{ id: string; created: boolean }>(
+    `INSERT INTO mx_file (id, physical_path, content_text)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (physical_path)
+     DO UPDATE SET content_text = EXCLUDED.content_text, updated_at = now()
+     RETURNING id, (xmax = 0) AS created`,
+    [newId("file"), physicalPath, content],
+  )
+
+  const file = rows[0]
+  await db.query(
+    `INSERT INTO mx_revision (id, file_id, physical_path, operation, content_text, reason, actor, user_id, tool_call_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [newId("rev"), file.id, physicalPath, "write", content, reason ?? null, "admin", null, null],
+  )
+
+  return { physicalPath, created: file.created, updated: !file.created }
 }
 
 export async function listAdminAccessLogs(db: Db, input: { physicalPath?: string }) {
