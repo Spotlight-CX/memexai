@@ -100,7 +100,6 @@ The admin UI makes memory inspectable.
 Tools like Mem0 focus on a broad memory layer:
 
 - Managed platform
-- Open-source stack
 - Many framework integrations
 - Self-improving memory workflows
 
