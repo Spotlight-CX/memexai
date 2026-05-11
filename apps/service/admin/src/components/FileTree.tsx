@@ -1,18 +1,20 @@
-import { Box, Text } from "@mantine/core"
+import { Box, Text, UnstyledButton } from "@mantine/core"
 import type { RenderTreeNodePayload } from "@mantine/core"
 import { useState } from "react"
-import { ChevronIcon, FileDocIcon, FolderIcon } from "../icons"
+import { ChevronIcon, FileDocIcon, FolderIcon, PlusIcon } from "../icons"
 
 export function FileTreeItem({
   payload,
   isFile,
   filePaths,
   onSelectPath,
+  onNewFile,
 }: {
   payload: RenderTreeNodePayload
   isFile: boolean
   filePaths: Set<string>
   onSelectPath: (path: string) => void
+  onNewFile?: (prefixPath: string) => void
 }) {
   const { node, expanded, hasChildren, selected, tree, level } = payload
   const [hovered, setHovered] = useState(false)
@@ -111,6 +113,28 @@ export function FileTreeItem({
       >
         {String(node.label)}
       </Text>
+
+      {/* New file button — folders only, visible on hover */}
+      {!isFile && onNewFile && (
+        <UnstyledButton
+          onClick={(e) => { e.stopPropagation(); onNewFile(`${node.value}/`) }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 16,
+            height: 16,
+            borderRadius: 3,
+            flexShrink: 0,
+            opacity: hovered ? 0.6 : 0,
+            color: "var(--mantine-color-gray-6)",
+            transition: "opacity 100ms",
+          }}
+          title="New file in folder"
+        >
+          <PlusIcon />
+        </UnstyledButton>
+      )}
     </Box>
   )
 }

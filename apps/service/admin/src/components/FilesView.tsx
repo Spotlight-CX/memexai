@@ -7,6 +7,7 @@ import {
   Code,
   Divider,
   Group,
+  Modal,
   Paper,
   ScrollArea,
   Stack,
@@ -23,7 +24,7 @@ import { useEffect, useMemo, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import { useAdminData } from "../hooks"
 import { FileTreeItem } from "./FileTree"
-import { PencilIcon } from "../icons"
+import { PencilIcon, PlusIcon } from "../icons"
 import type { AdminFile, AdminRevision } from "../types"
 import { deriveTree, formatDate, isCodeLike, relativeTime } from "../utils"
 import { ErrorText } from "./TableViews"
@@ -45,6 +46,7 @@ export function FilesView({
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [newFilePath, setNewFilePath] = useState<string | null>(null)
 
   const { data, error } = useAdminData<{ files: AdminFile[] }>("/v1/admin/files", secret)
   const { data: selected } = useAdminData<{ file: AdminFile }>(
@@ -143,9 +145,14 @@ export function FilesView({
       {/* Left: file tree */}
       <Stack gap={0} h="100%" style={{ minHeight: 0, borderRight: "1px solid var(--mantine-color-gray-2)" }}>
         <Box px={12} pt={12} pb={8}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase" mb={6} style={{ letterSpacing: "0.04em" }}>
-            Explorer
-          </Text>
+          <Group justify="space-between" align="center" mb={6}>
+            <Text size="xs" fw={600} c="dimmed" tt="uppercase" style={{ letterSpacing: "0.04em" }}>
+              Explorer
+            </Text>
+            <ActionIcon size="xs" variant="subtle" color="gray" onClick={() => setNewFilePath("")} title="New file">
+              <PlusIcon />
+            </ActionIcon>
+          </Group>
           <TextInput
             aria-label="Search files"
             placeholder="Search…"
@@ -167,6 +174,7 @@ export function FilesView({
                   isFile={filePaths.has(payload.node.value)}
                   filePaths={filePaths}
                   onSelectPath={handleSelectPath}
+                  onNewFile={setNewFilePath}
                 />
               )}
             />
@@ -241,6 +249,14 @@ export function FilesView({
                   </Paper>
                 ) : null}
 
+                {isEditing && isRiskyPath(selectedPath) && (
+                  <Paper p="xs" radius="sm" bg="yellow.0" withBorder style={{ borderColor: "var(--mantine-color-yellow-3)" }}>
+                    <Text size="xs" c="yellow.9">
+                      This file affects agent behavior across all sessions. Changes take effect immediately.
+                    </Text>
+                  </Paper>
+                )}
+
                 <DocumentBody
                   content={isEditing ? draftContent : visibleContent}
                   path={selectedPath}
@@ -259,6 +275,20 @@ export function FilesView({
           </Box>
         </Box>
       </ScrollArea>
+
+      {/* New file modal */}
+      {newFilePath !== null && (
+        <NewFileModal
+          prefixPath={newFilePath}
+          secret={secret}
+          onClose={() => setNewFilePath(null)}
+          onCreated={(path) => {
+            setNewFilePath(null)
+            setRefreshKey((k) => k + 1)
+            handleSelectPath(path)
+          }}
+        />
+      )}
 
       {/* Right: revision sidebar */}
       <Stack gap={0} h="100%" style={{ minHeight: 0, borderLeft: "1px solid var(--mantine-color-gray-2)", background: "var(--mantine-color-gray-0)" }}>
@@ -284,6 +314,79 @@ export function FilesView({
         </ScrollArea>
       </Stack>
     </Box>
+  )
+}
+
+function isRiskyPath(path: string | null) {
+  if (!path) return false
+  return path.startsWith("shared/") || path.split("/").pop() === "index.md"
+}
+
+function NewFileModal({
+  prefixPath,
+  secret,
+  onClose,
+  onCreated,
+}: {
+  prefixPath: string
+  secret: string
+  onClose: () => void
+  onCreated: (path: string) => void
+}) {
+  const [path, setPath] = useState(prefixPath)
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const trimmed = path.trim().replace(/^\/+/, "")
+  const risky = isRiskyPath(trimmed)
+
+  const handleCreate = async () => {
+    if (!trimmed) return
+    setCreating(true)
+    setError(null)
+    try {
+      const response = await fetch(`/v1/admin/files/${encodeURIComponent(trimmed)}`, {
+        method: "PUT",
+        headers: { "x-memex-admin-secret": secret, "content-type": "application/json" },
+        body: JSON.stringify({ content: "", reason: "admin: new file" }),
+      })
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error((body as any)?.error?.message ?? "Create failed")
+      }
+      onCreated(trimmed)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Create failed")
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  return (
+    <Modal opened onClose={onClose} title="New file" size="sm" centered>
+      <Stack gap="sm">
+        {risky && (
+          <Paper p="xs" radius="sm" bg="yellow.0" withBorder style={{ borderColor: "var(--mantine-color-yellow-3)" }}>
+            <Text size="xs" c="yellow.9">
+              Files in <code>shared/</code> or named <code>index.md</code> affect agent behavior across all sessions.
+            </Text>
+          </Paper>
+        )}
+        <TextInput
+          label="File path"
+          description="Relative path, e.g. users/user_123/notes.md"
+          value={path}
+          onChange={(e) => setPath(e.currentTarget.value)}
+          placeholder="path/to/file.md"
+          data-autofocus
+          onKeyDown={(e) => { if (e.key === "Enter") handleCreate() }}
+        />
+        {error && <Text size="xs" c="red.6">{error}</Text>}
+        <Group justify="flex-end" gap="xs">
+          <Button variant="subtle" color="gray" size="xs" onClick={onClose} disabled={creating}>Cancel</Button>
+          <Button size="xs" loading={creating} disabled={!trimmed} onClick={handleCreate}>Create</Button>
+        </Group>
+      </Stack>
+    </Modal>
   )
 }
 
