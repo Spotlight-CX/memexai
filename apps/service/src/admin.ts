@@ -71,10 +71,27 @@ export async function listAdminFiles(db: Db, input: { prefix?: string }) {
 export async function getAdminFile(db: Db, physicalPath: string) {
   if (!physicalPath) throw new HttpError(400, "PHYSICAL_PATH_REQUIRED", "physicalPath is required")
 
-  const { rows } = await db.query<AdminFileRow>(
-    `SELECT id, physical_path, content_text, created_at, updated_at
-     FROM mx_file
-     WHERE physical_path = $1`,
+  const { rows } = await db.query<AdminFileRow & {
+    latest_op: string | null
+    latest_actor: string | null
+    latest_reason: string | null
+    latest_rev_at: Date | null
+    revision_count: string
+  }>(
+    `SELECT
+       f.id, f.physical_path, f.content_text, f.created_at, f.updated_at,
+       r.operation AS latest_op, r.actor AS latest_actor,
+       r.reason AS latest_reason, r.created_at AS latest_rev_at,
+       (SELECT COUNT(*) FROM mx_revision WHERE file_id = f.id) AS revision_count
+     FROM mx_file f
+     LEFT JOIN LATERAL (
+       SELECT operation, actor, reason, created_at
+       FROM mx_revision
+       WHERE file_id = f.id
+       ORDER BY created_at DESC
+       LIMIT 1
+     ) r ON true
+     WHERE f.physical_path = $1`,
     [physicalPath],
   )
 
@@ -85,6 +102,15 @@ export async function getAdminFile(db: Db, physicalPath: string) {
     file: {
       ...toAdminFileSummary(file),
       content: file.content_text,
+      latestRevision: file.latest_op
+        ? {
+            operation: file.latest_op,
+            actor: file.latest_actor,
+            reason: file.latest_reason,
+            createdAt: file.latest_rev_at,
+          }
+        : null,
+      revisionCount: Number(file.revision_count),
     },
   }
 }

@@ -1,5 +1,6 @@
 import "@mantine/core/styles.css"
 import {
+  ActionIcon,
   AppShell,
   Badge,
   Box,
@@ -7,13 +8,14 @@ import {
   Code,
   Divider,
   Group,
+  Menu,
+  Modal,
   MantineProvider,
   Paper,
   PasswordInput,
   ScrollArea,
   Stack,
   Table,
-  Tabs,
   Text,
   TextInput,
   Title,
@@ -43,6 +45,13 @@ type AdminFile = {
   createdAt: string
   updatedAt: string
   content?: string
+  latestRevision?: {
+    operation: string
+    actor: string | null
+    reason: string | null
+    createdAt: string
+  } | null
+  revisionCount?: number
 }
 
 type AdminRevision = {
@@ -72,8 +81,16 @@ type FileTreeNode = TreeNodeData & {
   children?: FileTreeNode[]
 }
 
+type Overlay = "users" | "revisions" | "logs" | null
+
 function App() {
   const [secret, setSecret] = useState(() => localStorage.getItem(storageKey) ?? "")
+  const [overlay, setOverlay] = useState<Overlay>(null)
+
+  const signOut = () => {
+    localStorage.removeItem(storageKey)
+    setSecret("")
+  }
 
   if (!secret) {
     return <SecretGate onSubmit={(value) => {
@@ -85,32 +102,73 @@ function App() {
   return (
     <MantineProvider defaultColorScheme="light">
       <AppShell
-        header={{ height: 74 }}
+        header={{ height: 56 }}
         padding={0}
         styles={{
           root: { height: "100vh", background: "var(--mantine-color-gray-0)" },
           header: { borderBottom: "1px solid var(--mantine-color-gray-2)" },
-          main: { height: "calc(100vh - 74px)", minHeight: 0, paddingTop: 74 },
+          main: { height: "calc(100vh - 56px)", minHeight: 0, paddingTop: 56 },
         }}
       >
         <AppShell.Header>
           <Group h="100%" px="lg" justify="space-between" wrap="nowrap">
-            <Box miw={220}>
-              <Title order={3} size="h4">MemexAI Admin</Title>
-              <Text c="dimmed" size="xs">Observe memory files, revisions, and access logs.</Text>
+            <Box miw={200}>
+              <Title order={3} size="h4" fw={600}>MemexAI Admin</Title>
             </Box>
-            <Button variant="subtle" color="gray" size="xs" onClick={() => {
-              localStorage.removeItem(storageKey)
-              setSecret("")
-            }}>
-              Forget secret
-            </Button>
+            <Group gap={6}>
+              <Menu shadow="md" width={180} position="bottom-end">
+                <Menu.Target>
+                  <ActionIcon variant="subtle" color="gray" size="md" aria-label="More options">
+                    <DotsHorizontalIcon />
+                  </ActionIcon>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Item onClick={() => setOverlay("users")}>Users</Menu.Item>
+                  <Menu.Item onClick={() => setOverlay("revisions")}>Revisions</Menu.Item>
+                  <Menu.Item onClick={() => setOverlay("logs")}>Access Logs</Menu.Item>
+                  <Menu.Divider />
+                  <Menu.Item color="red" onClick={signOut}>Sign out</Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            </Group>
           </Group>
         </AppShell.Header>
+
         <AppShell.Main>
-          <AdminTabs secret={secret} />
+          <FilesView secret={secret} />
         </AppShell.Main>
       </AppShell>
+
+      <Modal
+        opened={overlay === "users"}
+        onClose={() => setOverlay(null)}
+        title="Users"
+        size="xl"
+      >
+        <Box h="60vh" style={{ minHeight: 0 }}>
+          <UsersView secret={secret} />
+        </Box>
+      </Modal>
+      <Modal
+        opened={overlay === "revisions"}
+        onClose={() => setOverlay(null)}
+        title="Revisions"
+        size="xl"
+      >
+        <Box h="60vh" style={{ minHeight: 0 }}>
+          <RevisionsView secret={secret} physicalPath={null} />
+        </Box>
+      </Modal>
+      <Modal
+        opened={overlay === "logs"}
+        onClose={() => setOverlay(null)}
+        title="Access Logs"
+        size="xl"
+      >
+        <Box h="60vh" style={{ minHeight: 0 }}>
+          <AccessLogsView secret={secret} physicalPath={null} />
+        </Box>
+      </Modal>
     </MantineProvider>
   )
 }
@@ -137,53 +195,12 @@ function SecretGate({ onSubmit }: { onSubmit: (value: string) => void }) {
   )
 }
 
-function AdminTabs({ secret }: { secret: string }) {
+function FilesView({ secret }: { secret: string }) {
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
-
-  return (
-    <Tabs defaultValue="files" h="100%" style={{ display: "flex", flexDirection: "column" }}>
-      <Tabs.List px="lg" h={42} style={{ flex: "0 0 auto", background: "var(--mantine-color-white)" }}>
-        <Tabs.Tab value="users">Users</Tabs.Tab>
-        <Tabs.Tab value="files">Files</Tabs.Tab>
-        <Tabs.Tab value="revisions">Revisions</Tabs.Tab>
-        <Tabs.Tab value="logs">Access Logs</Tabs.Tab>
-      </Tabs.List>
-      <Tabs.Panel value="users" style={{ flex: 1, minHeight: 0 }}><UsersView secret={secret} /></Tabs.Panel>
-      <Tabs.Panel value="files" style={{ flex: 1, minHeight: 0 }}><FilesView secret={secret} selectedPath={selectedPath} onSelectPath={setSelectedPath} /></Tabs.Panel>
-      <Tabs.Panel value="revisions" style={{ flex: 1, minHeight: 0 }}><RevisionsView secret={secret} physicalPath={selectedPath} /></Tabs.Panel>
-      <Tabs.Panel value="logs" style={{ flex: 1, minHeight: 0 }}><AccessLogsView secret={secret} physicalPath={selectedPath} /></Tabs.Panel>
-    </Tabs>
-  )
-}
-
-function UsersView({ secret }: { secret: string }) {
-  const { data, error } = useAdminData<{ users: AdminUser[] }>("/v1/admin/users", secret)
-  if (error) return <ErrorText error={error} />
-
-  return (
-    <TableShell>
-      <Table striped highlightOnHover stickyHeader>
-        <Table.Thead>
-          <Table.Tr><Table.Th>User ID</Table.Th><Table.Th>Files</Table.Th><Table.Th>Last Write</Table.Th><Table.Th>Last Read</Table.Th></Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {(data?.users ?? []).map((user) => (
-            <Table.Tr key={user.userId}>
-              <Table.Td><Code>{user.userId}</Code></Table.Td>
-              <Table.Td>{user.fileCount}</Table.Td>
-              <Table.Td>{formatDate(user.lastWriteAt)}</Table.Td>
-              <Table.Td>{formatDate(user.lastReadAt)}</Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </TableShell>
-  )
-}
-
-function FilesView({ secret, selectedPath, onSelectPath }: { secret: string; selectedPath: string | null; onSelectPath: (path: string) => void }) {
   const [search, setSearch] = useState("")
   const [selectedRevision, setSelectedRevision] = useState<AdminRevision | null>(null)
+  const [copied, setCopied] = useState(false)
+
   const { data, error } = useAdminData<{ files: AdminFile[] }>("/v1/admin/files", secret)
   const { data: selected } = useAdminData<{ file: AdminFile }>(
     selectedPath ? `/v1/admin/files/${encodeURIComponent(selectedPath)}` : null,
@@ -193,6 +210,7 @@ function FilesView({ secret, selectedPath, onSelectPath }: { secret: string; sel
     selectedPath ? `/v1/admin/revisions?physicalPath=${encodeURIComponent(selectedPath)}` : null,
     secret,
   )
+
   const tree = useTree()
   const files = data?.files ?? []
   const fileTree = useMemo(() => deriveTree(files), [files])
@@ -212,32 +230,54 @@ function FilesView({ secret, selectedPath, onSelectPath }: { secret: string; sel
 
   const handleSelectPath = (path: string) => {
     setSelectedRevision(null)
-    onSelectPath(path)
+    setSelectedPath(path)
     tree.select(path)
+  }
+
+  const handleCopyPath = () => {
+    if (!selectedPath) return
+    navigator.clipboard.writeText(selectedPath)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
   }
 
   if (error) return <ErrorText error={error} />
 
+  const fileName = selectedPath ? selectedPath.split("/").pop() ?? selectedPath : null
+  const latestRevision = selectedFile?.latestRevision ?? null
+  const revisionCount = selectedFile?.revisionCount ?? 0
+
   return (
-    <Box h="100%" style={{ display: "grid", gridTemplateColumns: "280px minmax(520px, 1fr) 304px", minHeight: 0, background: "var(--mantine-color-white)" }}>
-      <Stack gap="sm" p="md" h="100%" style={{ minHeight: 0, borderRight: "1px solid var(--mantine-color-gray-2)" }}>
-        <Box>
-          <Text size="xs" fw={700} tt="uppercase" c="dimmed">Files</Text>
-          <Text size="xs" c="dimmed">{files.length} indexed memories</Text>
+    <Box
+      h="100%"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "264px minmax(0, 1fr) 296px",
+        minHeight: 0,
+        background: "var(--mantine-color-white)",
+      }}
+    >
+      {/* Left: file tree */}
+      <Stack gap={0} h="100%" style={{ minHeight: 0, borderRight: "1px solid var(--mantine-color-gray-2)" }}>
+        <Box px={12} pt={12} pb={8}>
+          <Text size="xs" fw={600} c="dimmed" tt="uppercase" mb={6} style={{ letterSpacing: "0.04em" }}>
+            Explorer
+          </Text>
+          <TextInput
+            aria-label="Search files"
+            placeholder="Search…"
+            value={search}
+            onChange={(event) => setSearch(event.currentTarget.value)}
+            size="xs"
+            styles={{ input: { fontSize: 12 } }}
+          />
         </Box>
-        <TextInput
-          aria-label="Search files"
-          placeholder="Search files"
-          value={search}
-          onChange={(event) => setSearch(event.currentTarget.value)}
-          size="xs"
-        />
-        <ScrollArea flex={1} offsetScrollbars>
+        <ScrollArea flex={1} offsetScrollbars px={4}>
           {filteredTree.length ? (
             <Tree
               data={filteredTree}
               tree={tree}
-              levelOffset={18}
+              levelOffset={0}
               renderNode={(payload) => (
                 <FileTreeItem
                   payload={payload}
@@ -247,23 +287,81 @@ function FilesView({ secret, selectedPath, onSelectPath }: { secret: string; sel
               )}
             />
           ) : (
-            <Text size="sm" c="dimmed" mt="md">No files match this search.</Text>
+            <Text size="xs" c="dimmed" mt="md" px={8}>No files match.</Text>
           )}
         </ScrollArea>
+        <Box px={12} py={8} style={{ borderTop: "1px solid var(--mantine-color-gray-1)" }}>
+          <Text size="xs" c="dimmed">{files.length} files indexed</Text>
+        </Box>
       </Stack>
 
+      {/* Center: file content */}
       <ScrollArea h="100%">
-        <Box px={{ base: "xl", xl: 64 }} py={48}>
-          <Box maw={900} mx="auto">
+        <Box px={{ base: "xl", xl: 56 }} py={40}>
+          <Box maw={860} mx="auto">
             {selectedPath ? (
               <Stack gap="xl">
-                <Stack gap="xs">
-                  <Text size="xs" c="dimmed">Physical path</Text>
-                  <Text ff="monospace" size="sm" c="dimmed" style={{ overflowWrap: "anywhere" }}>{selectedPath}</Text>
-                  <Group gap="xs">
-                    {selectedFile ? <Badge variant="light" color="gray">{selectedFile.size} bytes</Badge> : null}
-                    {selectedFile ? <Badge variant="light" color="gray">Updated {formatDate(selectedFile.updatedAt)}</Badge> : null}
-                    {selectedRevision ? <Badge variant="light" color="yellow">Historical revision</Badge> : <Badge variant="light" color="green">Latest</Badge>}
+                {/* File header */}
+                <Stack gap={6}>
+                  <Text fw={600} size="lg" c="gray.9" style={{ lineHeight: 1.2 }}>
+                    {fileName}
+                  </Text>
+                  <Group gap={6} wrap="nowrap" align="center">
+                    <Text
+                      ff="monospace"
+                      size="xs"
+                      c="dimmed"
+                      style={{ overflowWrap: "anywhere", cursor: "pointer", flex: 1 }}
+                      onClick={handleCopyPath}
+                      title="Click to copy"
+                    >
+                      {selectedPath}
+                    </Text>
+                    {copied && (
+                      <Text size="xs" c="teal.6" fw={500} style={{ whiteSpace: "nowrap" }}>Copied!</Text>
+                    )}
+                  </Group>
+
+                  {/* Last write strip */}
+                  {latestRevision ? (
+                    <Group gap={8} wrap="wrap" align="center" mt={2}>
+                      {latestRevision.actor && (
+                        <Badge
+                          size="sm"
+                          variant="light"
+                          color={latestRevision.actor.includes("admin") ? "orange" : "blue"}
+                          style={{ textTransform: "none", fontWeight: 500 }}
+                        >
+                          {latestRevision.actor}
+                        </Badge>
+                      )}
+                      <Badge size="sm" variant="outline" color="gray" style={{ textTransform: "none" }}>
+                        {latestRevision.operation}
+                      </Badge>
+                      {latestRevision.reason && (
+                        <Text size="xs" c="gray.6" style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 480 }}>
+                          {latestRevision.reason}
+                        </Text>
+                      )}
+                      <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                        {relativeTime(latestRevision.createdAt)}
+                      </Text>
+                    </Group>
+                  ) : null}
+
+                  {/* Stats row */}
+                  <Group gap={16} mt={2}>
+                    {selectedFile ? (
+                      <Text size="xs" c="dimmed">
+                        {selectedFile.size} bytes
+                        {revisionCount > 0 ? ` · ${revisionCount} revision${revisionCount !== 1 ? "s" : ""}` : ""}
+                        {` · created ${formatDate(selectedFile.createdAt)}`}
+                      </Text>
+                    ) : null}
+                    {selectedRevision
+                      ? <Badge variant="light" color="yellow" size="xs">Historical revision</Badge>
+                      : <Badge variant="light" color="green" size="xs">Latest</Badge>
+                    }
                   </Group>
                 </Stack>
 
@@ -271,9 +369,11 @@ function FilesView({ secret, selectedPath, onSelectPath }: { secret: string; sel
                   <Paper withBorder p="sm" radius="sm" bg="yellow.0">
                     <Group justify="space-between" gap="md" wrap="nowrap">
                       <Text size="sm" c="yellow.9">
-                        Viewing {selectedRevision.operation} revision from {formatDate(selectedRevision.createdAt)}.
+                        Viewing {selectedRevision.operation} from {formatDate(selectedRevision.createdAt)}.
                       </Text>
-                      <Button size="xs" variant="light" color="yellow" onClick={() => setSelectedRevision(null)}>View latest</Button>
+                      <Button size="xs" variant="light" color="yellow" onClick={() => setSelectedRevision(null)}>
+                        View latest
+                      </Button>
                     </Group>
                   </Paper>
                 ) : null}
@@ -281,26 +381,27 @@ function FilesView({ secret, selectedPath, onSelectPath }: { secret: string; sel
                 <DocumentBody content={visibleContent} path={selectedPath} />
               </Stack>
             ) : (
-              <Box pt={96} ta="center">
-                <Title order={2} fw={500}>Select a file</Title>
-                <Text c="dimmed" mt="xs">Choose a memory from the tree to read its latest content and revisions.</Text>
+              <Box pt={120} ta="center">
+                <Text size="xl" fw={500} c="gray.7">Select a file</Text>
+                <Text size="sm" c="dimmed" mt={6}>Choose a memory from the tree to inspect its content and revision history.</Text>
               </Box>
             )}
           </Box>
         </Box>
       </ScrollArea>
 
+      {/* Right: revision sidebar */}
       <Stack gap={0} h="100%" style={{ minHeight: 0, borderLeft: "1px solid var(--mantine-color-gray-2)", background: "var(--mantine-color-gray-0)" }}>
-        <Box p="md">
-          <Text size="xs" fw={700} tt="uppercase" c="dimmed">Revision History</Text>
-          <Text size="xs" c="dimmed">{selectedPath ? "File-specific changes" : "Select a file to inspect revisions."}</Text>
+        <Box px={12} py={10}>
+          <Text size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.04em" }}>Revisions</Text>
+          <Text size="xs" c="dimmed" mt={2}>{selectedPath ? "File history" : "Select a file to inspect."}</Text>
         </Box>
         <Divider />
         <ScrollArea flex={1} offsetScrollbars>
-          <Stack gap={4} p="xs">
+          <Stack gap={4} p={8}>
             {revisionsError ? <ErrorText error={revisionsError} /> : null}
-            {!selectedPath ? <Text size="sm" c="dimmed" p="sm">Select a file to inspect revisions.</Text> : null}
-            {selectedPath && !revisions?.revisions?.length ? <Text size="sm" c="dimmed" p="sm">No revisions for this file.</Text> : null}
+            {!selectedPath ? <Text size="xs" c="dimmed" p="xs">No file selected.</Text> : null}
+            {selectedPath && !revisions?.revisions?.length ? <Text size="xs" c="dimmed" p="xs">No revisions yet.</Text> : null}
             {(revisions?.revisions ?? []).map((revision) => (
               <RevisionRow
                 key={revision.id}
@@ -316,6 +417,36 @@ function FilesView({ secret, selectedPath, onSelectPath }: { secret: string; sel
   )
 }
 
+function UsersView({ secret }: { secret: string }) {
+  const { data, error } = useAdminData<{ users: AdminUser[] }>("/v1/admin/users", secret)
+  if (error) return <ErrorText error={error} />
+
+  return (
+    <TableShell>
+      <Table striped highlightOnHover stickyHeader>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>User ID</Table.Th>
+            <Table.Th>Files</Table.Th>
+            <Table.Th>Last Write</Table.Th>
+            <Table.Th>Last Read</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {(data?.users ?? []).map((user) => (
+            <Table.Tr key={user.userId}>
+              <Table.Td><Code>{user.userId}</Code></Table.Td>
+              <Table.Td>{user.fileCount}</Table.Td>
+              <Table.Td>{formatDate(user.lastWriteAt)}</Table.Td>
+              <Table.Td>{formatDate(user.lastReadAt)}</Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </TableShell>
+  )
+}
+
 function RevisionsView({ secret, physicalPath }: { secret: string; physicalPath: string | null }) {
   const query = physicalPath ? `/v1/admin/revisions?physicalPath=${encodeURIComponent(physicalPath)}` : "/v1/admin/revisions"
   const { data, error } = useAdminData<{ revisions: AdminRevision[] }>(query, secret)
@@ -324,7 +455,15 @@ function RevisionsView({ secret, physicalPath }: { secret: string; physicalPath:
   return (
     <TableShell>
       <Table striped highlightOnHover stickyHeader>
-        <Table.Thead><Table.Tr><Table.Th>Time</Table.Th><Table.Th>Path</Table.Th><Table.Th>Operation</Table.Th><Table.Th>Actor</Table.Th><Table.Th>Tool Call</Table.Th><Table.Th>Reason</Table.Th></Table.Tr></Table.Thead>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Time</Table.Th>
+            <Table.Th>Path</Table.Th>
+            <Table.Th>Op</Table.Th>
+            <Table.Th>Actor</Table.Th>
+            <Table.Th>Reason</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
         <Table.Tbody>
           {(data?.revisions ?? []).map((revision) => (
             <Table.Tr key={revision.id}>
@@ -332,7 +471,6 @@ function RevisionsView({ secret, physicalPath }: { secret: string; physicalPath:
               <Table.Td><Code>{revision.physicalPath}</Code></Table.Td>
               <Table.Td>{revision.operation}</Table.Td>
               <Table.Td>{revision.actor ?? ""}</Table.Td>
-              <Table.Td>{revision.toolCallId ?? ""}</Table.Td>
               <Table.Td>{revision.reason ?? ""}</Table.Td>
             </Table.Tr>
           ))}
@@ -350,7 +488,15 @@ function AccessLogsView({ secret, physicalPath }: { secret: string; physicalPath
   return (
     <TableShell>
       <Table striped highlightOnHover stickyHeader>
-        <Table.Thead><Table.Tr><Table.Th>Time</Table.Th><Table.Th>User</Table.Th><Table.Th>Operation</Table.Th><Table.Th>Physical Path</Table.Th><Table.Th>Tool Call</Table.Th></Table.Tr></Table.Thead>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Time</Table.Th>
+            <Table.Th>User</Table.Th>
+            <Table.Th>Op</Table.Th>
+            <Table.Th>Path</Table.Th>
+            <Table.Th>Tool Call</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
         <Table.Tbody>
           {(data?.accessLogs ?? []).map((log) => (
             <Table.Tr key={log.id}>
@@ -367,67 +513,173 @@ function AccessLogsView({ secret, physicalPath }: { secret: string; physicalPath
   )
 }
 
-function useAdminData<T>(path: string | null, secret: string) {
-  const [data, setData] = useState<T | null>(null)
-  const [error, setError] = useState<string | null>(null)
+// ── Tree icons ────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    if (!path) return
-    let cancelled = false
-    fetch(path, { headers: { "x-memex-admin-secret": secret } })
-      .then(async (response) => {
-        const body = await response.json()
-        if (!response.ok) throw new Error(body?.error?.message ?? "Request failed")
-        return body as T
-      })
-      .then((body) => {
-        if (!cancelled) {
-          setData(body)
-          setError(null)
-        }
-      })
-      .catch((nextError) => {
-        if (!cancelled) setError(nextError instanceof Error ? nextError.message : "Request failed")
-      })
-    return () => { cancelled = true }
-  }, [path, secret])
-
-  return { data, error }
+function ChevronIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      width="10" height="10" viewBox="0 0 10 10" fill="none"
+      style={{
+        transform: expanded ? "rotate(90deg)" : "none",
+        transition: "transform 100ms ease",
+        flexShrink: 0,
+        color: "var(--mantine-color-gray-5)",
+      }}
+    >
+      <path d="M3 2l4 3-4 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
 }
 
-function FileTreeItem({ payload, isFile, onSelectPath }: { payload: RenderTreeNodePayload; isFile: boolean; onSelectPath: (path: string) => void }) {
-  const { node, expanded, hasChildren, selected, tree } = payload
+function FolderIcon({ open }: { open: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+      <path
+        d="M1.5 4.5A1 1 0 012.5 3.5H6L7.5 5H13.5A1 1 0 0114.5 6V12.5A1 1 0 0113.5 13.5H2.5A1 1 0 011.5 12.5V4.5Z"
+        fill={open ? "#f0b429" : "#de9b23"}
+      />
+    </svg>
+  )
+}
+
+function FileDocIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 14 16" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M2 1.5A1 1 0 013 0.5H9L13.5 5V14.5A1 1 0 0112.5 15.5H3A1 1 0 012 14.5V1.5Z" fill="#c0cdd8" />
+      <path d="M9 0.5V4.5H13.5" fill="#dce6ed" />
+      <path d="M9 0.5V4.5H13.5" stroke="#b0c0cc" strokeWidth="0.75" fill="none" />
+    </svg>
+  )
+}
+
+function DotsHorizontalIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <circle cx="2.5" cy="8" r="1.5" />
+      <circle cx="8" cy="8" r="1.5" />
+      <circle cx="13.5" cy="8" r="1.5" />
+    </svg>
+  )
+}
+
+// ── FileTreeItem ──────────────────────────────────────────────────────────────
+
+function FileTreeItem({
+  payload,
+  isFile,
+  onSelectPath,
+}: {
+  payload: RenderTreeNodePayload
+  isFile: boolean
+  onSelectPath: (path: string) => void
+}) {
+  const { node, expanded, hasChildren, selected, tree, level } = payload
+  const [hovered, setHovered] = useState(false)
 
   return (
-    <UnstyledButton
-      w="100%"
-      px={8}
-      py={6}
+    <Box
       style={{
-        borderRadius: 6,
-        background: selected && isFile ? "var(--mantine-color-blue-0)" : "transparent",
+        height: 22,
+        display: "flex",
+        alignItems: "center",
+        borderRadius: 3,
+        paddingRight: 6,
+        cursor: "pointer",
+        background:
+          selected && isFile
+            ? "var(--mantine-color-blue-1)"
+            : hovered
+              ? "var(--mantine-color-gray-1)"
+              : "transparent",
+        userSelect: "none",
       }}
       onClick={() => {
         if (isFile) onSelectPath(node.value)
         else if (hasChildren) tree.toggleExpanded(node.value)
       }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      <Group gap={8} wrap="nowrap">
-        <Text size="xs" c="dimmed" w={12} ta="center" fw={600}>{hasChildren ? (expanded ? "v" : ">") : ""}</Text>
-        <Text
-          size="sm"
-          fw={isFile && selected ? 600 : 400}
-          c={isFile ? "gray.8" : "gray.6"}
-          truncate
-        >
-          {node.label}
-        </Text>
-      </Group>
-    </UnstyledButton>
+      {/* Indent guide lines */}
+      {Array.from({ length: level }, (_, i) => (
+        <Box
+          key={i}
+          style={{
+            width: 16,
+            height: "100%",
+            flexShrink: 0,
+            borderLeft: "1px solid var(--mantine-color-gray-2)",
+            marginLeft: i === 0 ? 6 : 0,
+          }}
+        />
+      ))}
+
+      {/* Left gap at root level */}
+      {level === 0 && (
+        <Box style={{ width: 6, flexShrink: 0 }} />
+      )}
+
+      {/* Chevron slot */}
+      <Box
+        style={{
+          width: 14,
+          height: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        {hasChildren ? <ChevronIcon expanded={expanded} /> : null}
+      </Box>
+
+      {/* Icon */}
+      <Box
+        style={{
+          width: 16,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          marginLeft: 3,
+          marginRight: 5,
+        }}
+      >
+        {isFile ? <FileDocIcon /> : <FolderIcon open={expanded} />}
+      </Box>
+
+      {/* Label */}
+      <Text
+        size="sm"
+        fw={selected && isFile ? 600 : 400}
+        c={isFile ? "gray.8" : "gray.7"}
+        ff={isFile ? "monospace" : undefined}
+        style={{
+          fontSize: 12,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          flex: 1,
+        }}
+        title={node.value}
+      >
+        {String(node.label)}
+      </Text>
+    </Box>
   )
 }
 
-function RevisionRow({ revision, selected, onClick }: { revision: AdminRevision; selected: boolean; onClick: () => void }) {
+// ── RevisionRow ───────────────────────────────────────────────────────────────
+
+function RevisionRow({
+  revision,
+  selected,
+  onClick,
+}: {
+  revision: AdminRevision
+  selected: boolean
+  onClick: () => void
+}) {
   return (
     <UnstyledButton
       onClick={onClick}
@@ -442,17 +694,20 @@ function RevisionRow({ revision, selected, onClick }: { revision: AdminRevision;
       <Stack gap={4}>
         <Group justify="space-between" gap="xs" wrap="nowrap">
           <Text size="xs" fw={700} tt="uppercase" c={selected ? "blue.8" : "gray.7"}>{revision.operation}</Text>
-          <Text size="xs" c="dimmed">{formatDate(revision.createdAt)}</Text>
+          <Text size="xs" c="dimmed">{relativeTime(revision.createdAt)}</Text>
         </Group>
-        {revision.reason ? <Text size="xs" c="gray.7" lineClamp={2}>{revision.reason}</Text> : null}
-        <Group gap={6}>
-          {revision.actor ? <Badge size="xs" variant="light" color="gray">{revision.actor}</Badge> : null}
-          {revision.toolCallId ? <Badge size="xs" variant="light" color="gray">{revision.toolCallId}</Badge> : null}
-        </Group>
+        {revision.reason ? (
+          <Text size="xs" c="gray.7" lineClamp={2}>{revision.reason}</Text>
+        ) : null}
+        {revision.actor ? (
+          <Badge size="xs" variant="light" color="gray" style={{ textTransform: "none" }}>{revision.actor}</Badge>
+        ) : null}
       </Stack>
     </UnstyledButton>
   )
 }
+
+// ── DocumentBody ──────────────────────────────────────────────────────────────
 
 function DocumentBody({ content, path }: { content: string; path: string }) {
   const codeLike = isCodeLike(content, path)
@@ -464,9 +719,10 @@ function DocumentBody({ content, path }: { content: string; path: string }) {
         style={{
           whiteSpace: "pre-wrap",
           lineHeight: 1.7,
-          fontSize: 14,
-          background: "transparent",
-          padding: 0,
+          fontSize: 13,
+          background: "var(--mantine-color-gray-0)",
+          padding: "16px 20px",
+          borderRadius: 6,
         }}
       >
         {content}
@@ -482,35 +738,72 @@ function DocumentBody({ content, path }: { content: string; path: string }) {
       size="md"
       lh={1.85}
       c="gray.9"
-      style={{
-        whiteSpace: "pre-wrap",
-        overflowWrap: "anywhere",
-      }}
+      style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
     >
       {content}
     </Text>
   )
 }
 
+// ── Shared ────────────────────────────────────────────────────────────────────
+
 function TableShell({ children }: { children: React.ReactNode }) {
   return (
-    <Box h="100%" p="lg" style={{ minHeight: 0 }}>
+    <Box h="100%" p="md" style={{ minHeight: 0 }}>
       <Paper withBorder h="100%" style={{ overflow: "hidden" }}>
-        <ScrollArea h="100%">
-          {children}
-        </ScrollArea>
+        <ScrollArea h="100%">{children}</ScrollArea>
       </Paper>
     </Box>
   )
 }
 
 function ErrorText({ error }: { error: string }) {
-  return <Text c="red">{error}</Text>
+  return <Text c="red" size="sm">{error}</Text>
 }
 
-function formatDate(value: string | null) {
+function useAdminData<T>(path: string | null, secret: string) {
+  const [data, setData] = useState<T | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!path) return
+    let cancelled = false
+    fetch(path, { headers: { "x-memex-admin-secret": secret } })
+      .then(async (response) => {
+        const body = await response.json()
+        if (!response.ok) throw new Error(body?.error?.message ?? "Request failed")
+        return body as T
+      })
+      .then((body) => {
+        if (!cancelled) { setData(body); setError(null) }
+      })
+      .catch((nextError) => {
+        if (!cancelled) setError(nextError instanceof Error ? nextError.message : "Request failed")
+      })
+    return () => { cancelled = true }
+  }, [path, secret])
+
+  return { data, error }
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+function formatDate(value: string | Date | null) {
   if (!value) return ""
   return new Date(value).toLocaleString()
+}
+
+function relativeTime(value: string | Date | null): string {
+  if (!value) return ""
+  const diff = Date.now() - new Date(value).getTime()
+  const minutes = Math.floor(diff / 60000)
+  if (minutes < 1) return "just now"
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  return formatDate(value)
 }
 
 function deriveTree(files: AdminFile[]): FileTreeNode[] {
@@ -520,7 +813,6 @@ function deriveTree(files: AdminFile[]): FileTreeNode[] {
   const getFolder = (path: string, label: string, siblings: FileTreeNode[]) => {
     const existing = folders.get(path)
     if (existing) return existing
-
     const next: FileTreeNode = { kind: "folder", value: path, label, children: [] }
     folders.set(path, next)
     siblings.push(next)
@@ -548,9 +840,9 @@ function deriveTree(files: AdminFile[]): FileTreeNode[] {
 
 function sortTree(nodes: FileTreeNode[]): FileTreeNode[] {
   return nodes
-    .sort((left, right) => {
-      if (left.kind !== right.kind) return left.kind === "folder" ? -1 : 1
-      return String(left.label).localeCompare(String(right.label))
+    .sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === "folder" ? -1 : 1
+      return String(a.label).localeCompare(String(b.label))
     })
     .map((node) => ({
       ...node,
@@ -559,8 +851,8 @@ function sortTree(nodes: FileTreeNode[]): FileTreeNode[] {
 }
 
 function isCodeLike(content: string, path: string) {
-  const extension = path.split(".").pop()?.toLowerCase()
-  if (extension && ["json", "js", "jsx", "ts", "tsx", "md", "sql", "yaml", "yml", "toml", "xml", "html", "css"].includes(extension)) return true
+  const ext = path.split(".").pop()?.toLowerCase()
+  if (ext && ["json", "js", "jsx", "ts", "tsx", "md", "sql", "yaml", "yml", "toml", "xml", "html", "css"].includes(ext)) return true
   const trimmed = content.trim()
   if (!trimmed) return false
   if ((trimmed.startsWith("{") && trimmed.endsWith("}")) || (trimmed.startsWith("[") && trimmed.endsWith("]"))) return true
