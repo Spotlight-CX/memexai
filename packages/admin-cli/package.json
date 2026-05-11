@@ -1,0 +1,50 @@
+{
+  "name": "memex-admin",
+  "version": "0.1.0",
+  "description": "Local admin UI for MemexAI — inspect agent memory, revision history, and access logs.",
+  "type": "module",
+  "bin": {
+    "memex-admin": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "admin-dist",
+    "README.md",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "bun run build:admin && bun run build:cli",
+    "build:admin": "cp -R ../../apps/service/admin/dist ./admin-dist",
+    "build:cli": "tsup src/cli.ts --format esm --platform node --target node20 --out-dir dist --clean",
+    "prepublishOnly": "bun run build",
+    "dev": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@memexai/core": "workspace:*",
+    "fastify": "^5.6.2"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soorajshankar/memexai.git",
+    "directory": "packages/admin-cli"
+  },
+  "bugs": {
+    "url": "https://github.com/soorajshankar/memexai/issues"
+  },
+  "homepage": "https://github.com/soorajshankar/memexai#readme",
+  "keywords": [
+    "ai",
+    "agent",
+    "memory",
+    "postgres",
+    "admin",
+    "dashboard"
+  ]
+}

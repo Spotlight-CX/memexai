@@ -16,6 +16,7 @@
       "dependencies": {
         "@ai-sdk/google": "^2.0.29",
         "@ai-sdk/openai": "^2.0.46",
+        "@memexai/core": "workspace:*",
         "@memexai/sdk": "workspace:*",
         "ai": "^5.0.98",
       },
@@ -43,6 +44,42 @@
         "tsx": "^4.21.0",
         "vite": "^7.3.0",
       },
+    },
+    "packages/admin-cli": {
+      "name": "memex-admin",
+      "version": "0.1.0",
+      "bin": {
+        "memex-admin": "./dist/cli.js",
+      },
+      "dependencies": {
+        "@memexai/core": "workspace:*",
+        "fastify": "^5.6.2",
+      },
+      "devDependencies": {
+        "tsup": "^8.5.1",
+        "tsx": "^4.21.0",
+      },
+    },
+    "packages/core": {
+      "name": "@memexai/core",
+      "version": "0.1.0",
+      "dependencies": {
+        "pg": "^8.16.3",
+        "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "@types/pg": "^8.15.6",
+        "ai": "^5.0.98",
+        "tsup": "^8.5.1",
+      },
+      "peerDependencies": {
+        "@anthropic-ai/sdk": "^0.50.0",
+        "ai": "^5.0.0",
+      },
+      "optionalPeers": [
+        "@anthropic-ai/sdk",
+        "ai",
+      ],
     },
     "packages/sdk": {
       "name": "@memexai/sdk",
@@ -205,6 +242,8 @@
     "@mantine/spotlight": ["@mantine/spotlight@9.1.1", "", { "dependencies": { "@mantine/store": "9.1.1" }, "peerDependencies": { "@mantine/core": "9.1.1", "@mantine/hooks": "9.1.1", "react": "^19.2.0", "react-dom": "^19.2.0" } }, "sha512-UWeL3ADxfMKltxSygdzoUlVH5PO9CbbEu41kXs5sBItU87SQxppyG35wCsYfZ0plIJ7/LBAjnl5lQcKWl8AOxA=="],
 
     "@mantine/store": ["@mantine/store@9.1.1", "", { "peerDependencies": { "react": "^19.2.0" } }, "sha512-kbxEU8wVGbobHlmQmk0lu9M+xCILKjuAPcMAshgzPznGLfXeE9zrB0gNT2cbk11Ik8dlV9J6Vsn9cuACyOSpfQ=="],
+
+    "@memexai/core": ["@memexai/core@workspace:packages/core"],
 
     "@memexai/demo-agent": ["@memexai/demo-agent@workspace:apps/demo-agent"],
 
@@ -565,6 +604,8 @@
     "mdast-util-to-markdown": ["mdast-util-to-markdown@2.1.2", "", { "dependencies": { "@types/mdast": "^4.0.0", "@types/unist": "^3.0.0", "longest-streak": "^3.0.0", "mdast-util-phrasing": "^4.0.0", "mdast-util-to-string": "^4.0.0", "micromark-util-classify-character": "^2.0.0", "micromark-util-decode-string": "^2.0.0", "unist-util-visit": "^5.0.0", "zwitch": "^2.0.0" } }, "sha512-xj68wMTvGXVOKonmog6LwyJKrYXZPvlwabaryTjLh9LuvovB/KAH+kvi8Gjj+7rJjsFi23nkUxRQv1KqSroMqA=="],
 
     "mdast-util-to-string": ["mdast-util-to-string@4.0.0", "", { "dependencies": { "@types/mdast": "^4.0.0" } }, "sha512-0H44vDimn51F0YwvxSJSm0eCDOJTRlmN0R1yBh4HLj9wiV1Dn0QoXGbvFAWj2hSItVTlCmBF1hqKlIyUBVFLPg=="],
+
+    "memex-admin": ["memex-admin@workspace:packages/admin-cli"],
 
     "micromark": ["micromark@4.0.2", "", { "dependencies": { "@types/debug": "^4.0.0", "debug": "^4.0.0", "decode-named-character-reference": "^1.0.0", "devlop": "^1.0.0", "micromark-core-commonmark": "^2.0.0", "micromark-factory-space": "^2.0.0", "micromark-util-character": "^2.0.0", "micromark-util-chunked": "^2.0.0", "micromark-util-combine-extensions": "^2.0.0", "micromark-util-decode-numeric-character-reference": "^2.0.0", "micromark-util-encode": "^2.0.0", "micromark-util-normalize-identifier": "^2.0.0", "micromark-util-resolve-all": "^2.0.0", "micromark-util-sanitize-uri": "^2.0.0", "micromark-util-subtokenize": "^2.0.0", "micromark-util-symbol": "^2.0.0", "micromark-util-types": "^2.0.0" } }, "sha512-zpe98Q6kvavpCr1NPVSCMebCKfD7CA2NqZ+rykeNhONIJBpc1tFKt9hucLGwha3jNTNI8lHpctWJWoimVF4PfA=="],
 

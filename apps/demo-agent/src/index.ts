@@ -1,6 +1,8 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { openai } from "@ai-sdk/openai"
 import { generateText, stepCountIs } from "ai"
+import { createMemex } from "@memexai/core"
+import { createVercelAITools as createCoreVercelAITools } from "@memexai/core/adapters/vercel-ai"
 import { MemexAI } from "@memexai/sdk"
 import { createVercelAITools } from "@memexai/sdk/adapters/vercel-ai"
 import { pathToFileURL } from "node:url"
@@ -13,13 +15,22 @@ type GoogleModelFactory = ReturnType<typeof createGoogleGenerativeAI>
 
 export type CliOptions = {
   smoke: boolean
+  direct: boolean
   prompt?: string
 }
 
 export function parseCliArgs(argv: string[]): CliOptions {
   const smoke = argv.includes("--smoke")
-  const prompt = argv.filter((arg) => arg !== "--smoke").join(" ").trim()
-  return { smoke, prompt: prompt || undefined }
+  const direct = argv.includes("--direct")
+  const prompt = argv.filter((arg) => arg !== "--smoke" && arg !== "--direct").join(" ").trim()
+  return { smoke, direct, prompt: prompt || undefined }
+}
+
+export function createDirectMemory(env: Env) {
+  const databaseUrl = requireEnv(env, "DATABASE_URL")
+  const userId = env.MEMEX_DEMO_USER_ID || "demo_user"
+  const memex = createMemex(databaseUrl)
+  return { memex, userId, user: memex.forUser({ userId, actor: "demo-agent" }) }
 }
 
 export function createDemoMemory(env: Env, fetchImpl?: typeof fetch) {
@@ -112,19 +123,98 @@ export async function runLiveAgent(input: {
   return result
 }
 
+export async function runSmokeDirect(input: {
+  env?: Env
+  log?: Logger
+  memexOverride?: ReturnType<typeof createDirectMemory>
+} = {}) {
+  const env = input.env ?? process.env
+  const log = input.log ?? console.log
+  const { memex, userId, user } = input.memexOverride ?? createDirectMemory(env)
+
+  await memex.migrate()
+
+  const content = [
+    "# Demo Agent (direct)",
+    "",
+    `- User id: ${userId}`,
+    `- Smoke check: ${new Date().toISOString()}`,
+    "- This file was written via @memexai/core (direct Postgres, no HTTP service).",
+  ].join("\n")
+
+  await user.write("user/demo-agent.md", content, "Demo agent smoke check (direct mode)")
+  const file = await user.read("user/demo-agent.md")
+
+  log("MemexAI direct smoke check passed.")
+  log(`User: ${userId}`)
+  log(`Read: ${file.path} (${file.content.length} chars)`)
+
+  await memex.end()
+  return file
+}
+
+export async function runLiveAgentDirect(input: {
+  prompt: string
+  env?: Env
+  log?: Logger
+  generate?: GenerateText
+  googleModelFactory?: GoogleModelFactory
+  modelFactory?: OpenAIModelFactory
+  memexOverride?: ReturnType<typeof createDirectMemory>
+}) {
+  const env = input.env ?? process.env
+  const log = input.log ?? console.log
+  const modelConfig = createModelConfig(env, input.modelFactory, input.googleModelFactory)
+
+  const { memex, userId, user } = input.memexOverride ?? createDirectMemory(env)
+  await memex.migrate()
+  const promptBlock = await user.getPromptBlock()
+  const runGenerateText = input.generate ?? generateText
+
+  const result = await runGenerateText({
+    model: modelConfig.model,
+    system: [
+      "You are a concise MemexAI demo agent (direct Postgres mode).",
+      "Use MemexAI memory tools whenever the user asks you to remember, retrieve, update, or inspect durable memory.",
+      "Write user-specific durable notes under user/**. Do not write shared/**.",
+      "",
+      promptBlock,
+    ].join("\n"),
+    prompt: input.prompt,
+    tools: createCoreVercelAITools(user),
+    stopWhen: stepCountIs(5),
+  })
+
+  log(result.text)
+  log("")
+  log(`Model: ${modelConfig.provider}/${modelConfig.modelName}`)
+  log(`Demo user: ${userId}`)
+
+  await memex.end()
+  return result
+}
+
 export async function main(argv = process.argv.slice(2), env: Env = process.env) {
   const options = parseCliArgs(argv)
 
   if (options.smoke) {
-    await runSmoke({ env })
+    if (options.direct) {
+      await runSmokeDirect({ env })
+    } else {
+      await runSmoke({ env })
+    }
     return
   }
 
   if (!options.prompt) {
-    throw new Error('Usage: bun run demo:agent -- "Remember that I prefer quiet projects near good schools"')
+    throw new Error('Usage: bun run demo:agent -- "Remember that I prefer quiet projects near good schools"\n       Add --direct to use @memexai/core (requires DATABASE_URL)')
   }
 
-  await runLiveAgent({ prompt: options.prompt, env })
+  if (options.direct) {
+    await runLiveAgentDirect({ prompt: options.prompt, env })
+  } else {
+    await runLiveAgent({ prompt: options.prompt, env })
+  }
 }
 
 function requireEnv(env: Env, key: string) {

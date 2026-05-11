@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from "vitest"
-import { parseCliArgs, runLiveAgent, runSmoke } from "../src/index"
+import { Memex } from "@memexai/core"
+import { parseCliArgs, runLiveAgent, runLiveAgentDirect, runSmoke, runSmokeDirect } from "../src/index"
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(body), {
@@ -38,8 +39,10 @@ function createFetchMock() {
 
 describe("demo agent CLI", () => {
   test("parses smoke and prompt arguments", () => {
-    expect(parseCliArgs(["--smoke"])).toEqual({ smoke: true, prompt: undefined })
-    expect(parseCliArgs(["Remember", "this"])).toEqual({ smoke: false, prompt: "Remember this" })
+    expect(parseCliArgs(["--smoke"])).toEqual({ smoke: true, direct: false, prompt: undefined })
+    expect(parseCliArgs(["Remember", "this"])).toEqual({ smoke: false, direct: false, prompt: "Remember this" })
+    expect(parseCliArgs(["--smoke", "--direct"])).toEqual({ smoke: true, direct: true, prompt: undefined })
+    expect(parseCliArgs(["--direct", "Remember", "this"])).toEqual({ smoke: false, direct: true, prompt: "Remember this" })
   })
 
   test("smoke mode writes and reads demo memory without OpenAI", async () => {
@@ -149,5 +152,68 @@ describe("demo agent CLI", () => {
     })
 
     expect(modelFactory).toHaveBeenCalledWith("gpt-test")
+  })
+})
+
+describe("demo agent CLI — direct mode (@memexai/core)", () => {
+  function createMockMemexOverride(userId: string) {
+    let storedContent = ""
+    const query = vi.fn(async (sql: string, params?: unknown[]) => {
+      if (typeof sql !== "string") return { rows: [] }
+      if (sql.includes("mx_migration") || sql.includes("CREATE TABLE") || sql.includes("INSERT INTO mx_access_log") || sql.includes("INSERT INTO mx_revision")) {
+        return { rows: [] }
+      }
+      if (sql.includes("mx_file") && sql.includes("INSERT")) {
+        storedContent = (params as string[])[2] ?? ""
+        return { rows: [{ id: "file_abc", created: true }] }
+      }
+      if (sql.includes("mx_file") && sql.includes("SELECT") && storedContent) {
+        return { rows: [{ id: "file_abc", physical_path: `users/${userId}/demo-agent.md`, content_text: storedContent, created_at: new Date(), updated_at: new Date() }] }
+      }
+      return { rows: [] }
+    })
+    const client = { query, release: vi.fn() }
+    const db = { query, end: vi.fn(async () => {}), connect: vi.fn(async () => client) } as never
+    const memex = new Memex(db)
+    const user = memex.forUser({ userId, actor: "demo-agent" })
+    return { memex, userId, user }
+  }
+
+  test("runSmokeDirect writes and reads without HTTP service", async () => {
+    const userId = "demo_user"
+    const memexOverride = createMockMemexOverride(userId)
+    const log = vi.fn()
+
+    await runSmokeDirect({ log, memexOverride })
+
+    expect(log).toHaveBeenCalledWith("MemexAI direct smoke check passed.")
+    expect(log).toHaveBeenCalledWith(`User: ${userId}`)
+  })
+
+  test("runLiveAgentDirect uses core tools in generateText", async () => {
+    const userId = "demo_user"
+    const memexOverride = createMockMemexOverride(userId)
+    const generate = vi.fn(async (_input: unknown) => ({ text: "Memory saved." }))
+    const googleModelFactory = vi.fn(() => "mock-google-model")
+
+    await runLiveAgentDirect({
+      prompt: "Remember I like quiet neighborhoods.",
+      env: {
+        DATABASE_URL: "postgresql://test/test",
+        MEMEX_DEMO_USER_ID: userId,
+        GEMINI_API_KEY: "test-key",
+        GEMINI_MODEL: "gemini-test",
+      },
+      log: vi.fn(),
+      generate: generate as never,
+      googleModelFactory: googleModelFactory as never,
+      memexOverride,
+    })
+
+    expect(generate).toHaveBeenCalledOnce()
+    const callInput = generate.mock.calls[0]?.[0] as { system: string; tools: Record<string, unknown>; prompt: string }
+    expect(callInput.system).toContain("<memexai_memory>")
+    expect(callInput.tools).toHaveProperty("memory_write")
+    expect(callInput.prompt).toContain("quiet neighborhoods")
   })
 })

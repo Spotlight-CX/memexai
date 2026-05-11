@@ -1,261 +1,191 @@
-# MemexAI
+# memexai
 
-Persistent memory for AI agents.
-
-MemexAI gives agents a simple way to remember useful context across sessions, while giving humans a clean admin UI to inspect what was remembered, when it changed, and which tool call touched it.
-
-It is intentionally simple: memory is stored as human-readable files, organized by path, backed by Postgres, and exposed through a REST API plus TypeScript SDK.
-
-## Why
-
-AI agents forget between runs.
-
-Most projects solve that by hiding memory in prompts, vector blobs, or app-specific tables. That works for a demo, but it becomes hard to answer basic questions:
-
-- What does the agent remember about this user?
-- Who wrote or changed that memory?
-- Which tool call caused the update?
-- Can a human inspect and debug it?
-
-MemexAI treats memory like infrastructure: durable, readable, revisioned, and inspectable.
-
-## What You Get
-
-- REST API for agent memory tools
-- TypeScript SDK
-- Vercel AI SDK, OpenAI, and LangChain adapters
-- Postgres persistence
-- File-style memory paths like `user/profile.md` and `shared/index.md`
-- Revision history for writes and patches
-- Access logs for reads and writes
-- Admin dashboard for browsing memory
-- Docker Compose setup for local demos
-
-## Quick Start
+Agent memory on Postgres. No vector store needed.
 
 ```bash
-bun install --registry=https://registry.npmmirror.com
-docker compose up -d --build
-bun run seed:admin
+npm install @memexai/core
 ```
 
-Open the admin dashboard:
+---
 
-```text
-http://localhost:8080/admin
-```
-
-Use the default admin secret:
-
-```text
-dev-admin-secret
-```
-
-You should see seeded users, files, revisions, and access logs.
-
-## Try the Agent Demo
-
-Smoke test without an LLM key:
-
-```bash
-MEMEX_URL=http://localhost:8080 \
-MEMEX_API_KEY=dev-agent-key \
-bun run demo:agent -- --smoke
-```
-
-Inspect memory from the terminal:
-
-```bash
-MEMEX_URL=http://localhost:8080 \
-MEMEX_API_KEY=dev-agent-key \
-bun run demo:inspect
-```
-
-Run a live demo agent with Gemini:
-
-```bash
-MEMEX_URL=http://localhost:8080 \
-MEMEX_API_KEY=dev-agent-key \
-GEMINI_API_KEY=... \
-bun run demo:agent -- "Remember that I prefer quiet projects near good schools"
-```
-
-Then refresh the admin dashboard and inspect what changed.
-
-## SDK Usage
+## Quickstart
 
 ```ts
-import { MemexAI } from "@memexai/sdk"
-
-const memex = new MemexAI({
-  url: "http://localhost:8080",
-  apiKey: "dev-agent-key",
-})
-
-const memory = memex.forUser({
-  userId: "demo_user",
-  actor: "assistant",
-})
-
-await memory.writeFile({
-  path: "user/profile.md",
-  content: [
-    "# Profile",
-    "",
-    "- Prefers quiet projects near good schools",
-    "- Budget is around 2.5 Cr",
-  ].join("\n"),
-  reason: "Captured stable user preferences",
-})
-
-const profile = await memory.readFile({ path: "user/profile.md" })
-console.log(profile.content)
-```
-
-## Agent Harness Example
-
-Most agent apps already have a loop that does three things:
-
-1. Build system context
-2. Bind tools
-3. Let the model call tools
-
-MemexAI fits into that harness as the memory layer:
-
-```ts
+import { createMemex } from "@memexai/core"
+import { createVercelAITools } from "@memexai/core/adapters/vercel-ai"
 import { generateText, stepCountIs } from "ai"
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
-import { MemexAI } from "@memexai/sdk"
-import { createVercelAITools } from "@memexai/sdk/adapters/vercel-ai"
 
-const memex = new MemexAI({
-  url: process.env.MEMEX_URL!,
-  apiKey: process.env.MEMEX_API_KEY!,
-})
+// 1. Connect to your existing Postgres
+const memex = createMemex(process.env.DATABASE_URL)
+await memex.migrate()  // creates tables on first run
 
-const memory = memex.forUser({
-  userId: "demo_user",
-  actor: "assistant",
-})
+// 2. Scope to a user
+const user = memex.forUser({ userId: "user_123", actor: "assistant" })
+const promptBlock = await user.getPromptBlock()
 
-const promptBlock = await memory.getPromptBlock()
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY!,
-})
-
-const result = await generateText({
-  model: google("gemini-2.5-flash"),
-  system: [
-    "You are a helpful agent with durable memory.",
-    "Use memory tools when the user asks you to remember, retrieve, or update stable preferences.",
-    "Write user-specific notes under user/**. Do not write shared/**.",
-    "",
-    promptBlock,
-  ].join("\n"),
-  prompt: "Remember that I prefer quiet projects near good schools.",
-  tools: createVercelAITools(memory),
+// 3. Wire memory tools into your agent
+const { text } = await generateText({
+  model: createGoogleGenerativeAI()("gemini-2.5-flash"),
+  system: `You are a helpful assistant.\n\n${promptBlock}`,
+  prompt: "Remember that I prefer quiet neighborhoods near good schools.",
+  tools: createVercelAITools(user),
   stopWhen: stepCountIs(5),
 })
 
-console.log(result.text)
+console.log(text)
+// Agent reads and writes memory automatically.
+// Open the admin UI to see what it stored.
 ```
-
-The adapter converts MemexAI memory operations into model-callable tools. After the run, open the admin dashboard to see the file content, revision, actor, and tool call trail.
-
-## Agent Memory Tools
-
-Agents can use four simple tools:
-
-- `memory_list`: list visible memory files
-- `memory_read`: read a memory file
-- `memory_write`: create or overwrite a user memory file
-- `memory_patch`: append under a heading or replace exact text
-
-MemexAI also exposes a prompt block endpoint so agents can load relevant memory instructions/context before tool use.
-
-## Admin Dashboard
-
-The admin UI is built for inspection:
-
-- Browse memory as a file tree
-- Read content in a document-style viewer
-- Click historical revisions
-- Review users and file counts
-- Audit reads, writes, patches, actors, and tool call IDs
-
-For frontend-only admin development while Docker serves the backend:
 
 ```bash
-bun run dev:admin
+npx memex-admin --database-url postgresql://...
+# Opens http://localhost:4040/admin
 ```
 
-Open:
+---
 
-```text
-http://localhost:5174/admin/
+## Why not a vector store?
+
+- **Most agent memory is structured reads, not fuzzy search.** Profile fields, preferences, and session notes are looked up by path, not semantically queried. A filesystem beats a vector index for this.
+- **Vector stores are extra infra.** Qdrant, Chroma, Pinecone — each one is another service to run, auth, and keep in sync. If you already have Postgres, you have everything memexai needs.
+- **Revision history is free.** Every write creates a revision row. You get a complete audit trail — who wrote what, when, and why — with no extra work.
+
+---
+
+## How it works
+
+Memory is stored as files in Postgres:
+
+```
+users/{userId}/profile.md    ← agent writes here via user/**
+users/{userId}/notes.md
+shared/index.md              ← read-only, shared context
 ```
 
-The Vite dev server proxies `/v1` requests to `http://localhost:8080`.
+Agents use four tools:
 
-## Useful Commands
+| Tool | What it does |
+|---|---|
+| `memory_list` | List files the agent can see |
+| `memory_read` | Read a file by path |
+| `memory_write` | Create or overwrite a user file |
+| `memory_patch` | Append under a heading or replace exact text |
 
-Clean rebuild Docker, including the Postgres volume:
+Every write records a revision with the actor, reason, and tool call ID. The admin UI makes this inspectable without touching SQL.
+
+---
+
+## Comparison
+
+|  | mem0 OSS | Zep | **memexai** |
+|---|---|---|---|
+| Storage | Vector + KV (needs Qdrant/Chroma) | Graph (Graphiti) | **Postgres only** |
+| Memory model | Automatic extraction, embeddings | Temporal knowledge graph | **Agent-controlled files** |
+| Revision history | ❌ | ❌ | **✅** |
+| Admin UI | ❌ | ✅ cloud only | **✅ self-hosted** |
+| Self-hosted | ✅ (with vector DB) | ❌ | **✅ just Postgres** |
+| Install | `npm install mem0ai` | managed | **`npm install @memexai/core`** |
+
+Zep killed their self-hosted community edition. mem0 OSS still needs a vector store. Neither gives agents a free-form filesystem with history.
+
+---
+
+## Framework adapters
+
+**Vercel AI SDK**
+
+```ts
+import { createVercelAITools } from "@memexai/core/adapters/vercel-ai"
+
+const tools = createVercelAITools(user)
+// Pass to generateText(), streamText(), etc.
+```
+
+**Anthropic SDK**
+
+```ts
+import { createAnthropicTools, handleAnthropicToolCall } from "@memexai/core/adapters/anthropic"
+
+const tools = createAnthropicTools(user)
+// Pass to client.messages.create({ tools })
+// Then: await handleAnthropicToolCall(block.name, block.input, user)
+```
+
+**LangChain**
+
+```ts
+import { createLangChainTools } from "@memexai/core/adapters/langchain"
+
+const tools = createLangChainTools(user)
+```
+
+**MCP / any other SDK**
+
+```ts
+// getTools() returns raw JSON Schema tool definitions
+const tools = memex.getTools()
+
+// executeTool() runs any tool directly
+await memex.executeTool("memory_write", {
+  path: "user/notes.md",
+  content: "...",
+  reason: "captured preference"
+}, { userId: "user_123", actor: "assistant" })
+```
+
+---
+
+## Admin UI
 
 ```bash
-scripts/clean-rebuild.sh --yes
+npx memex-admin --database-url postgresql://...
+# --port 4040 (default)
+# --no-open  (skip auto-opening browser)
 ```
 
-Seed demo admin data:
+The admin UI shows:
+
+- Memory as a file tree
+- Full file content
+- Revision history with actor, reason, and tool call ID
+- Access logs (reads, writes, patches)
+- All users and their file counts
+
+---
+
+## Running examples
 
 ```bash
-bun run seed:admin
+# Clone the repo
+git clone https://github.com/soorajshankar/memexai.git
+cd memexai
+
+# Vercel AI SDK example
+cd examples/vercel-ai
+DATABASE_URL=postgresql://... GEMINI_API_KEY=... bun run start "Remember I prefer 2BHK apartments"
+
+# Anthropic SDK example
+cd examples/anthropic
+DATABASE_URL=postgresql://... ANTHROPIC_API_KEY=... bun run start "Remember I prefer 2BHK apartments"
 ```
 
-Build everything:
+---
+
+## Running the service (existing HTTP API)
+
+If you prefer an HTTP service rather than direct Postgres:
 
 ```bash
-bun run build
+docker compose up -d
+# API + admin at http://localhost:8080
+# Postgres at localhost:5433
 ```
 
-Run tests:
+See [apps/service](apps/service) and [packages/sdk](packages/sdk) for the HTTP SDK.
 
-```bash
-bun run test
-```
-
-## Defaults
-
-Docker Compose starts:
-
-- API and admin UI: `http://localhost:8080`
-- Postgres: `localhost:5433`
-- Agent API key: `dev-agent-key`
-- Admin secret: `dev-admin-secret`
-
-Environment used by the service:
-
-```bash
-PORT=8080
-DATABASE_URL=postgresql://memexai:memexai@postgres:5432/memexai
-MEMEX_API_KEY=dev-agent-key
-MEMEX_ADMIN_SECRET=dev-admin-secret
-```
-
-## Hackathon Deck
-
-Present the Markdown deck in a browser with Marp:
-
-```bash
-PORT=5176 npm_config_registry=https://registry.npmmirror.com \
-npx -y @marp-team/marp-cli -s docs
-```
-
-Open:
-
-```text
-http://localhost:5176/hackathon-deck.md
-```
+---
 
 ## Status
 
-MemexAI is a hackathon-stage project focused on making agent memory easy to run, inspect, and explain. The current goal is a clean local developer experience and a simple memory model that is understandable to both agents and humans.
+Early stage. The core loop works. Feedback and issues welcome.

@@ -1,0 +1,19 @@
+{
+  "name": "memexai-example-vercel-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "migrate": "tsx src/migrate.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/google": "^1.0.0",
+    "@memexai/core": "workspace:*",
+    "ai": "^5.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

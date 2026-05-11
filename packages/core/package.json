@@ -1,0 +1,76 @@
+{
+  "name": "@memexai/core",
+  "version": "0.1.0",
+  "description": "Agent memory on Postgres. No vector store needed.",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "package.json"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./adapters/vercel-ai": {
+      "types": "./dist/adapters/vercel-ai.d.ts",
+      "import": "./dist/adapters/vercel-ai.js"
+    },
+    "./adapters/anthropic": {
+      "types": "./dist/adapters/anthropic.d.ts",
+      "import": "./dist/adapters/anthropic.js"
+    },
+    "./adapters/langchain": {
+      "types": "./dist/adapters/langchain.d.ts",
+      "import": "./dist/adapters/langchain.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/adapters/vercel-ai.ts src/adapters/anthropic.ts src/adapters/langchain.ts --format esm --dts --platform node --target node20 --out-dir dist --clean",
+    "prepublishOnly": "bun run build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "pg": "^8.16.3",
+    "zod": "^4.3.6"
+  },
+  "peerDependencies": {
+    "ai": "^5.0.0",
+    "@anthropic-ai/sdk": "^0.50.0"
+  },
+  "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    },
+    "@anthropic-ai/sdk": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.6",
+    "ai": "^5.0.98",
+    "tsup": "^8.5.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/soorajshankar/memexai.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/soorajshankar/memexai/issues"
+  },
+  "homepage": "https://github.com/soorajshankar/memexai#readme",
+  "keywords": [
+    "ai",
+    "agent",
+    "memory",
+    "postgres",
+    "mcp",
+    "llm"
+  ]
+}
