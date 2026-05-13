@@ -97,7 +97,30 @@ No architecture docs, no deep philosophy — that comes after stars.
 
 ---
 
-### 4. Framework integration examples (est. 2 days)
+### 4. Agent skill package for `npx skills` (est. 1 day)
+
+Ship a tiny installable skill so developers can add memexai guidance directly to their coding agent setup with Vercel's Skills CLI:
+
+```bash
+npx skills add soorajshankar/memexai --skill memexai
+```
+
+This should not be a runtime dependency. It is distribution and developer activation: the skill teaches Claude Code, Codex, Cursor, Windsurf, and similar agents how to install memexai, choose direct Postgres vs HTTP service mode, wire the framework adapters, and use the admin UI.
+
+**Skill contents:**
+- When to use `@memexai/core` vs `@memexai/sdk`
+- Quickstart snippets for Vercel AI SDK, Anthropic SDK, and LangChain
+- Memory path rules: `user/**` writable, `shared/**` read-only
+- Admin inspection command: `npx @memexai/admin --database-url ...`
+- Guidance to preserve revision/audit semantics instead of bypassing tools
+
+**Why this matters:** skills are becoming the cross-agent package manager for reusable agent context. Vercel's docs show `npx skills add <owner/repo>` and support targeted installs via `--skill <skill-name>`. A memexai skill means the first integration attempt can be agent-assisted and consistent across tools.
+
+**What to NOT build yet:** custom skill registry, generated skills, or a memexai-specific skill installer. Use the existing `skills` ecosystem.
+
+---
+
+### 5. Framework integration examples (est. 2 days)
 
 The SDK only lands if people can see it working in their stack. Need two working examples:
 
@@ -150,7 +173,7 @@ Prepare answers, don't be defensive. HN debates = free distribution.
 | Week | Focus | Output |
 |---|---|---|
 | Week 1 | SDK extraction + packaging | `@memexai/core` published to npm (beta) |
-| Week 2 | `npx memex-admin` CLI + examples | Two working framework examples |
+| Week 2 | `npx memex-admin` CLI + examples + skill | Two working framework examples, installable `npx skills` package |
 | Week 3 | README, docs, HN post draft | Launch-ready repo |
 | Week 4 | Launch + respond | HN post live, iterate on feedback |
 
@@ -172,4 +195,5 @@ Don't build features immediately after launch. The most valuable post-launch wor
 - [ ] What's the npm package name? `memexai`, `@memexai/core`, `memex-core`?
 - [ ] Is abodex.space architecture shareable as a "built with memexai" reference? (Social proof)
 - [ ] MCP server mode — ship as part of `@memexai/core` or separate package? (Has direct Anthropic/Claude distribution upside)
+- [ ] Skills distribution — publish one `memexai` skill in this repo or a separate `memexai/skills` repo for `npx skills add ...`?
 - [ ] License — currently? MIT is best for OSS credibility, Apache 2 if you want patent protection.
