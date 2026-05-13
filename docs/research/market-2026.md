@@ -72,6 +72,25 @@ Sources:
 
 ---
 
+### Supermemory
+
+- **What it is:** Open-source memory and context engine plus hosted developer platform. It positions itself as a full context stack: memory extraction, user profiles, hybrid RAG/search, connectors, file processing, MCP, and app/plugin surfaces.
+- **Core API shape:** `client.add()` stores conversations/content under `containerTag`; `client.profile()` returns static profile facts, dynamic profile facts, and relevant search results in one call. Search supports hybrid memory + document retrieval.
+- **MCP / agent tooling:** Hosted MCP exposes `memory`, `recall`, and `context` capabilities for Claude Desktop, Cursor, Windsurf, VS Code, Claude Code, OpenCode, OpenClaw, and Hermes-style clients.
+- **Positioning:** Strong "memory as product" benchmark narrative. Public README claims #1 on LongMemEval, LoCoMo, and ConvoMem, with 81.6% on LongMemEval. It also ships MemoryBench for standardized comparisons.
+- **Architecture signals:** Public repo is TypeScript-first, Bun monorepo, MIT licensed, and uses Postgres/Drizzle/Cloudflare-oriented infrastructure. It abstracts storage from developers rather than selling a Postgres-only deployment thesis.
+- **Weakness / memexai opening:** Automatic extraction and managed context are powerful, but auditability and deterministic file-level control are not the headline. Supermemory also competes as a broad platform with connectors and hosted infrastructure; memexai can stay sharper as inspectable, self-hosted, Postgres-only memory with revisions.
+- **How memexai should include it:** Treat Supermemory as a competitor, benchmark target, and optional bridge/migration target. Do not make it a default dependency. A future `supermemory-bridge` package could import/export data, dual-write `memex.ingest()` events, and run MemoryBench comparisons.
+
+Sources:
+- https://github.com/supermemoryai/supermemory
+- https://supermemory.ai/docs
+- https://supermemory.ai/docs/quickstart
+- https://supermemory.ai/docs/concepts/memory-vs-rag
+- https://supermemory.ai/docs/supermemory-mcp/mcp
+
+---
+
 ### LangChain / LangGraph
 
 - **Built-in memory:** Short-term (thread-level) via InMemorySaver (dev) or PostgresSaver (prod). Long-term cross-thread memory stores user-specific data across sessions.
@@ -90,11 +109,14 @@ Sources:
 | OMEGA | 95.4% | GPT-4.1 |
 | Mastra Observational Memory | 94.87% | GPT-5-mini |
 | SuperLocalMemory | 87.7% | |
+| Supermemory | #1 claimed | Public README claims #1 on LoCoMo, LongMemEval, and ConvoMem; LongMemEval listed at 81.6% |
 | Letta | ~83.2% | Open source |
 | Zep/Graphiti | 71.2% (disputed) | Published, contested |
 | mem0 | 67.13% | 91% lower latency, 90% token savings |
 
-Source: https://vectorize.io/articles/best-ai-agent-memory-systems
+Sources:
+- https://vectorize.io/articles/best-ai-agent-memory-systems
+- https://github.com/supermemoryai/supermemory
 
 ---
 
@@ -207,3 +229,43 @@ Dominant hybrid: **vector + graph + episodic buffer**
 - Self-hosted, audit-required, Postgres-only: **memexai**
 
 Source: https://machinelearningmastery.com/vector-databases-vs-graph-rag-for-agent-memory-when-to-use-which
+
+---
+
+## SurrealDB As An Optional Backend Track
+
+- **What it is:** Open-source multi-model database covering relational, document, graph, full-text, vector, geospatial, and time-series workloads in one engine.
+- **Why it matters for agent memory:** It can model the stack many memory systems eventually assemble from several services: documents, graph relationships, BM25/full-text search, and vector search.
+- **JavaScript fit:** Official JavaScript SDK installs with `bun install surrealdb` / `npm install surrealdb`, supports ESM import via `import { Surreal } from "surrealdb"`, and can connect over WebSocket, HTTP, or embedded engines.
+- **Search fit:** SurrealDB supports BM25 full-text indexes and HNSW vector indexes for approximate nearest-neighbor search. HNSW exposes tuning parameters such as `M` and `EFC`.
+- **Operational caveat:** HNSW is memory-sensitive. SurrealDB docs explicitly call out the in-memory nature of HNSW and document bounded cache behavior via `SURREAL_HNSW_CACHE_SIZE` in v3.0.0.
+- **Fit for memexai:** SurrealDB is a plausible experimental backend for advanced graph/vector deployments, not a launch default. Requiring it would weaken memexai's strongest wedge: "Postgres only, no vector store needed."
+- **Recommended inclusion:** Add a future research track for a `SurrealStore` behind a storage interface, preserving the same file/revision/access-log contract. Graph/vector features should be opt-in extensions, not part of the stable default package.
+
+Possible schema direction:
+
+```sql
+DEFINE TABLE memory_file SCHEMAFULL;
+DEFINE FIELD path ON memory_file TYPE string;
+DEFINE FIELD content_text ON memory_file TYPE string;
+DEFINE FIELD user_id ON memory_file TYPE option<string>;
+
+DEFINE ANALYZER memex_text TOKENIZERS class FILTERS lowercase,ascii;
+DEFINE INDEX memory_file_content ON memory_file COLUMNS content_text FULLTEXT ANALYZER memex_text BM25;
+
+DEFINE TABLE memory_chunk SCHEMAFULL;
+DEFINE FIELD file ON memory_chunk TYPE record<memory_file>;
+DEFINE FIELD text ON memory_chunk TYPE string;
+DEFINE FIELD embedding ON memory_chunk TYPE array<float>;
+DEFINE INDEX memory_chunk_embedding ON memory_chunk FIELDS embedding HNSW DIMENSION 1536 DIST COSINE TYPE F32;
+
+DEFINE TABLE mentions TYPE RELATION FROM memory_file TO entity;
+DEFINE TABLE supersedes TYPE RELATION FROM entity TO entity;
+```
+
+Sources:
+- https://surrealdb.com/docs
+- https://surrealdb.com/docs/languages/javascript/installation
+- https://surrealdb.com/docs/languages/javascript/start
+- https://surrealdb.com/docs/reference/query-language/statements/define/indexes
+- https://surrealdb.com/docs/surrealdb/reference-guide/vector-search
