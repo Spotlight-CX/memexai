@@ -27,7 +27,7 @@ Commit:
 
 ## Task 2: Search Migration
 
-Status: `pending`
+Status: `committed`
 
 Scope:
 - Add inline migration `002_search_vector.sql`.
@@ -40,7 +40,7 @@ Validation:
 - If needed, service migration/config tests.
 
 Commit:
-- Pending
+- Included in commit for Task 2.
 
 ## Task 3: Smart Read Core Logic
 

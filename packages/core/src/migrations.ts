@@ -52,6 +52,15 @@ CREATE INDEX IF NOT EXISTS mx_access_log_user_idx ON mx_access_log (user_id, cre
 CREATE INDEX IF NOT EXISTS mx_access_log_tool_call_idx ON mx_access_log (tool_call_id);
     `.trim(),
   },
+  {
+    id: "002_search_vector.sql",
+    sql: `
+ALTER TABLE mx_file ADD COLUMN IF NOT EXISTS search_vector tsvector
+  GENERATED ALWAYS AS (to_tsvector('english', content_text)) STORED;
+
+CREATE INDEX IF NOT EXISTS mx_file_search_idx ON mx_file USING gin(search_vector);
+    `.trim(),
+  },
 ]
 
 export async function runMigrations(db: Db): Promise<void> {
