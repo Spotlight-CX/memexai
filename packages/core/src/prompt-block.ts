@@ -1,6 +1,6 @@
 import type { Db } from "./db"
 import type { ToolContext } from "./paths"
-import { toolDefinitions } from "./tool-definitions"
+import { agenticToolDefinitions, rawToolDefinitions } from "./tool-definitions"
 
 async function readOptionalFile(db: Db, physicalPath: string): Promise<string | null> {
   const { rows } = await db.query<{ content_text: string }>(
@@ -25,13 +25,18 @@ export async function buildPromptBlock(db: Db, ctx: ToolContext): Promise<string
 
   return [
     "<memexai_memory>",
-    "You have access to MemexAI memory tools.",
-    "Use virtual paths only. Writable user memory lives under user/**. Shared product memory lives under shared/** and is read-only.",
-    "Do not use physical paths such as users/{userId}/... . Create files directly by writing slash-delimited user/** paths; folders are inferred from path prefixes.",
+    "You have access to MemexAI memory.",
+    "Prefer the agentic memory tools: memory_memorize to remember durable facts, and memory_search to retrieve memory.",
+    "MemexAI handles file bookkeeping for agentic tools. Use virtual paths only if raw tools are explicitly provided.",
+    "Writable user memory lives under user/**. Shared memory lives under shared/** and is read-only.",
+    "Never use physical paths such as users/{userId}/... .",
     "",
-    "<available_tools>",
-    JSON.stringify(toolDefinitions, null, 2),
-    "</available_tools>",
+    "<recommended_tools>",
+    JSON.stringify(agenticToolDefinitions, null, 2),
+    "</recommended_tools>",
+    "<raw_tools>",
+    JSON.stringify(rawToolDefinitions, null, 2),
+    "</raw_tools>",
     docs.length ? ["", ...docs].join("\n") : "",
     "</memexai_memory>",
   ].filter(Boolean).join("\n")

@@ -23,21 +23,16 @@ const memory = memex.forUser({
   actor: "assistant",
 })
 
-await memory.writeFile({
-  path: "user/profile.md",
-  content: "# Profile\n\n- Prefers quiet projects near good schools",
-  reason: "Captured stable user preference",
-})
+await memory.memorize("Prefers quiet projects near good schools")
 
-const profile = await memory.readFile({ path: "user/profile.md" })
-console.log(profile.content)
+const result = await memory.search("What project style does this user prefer?")
+console.log(result.answer ?? result.results)
 ```
 
 ## Vercel AI SDK Adapter
 
 ```ts
 import { generateText, stepCountIs } from "ai"
-import { createVercelAITools } from "@memexai/sdk/adapters/vercel-ai"
 
 const promptBlock = await memory.getPromptBlock()
 
@@ -50,11 +45,20 @@ const result = await generateText({
     promptBlock,
   ].join("\n"),
   prompt: "Remember that I prefer quiet projects near good schools.",
-  tools: createVercelAITools(memory),
+  tools: memory.createAgenticToolset(),
   stopWhen: stepCountIs(5),
 })
 
 console.log(result.text)
+```
+
+## Raw File Toolset
+
+Use raw mode when you want the agent to manage memory files explicitly:
+
+```ts
+const tools = memory.createRawToolset()
+// memory_list, memory_read, memory_write, memory_patch, memory_smart_read
 ```
 
 ## Tool Adapters

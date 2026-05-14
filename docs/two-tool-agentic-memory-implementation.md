@@ -163,7 +163,7 @@ Commit:
 
 ## Task 10: Prompt Block And Docs
 
-Status: `pending`
+Status: `committed`
 
 Scope:
 - Update prompt block to recommend the simplified surface.
@@ -175,7 +175,7 @@ Validation:
 - Demo agent tests.
 
 Commit:
-- Pending
+- Included in commit for Task 10.
 
 ## Final Verification
 

@@ -28,7 +28,6 @@ npm install @memexai/sdk
 
 ```ts
 import { MemexAI } from "@memexai/sdk"
-import { createVercelAITools } from "@memexai/sdk/adapters/vercel-ai"
 import { generateText, stepCountIs } from "ai"
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
 
@@ -44,7 +43,7 @@ const { text } = await generateText({
   model: createGoogleGenerativeAI()("gemini-2.5-flash"),
   system: `You are a helpful assistant.\n\n${promptBlock}`,
   prompt: "Remember that I prefer quiet neighborhoods near good schools.",
-  tools: createVercelAITools(user),
+  tools: user.createAgenticToolset(),
   stopWhen: stepCountIs(5),
 })
 ```
@@ -65,22 +64,25 @@ npm install @memexai/core
 
 ```ts
 import { createMemex } from "@memexai/core"
-import { createVercelAITools } from "@memexai/core/adapters/vercel-ai"
 import { generateText, stepCountIs } from "ai"
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
 
 // Connect to any Postgres — local, Neon, Supabase, RDS
-const memex = createMemex(process.env.DATABASE_URL)
+const google = createGoogleGenerativeAI()
+const memex = createMemex({
+  databaseUrl: process.env.DATABASE_URL,
+  model: google("gemini-2.5-flash"),
+})
 await memex.migrate()  // idempotent: safe to call on every startup
 
 const user = memex.forUser({ userId: "user_123", actor: "assistant" })
 const promptBlock = await user.getPromptBlock()
 
 const { text } = await generateText({
-  model: createGoogleGenerativeAI()("gemini-2.5-flash"),
+  model: google("gemini-2.5-flash"),
   system: `You are a helpful assistant.\n\n${promptBlock}`,
   prompt: "Remember that I prefer quiet neighborhoods near good schools.",
-  tools: createVercelAITools(user),
+  tools: user.createAgenticToolset(),
   stopWhen: stepCountIs(5),
 })
 
@@ -122,10 +124,15 @@ Agents use four tools:
 
 | Tool | What it does |
 |---|---|
+| `memory_memorize` | Remember durable facts while memexai handles file bookkeeping |
+| `memory_search` | Retrieve relevant memory, using BM25 or agentic resolution when configured |
+| `memory_smart_read` | Read a merged memory context block under a character budget |
 | `memory_list` | List files the agent can see (both user/ and shared/) |
 | `memory_read` | Read a file by virtual path |
 | `memory_write` | Create or overwrite a user/ file |
 | `memory_patch` | Append lines under a heading or replace exact text |
+
+For most agents, pass `user.createAgenticToolset()` and expose only `memory_memorize` and `memory_search`. Use `user.createRawToolset()` when you want the model to manage files directly.
 
 Every write records a revision with actor, reason, and tool call ID.
 

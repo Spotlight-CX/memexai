@@ -2,9 +2,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { openai } from "@ai-sdk/openai"
 import { generateText, stepCountIs } from "ai"
 import { createMemex } from "@memexai/core"
-import { createVercelAITools as createCoreVercelAITools } from "@memexai/core/adapters/vercel-ai"
 import { MemexAI } from "@memexai/sdk"
-import { createVercelAITools } from "@memexai/sdk/adapters/vercel-ai"
 import { pathToFileURL } from "node:url"
 
 type Env = Record<string, string | undefined>
@@ -26,10 +24,10 @@ export function parseCliArgs(argv: string[]): CliOptions {
   return { smoke, direct, prompt: prompt || undefined }
 }
 
-export function createDirectMemory(env: Env) {
+export function createDirectMemory(env: Env, model?: unknown) {
   const databaseUrl = requireEnv(env, "DATABASE_URL")
   const userId = env.MEMEX_DEMO_USER_ID || "demo_user"
-  const memex = createMemex(databaseUrl)
+  const memex = model ? createMemex({ databaseUrl, model }) : createMemex(databaseUrl)
   return { memex, userId, user: memex.forUser({ userId, actor: "demo-agent" }) }
 }
 
@@ -106,13 +104,12 @@ export async function runLiveAgent(input: {
     model: modelConfig.model,
     system: [
       "You are a concise MemexAI demo agent.",
-      "Use MemexAI memory tools whenever the user asks you to remember, retrieve, update, or inspect durable memory.",
-      "Write user-specific durable notes under user/**. Do not write shared/**.",
+      "Use MemexAI memory tools whenever the user asks you to remember or retrieve durable memory.",
       "",
       promptBlock,
     ].join("\n"),
     prompt: input.prompt,
-    tools: createVercelAITools(memory),
+    tools: memory.createAgenticToolset(),
     stopWhen: stepCountIs(5),
   })
 
@@ -166,7 +163,7 @@ export async function runLiveAgentDirect(input: {
   const log = input.log ?? console.log
   const modelConfig = createModelConfig(env, input.modelFactory, input.googleModelFactory)
 
-  const { memex, userId, user } = input.memexOverride ?? createDirectMemory(env)
+  const { memex, userId, user } = input.memexOverride ?? createDirectMemory(env, modelConfig.model)
   await memex.migrate()
   const promptBlock = await user.getPromptBlock()
   const runGenerateText = input.generate ?? generateText
@@ -175,13 +172,12 @@ export async function runLiveAgentDirect(input: {
     model: modelConfig.model,
     system: [
       "You are a concise MemexAI demo agent (direct Postgres mode).",
-      "Use MemexAI memory tools whenever the user asks you to remember, retrieve, update, or inspect durable memory.",
-      "Write user-specific durable notes under user/**. Do not write shared/**.",
+      "Use MemexAI memory tools whenever the user asks you to remember or retrieve durable memory.",
       "",
       promptBlock,
     ].join("\n"),
     prompt: input.prompt,
-    tools: createCoreVercelAITools(user),
+    tools: user.createAgenticToolset(),
     stopWhen: stepCountIs(5),
   })
 

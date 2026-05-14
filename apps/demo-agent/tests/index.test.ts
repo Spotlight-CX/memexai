@@ -129,7 +129,8 @@ describe("demo agent CLI", () => {
       prompt: "Remember quiet projects.",
     })
     expect(generateInput.system).toContain("<memexai_memory>")
-    expect(generateInput.tools.memory_write.inputSchema).toBeDefined()
+    expect(generateInput.tools.memory_memorize.inputSchema).toBeDefined()
+    expect(generateInput.tools.memory_search.inputSchema).toBeDefined()
   })
 
   test("live agent falls back to OpenAI when no Gemini key is present", async () => {
@@ -213,7 +214,8 @@ describe("demo agent CLI — direct mode (@memexai/core)", () => {
     expect(generate).toHaveBeenCalledOnce()
     const callInput = generate.mock.calls[0]?.[0] as { system: string; tools: Record<string, unknown>; prompt: string }
     expect(callInput.system).toContain("<memexai_memory>")
-    expect(callInput.tools).toHaveProperty("memory_write")
+    expect(callInput.tools).toHaveProperty("memory_memorize")
+    expect(callInput.tools).toHaveProperty("memory_search")
     expect(callInput.prompt).toContain("quiet neighborhoods")
   })
 })
