@@ -78,7 +78,7 @@ Commit:
 
 ## Task 5: Model Config Container
 
-Status: `pending`
+Status: `committed`
 
 Scope:
 - Support `createMemex({ databaseUrl, model? })` for direct mode.
@@ -90,7 +90,7 @@ Validation:
 - `bun test packages/core/tests/memex.test.ts apps/service/tests/config.test.ts packages/sdk/tests/client.test.ts`
 
 Commit:
-- Pending
+- Included in commit for Task 5.
 
 ## Task 6: Agentic `memory_search` Resolution
 

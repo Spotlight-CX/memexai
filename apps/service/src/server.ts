@@ -10,7 +10,7 @@ import { executeToolRequestSchema, promptBlockQuerySchema } from "./schemas"
 import { executeTool, listTools } from "./tools"
 import { registerAdminStaticRoutes } from "./static-admin"
 
-export function buildServer(input: { db: Db; config: Config }): FastifyInstance {
+export function buildServer(input: { db: Db; config: Config; model?: unknown }): FastifyInstance {
   const app = Fastify({ logger: true })
   const { db, config } = input
   const apiAuth = requireApiKey(config.MEMEX_API_KEY)

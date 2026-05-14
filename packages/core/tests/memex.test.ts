@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest"
-import { Memex, MemexUser } from "../src/memex"
+import { createMemex, Memex, MemexUser } from "../src/memex"
 import { MemexError } from "../src/errors"
 import { agenticToolDefinitions, rawToolDefinitions, toolDefinitions } from "../src/tool-definitions"
 
@@ -76,6 +76,25 @@ describe("Memex", () => {
     const memex = new Memex(createMockDb({ end: endMock }))
     await memex.end()
     expect(endMock).toHaveBeenCalledOnce()
+  })
+
+  test("can store a model for direct mode", () => {
+    const model = { id: "mock-model" }
+    const memex = new Memex(createMockDb(), model)
+    expect(memex.getModel()).toBe(model)
+  })
+})
+
+describe("createMemex", () => {
+  test("accepts legacy database URL input", () => {
+    const memex = createMemex("postgresql://localhost/memexai")
+    expect(memex.getModel()).toBeUndefined()
+  })
+
+  test("accepts object input with direct-mode model", () => {
+    const model = { id: "mock-model" }
+    const memex = createMemex({ databaseUrl: "postgresql://localhost/memexai", model })
+    expect(memex.getModel()).toBe(model)
   })
 })
 

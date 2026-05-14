@@ -1,14 +1,16 @@
 import { loadConfig } from "./config"
 import { createPool } from "./db"
 import { runMigrations } from "./migrations"
+import { createServiceModel } from "./model"
 import { buildServer } from "./server"
 
 async function main() {
   const config = loadConfig()
+  const modelConfig = await createServiceModel(config)
   const db = createPool(config.DATABASE_URL)
   await runMigrations(db)
 
-  const app = buildServer({ db, config })
+  const app = buildServer({ db, config, model: modelConfig?.model })
   await app.listen({ port: config.PORT, host: "0.0.0.0" })
 
   const close = async () => {

@@ -6,7 +6,10 @@ import { toolDefinitions } from "./tool-definitions"
 import { executeTool } from "./tools"
 
 export class Memex {
-  constructor(private readonly db: Db) {}
+  constructor(
+    private readonly db: Db,
+    private readonly model?: unknown,
+  ) {}
 
   async migrate(): Promise<void> {
     await runMigrations(this.db)
@@ -18,6 +21,10 @@ export class Memex {
 
   async executeTool<T = unknown>(toolName: string, args: unknown, ctx: ToolContext): Promise<T> {
     return executeTool(this.db, toolName, args, ctx) as Promise<T>
+  }
+
+  getModel(): unknown | undefined {
+    return this.model
   }
 
   async getPromptBlock(ctx: ToolContext): Promise<string> {
@@ -84,7 +91,9 @@ export class MemexUser {
   }
 }
 
-export function createMemex(databaseUrl: string): Memex {
+export function createMemex(input: string | { databaseUrl: string; model?: unknown }): Memex {
+  const databaseUrl = typeof input === "string" ? input : input.databaseUrl
+  const model = typeof input === "string" ? undefined : input.model
   const db = createPool(databaseUrl)
-  return new Memex(db)
+  return new Memex(db, model)
 }

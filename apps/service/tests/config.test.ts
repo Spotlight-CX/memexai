@@ -18,4 +18,18 @@ describe("config", () => {
       MEMEX_API_KEY: "prod-key",
     })).toThrow(/MEMEX_ADMIN_SECRET/)
   })
+
+  test("loads optional model env", () => {
+    const config = loadConfig({
+      DATABASE_URL: "postgresql://localhost/memexai",
+      MEMEX_API_KEY: "dev-key",
+      MEMEX_LLM_PROVIDER: "openai",
+      OPENAI_API_KEY: "openai-key",
+      OPENAI_MODEL: "gpt-test",
+    })
+
+    expect(config.MEMEX_LLM_PROVIDER).toBe("openai")
+    expect(config.OPENAI_API_KEY).toBe("openai-key")
+    expect(config.OPENAI_MODEL).toBe("gpt-test")
+  })
 })

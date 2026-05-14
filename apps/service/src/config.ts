@@ -6,6 +6,13 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   MEMEX_API_KEY: z.string().min(1),
   MEMEX_ADMIN_SECRET: z.string().optional(),
+  MEMEX_LLM_PROVIDER: z.enum(["google", "openai"]).optional(),
+  GEMINI_API_KEY: z.string().optional(),
+  GOOGLE_GENERATIVE_AI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().optional(),
+  GOOGLE_GENERATIVE_AI_MODEL: z.string().optional(),
+  OPENAI_API_KEY: z.string().optional(),
+  OPENAI_MODEL: z.string().optional(),
 })
 
 export type Config = z.infer<typeof envSchema> & {
