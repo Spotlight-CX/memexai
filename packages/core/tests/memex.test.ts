@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest"
 import { Memex, MemexUser } from "../src/memex"
 import { MemexError } from "../src/errors"
-import { toolDefinitions } from "../src/tool-definitions"
+import { agenticToolDefinitions, rawToolDefinitions, toolDefinitions } from "../src/tool-definitions"
 
 function createMockDb(overrides: Partial<{ query: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn>; connect: ReturnType<typeof vi.fn> }> = {}) {
   return {
@@ -16,11 +16,22 @@ function createMockDb(overrides: Partial<{ query: ReturnType<typeof vi.fn>; end:
 }
 
 describe("Memex", () => {
-  test("getTools() returns all 4 tool definitions", () => {
+  test("getTools() returns all tool definitions", () => {
     const memex = new Memex(createMockDb())
     const tools = memex.getTools()
-    expect(tools).toHaveLength(4)
+    expect(tools).toHaveLength(7)
     expect(tools.map((t) => t.name)).toEqual(toolDefinitions.map((t) => t.name))
+  })
+
+  test("tool definitions are split into agentic and raw sets", () => {
+    expect(agenticToolDefinitions.map((tool) => tool.name)).toEqual(["memory_memorize", "memory_search"])
+    expect(rawToolDefinitions.map((tool) => tool.name)).toEqual([
+      "memory_list",
+      "memory_read",
+      "memory_write",
+      "memory_patch",
+      "memory_smart_read",
+    ])
   })
 
   test("getTools() returns MCP-compatible shape (name, description, inputSchema)", () => {
