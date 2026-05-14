@@ -61,7 +61,7 @@ Commit:
 
 ## Task 4: BM25 `memory_search`
 
-Status: `pending`
+Status: `committed`
 
 Scope:
 - Implement deterministic BM25 search.
@@ -74,7 +74,7 @@ Validation:
 - SDK fallback tests for `memory.search()`.
 
 Commit:
-- Pending
+- Included in commit for Task 4.
 
 ## Task 5: Model Config Container
 

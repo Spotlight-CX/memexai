@@ -67,6 +67,18 @@ export class MemexUser {
     )
   }
 
+  async search(query: string, options: { maxChars?: number; limit?: number; maxReads?: number; prefix?: string } = {}) {
+    return this.memex.executeTool<{
+      query: string
+      results: { path: string; snippet: string; rank: number; updatedAt: Date }[]
+      truncated: boolean
+    }>(
+      "memory_search",
+      { query, ...options },
+      this.ctx,
+    )
+  }
+
   async executeTool<T = unknown>(toolName: string, args: unknown, toolCallId?: string): Promise<T> {
     return this.memex.executeTool(toolName, args, toolCallId ? { ...this.ctx, toolCallId } : this.ctx)
   }

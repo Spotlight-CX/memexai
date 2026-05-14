@@ -67,5 +67,6 @@ export function assertWritableVirtualPath(path: string): void {
 
 export function prefixToPhysical(prefix: string | undefined, ctx: ToolContext): string | null {
   if (!prefix) return null
-  return virtualToPhysical(prefix, ctx)
+  const normalized = prefix.endsWith("/") ? prefix.slice(0, -1) : prefix
+  return virtualToPhysical(normalized, ctx)
 }

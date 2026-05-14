@@ -9,6 +9,8 @@ import type {
   ReadFileInput,
   ReadFileResult,
   RequestContext,
+  SearchMemoryInput,
+  SearchMemoryResult,
   WriteFileInput,
   WriteFileResult,
 } from "./types"
@@ -121,6 +123,16 @@ export class MemexMemory {
     const { toolCallId, ...args } = input
     return this.client.executeTool({
       name: "memory_patch",
+      context: withToolCallId(this.context, toolCallId),
+      arguments: args,
+    })
+  }
+
+  async search(input: SearchMemoryInput | string): Promise<SearchMemoryResult> {
+    const normalized = typeof input === "string" ? { query: input } : input
+    const { toolCallId, ...args } = normalized
+    return this.client.executeTool({
+      name: "memory_search",
       context: withToolCallId(this.context, toolCallId),
       arguments: args,
     })

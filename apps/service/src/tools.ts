@@ -3,7 +3,7 @@ import { HttpError } from "./errors"
 import { newId } from "./ids"
 import { assertWritableVirtualPath, physicalToVirtual, prefixToPhysical, virtualToPhysical, type ToolContext } from "./paths"
 import { appendLinesAfterHeading, replaceExactText } from "./text-patch"
-import { listArgsSchema, patchArgsSchema, readArgsSchema, smartReadArgsSchema, writeArgsSchema } from "./schemas"
+import { listArgsSchema, patchArgsSchema, readArgsSchema, searchArgsSchema, smartReadArgsSchema, writeArgsSchema } from "./schemas"
 import { toolDefinitions, type ToolName } from "./tool-definitions"
 
 type FileRow = {
@@ -264,6 +264,62 @@ export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolCon
   }
 }
 
+type SearchRow = {
+  physical_path: string
+  snippet: string
+  rank: number
+  updated_at: Date
+}
+
+export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContext) {
+  const { query, limit = 10, prefix } = searchArgsSchema.parse(args)
+  const values: unknown[] = [query]
+  let visibilityWhere = "(physical_path LIKE $2 OR physical_path LIKE 'shared/%')"
+  values.push(`users/${ctx.userId}/%`)
+
+  if (prefix) {
+    const physicalPrefix = prefixToPhysical(prefix, ctx)
+    visibilityWhere = "(physical_path = $2 OR physical_path LIKE $3)"
+    values.length = 1
+    values.push(physicalPrefix, `${physicalPrefix.endsWith("/") ? physicalPrefix : `${physicalPrefix}/`}%`)
+  }
+  values.push(limit)
+
+  const { rows } = await db.query<SearchRow>(
+    `
+      WITH q AS (SELECT plainto_tsquery('english', $1) AS query)
+      SELECT
+        physical_path,
+        ts_headline('english', content_text, q.query, 'MaxFragments=2, MinWords=4, MaxWords=24') AS snippet,
+        ts_rank_cd(search_vector, q.query) AS rank,
+        updated_at
+      FROM mx_file, q
+      WHERE ${visibilityWhere}
+        AND search_vector @@ q.query
+      ORDER BY rank DESC, updated_at DESC
+      LIMIT $${values.length}
+    `,
+    values,
+  )
+
+  await logAccess(db, { physicalPath: prefix ? prefixToPhysical(prefix, ctx) : "*", operation: "search", ctx })
+
+  return {
+    query,
+    results: rows.flatMap((row) => {
+      const path = physicalToVirtual(row.physical_path, ctx)
+      if (!path) return []
+      return [{
+        path,
+        snippet: row.snippet,
+        rank: Number(row.rank),
+        updatedAt: row.updated_at,
+      }]
+    }),
+    truncated: false,
+  }
+}
+
 export async function executeTool(db: Db, toolName: string, args: unknown, ctx: ToolContext) {
   switch (toolName as ToolName) {
     case "memory_list":
@@ -276,6 +332,8 @@ export async function executeTool(db: Db, toolName: string, args: unknown, ctx: 
       return executeMemoryPatch(db, args, ctx)
     case "memory_smart_read":
       return executeMemorySmartRead(db, args, ctx)
+    case "memory_search":
+      return executeMemorySearch(db, args, ctx)
     default:
       throw new HttpError(404, "UNKNOWN_TOOL", `Unknown tool: ${toolName}`)
   }

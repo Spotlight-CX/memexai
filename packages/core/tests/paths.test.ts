@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { assertWritableVirtualPath, physicalToVirtual, virtualToPhysical } from "../src/paths"
+import { assertWritableVirtualPath, physicalToVirtual, prefixToPhysical, virtualToPhysical } from "../src/paths"
 import { MemexError } from "../src/errors"
 
 const ctx = { userId: "user_123", actor: "assistant" }
@@ -43,6 +43,11 @@ describe("path translation", () => {
     expect(() => assertWritableVirtualPath("user/nested/file.md")).not.toThrow()
     expect(() => assertWritableVirtualPath("shared/claude.md")).toThrow(MemexError)
     expect(() => assertWritableVirtualPath("shared/index.md")).toThrow(MemexError)
+  })
+
+  test("normalizes documented trailing slash prefixes", () => {
+    expect(prefixToPhysical("user/", ctx)).toBe("users/user_123")
+    expect(prefixToPhysical("shared/", ctx)).toBe("shared")
   })
 
   test("errors carry machine-readable codes", () => {

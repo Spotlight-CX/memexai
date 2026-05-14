@@ -71,6 +71,26 @@ export type PatchFileResult = {
   noOp: boolean
 }
 
+export type SearchMemoryInput = {
+  query: string
+  maxChars?: number
+  limit?: number
+  maxReads?: number
+  prefix?: string
+  toolCallId?: string
+}
+
+export type SearchMemoryResult = {
+  query: string
+  results: {
+    path: string
+    snippet: string
+    rank: number
+    updatedAt: string
+  }[]
+  truncated: boolean
+}
+
 export type JsonSchema = Record<string, unknown>
 
 export type ToolDefinition = {

@@ -12,6 +12,8 @@ export type {
   ReadFileInput,
   ReadFileResult,
   RequestContext,
+  SearchMemoryInput,
+  SearchMemoryResult,
   ToolDefinition,
   WriteFileInput,
   WriteFileResult,

@@ -1,5 +1,21 @@
 export const toolDefinitions = [
   {
+    name: "memory_search",
+    description: "Search memory for a question. Uses BM25 by default and agentic read-only resolution when an LLM is configured.",
+    inputSchema: {
+      type: "object",
+      required: ["query"],
+      additionalProperties: false,
+      properties: {
+        query: { type: "string", description: "Question or topic to search memory for." },
+        maxChars: { type: "number", description: "Maximum characters to return. Default: 8000." },
+        limit: { type: "number", description: "Maximum BM25 candidates. Default: 10." },
+        maxReads: { type: "number", description: "Maximum files the agentic resolver may inspect. Default: 5." },
+        prefix: { type: "string", description: "Optional virtual path prefix, e.g. user/ or shared/." },
+      },
+    },
+  },
+  {
     name: "memory_list",
     description: "List memory files visible to the current user. Optional prefix filters paths, e.g. user/ or shared/.",
     inputSchema: {

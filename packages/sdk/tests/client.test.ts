@@ -159,6 +159,25 @@ describe("MemexAI SDK — file operations", () => {
       replacement: "Budget: 2.5 Cr",
     })
   })
+
+  test("executes search through the service", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({
+      query: "neighborhood",
+      results: [{ path: "user/profile.md", snippet: "quiet neighborhood", rank: 0.4, updatedAt: "2026-01-01T00:00:00.000Z" }],
+      truncated: false,
+    }))
+    const memory = createClient(fetchMock).forUser({ userId: "user_123", actor: "assistant" })
+
+    const result = await memory.search({ query: "neighborhood", limit: 3, toolCallId: "call_search" })
+
+    expect(result.results[0]?.path).toBe("user/profile.md")
+    const [url, request] = fetchMock.mock.calls[0]
+    expect(url).toBe("http://memex.local/v1/tools/memory_search/execute")
+    expect(JSON.parse(request.body as string)).toEqual({
+      context: { userId: "user_123", actor: "assistant", toolCallId: "call_search" },
+      arguments: { query: "neighborhood", limit: 3 },
+    })
+  })
 })
 
 describe("MemexAI SDK — error handling", () => {
