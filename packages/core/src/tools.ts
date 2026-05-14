@@ -3,7 +3,7 @@ import { MemexError } from "./errors"
 import { newId } from "./ids"
 import { assertWritableVirtualPath, physicalToVirtual, prefixToPhysical, virtualToPhysical, type ToolContext } from "./paths"
 import { appendLinesAfterHeading, replaceExactText } from "./text-patch"
-import { listArgsSchema, patchArgsSchema, readArgsSchema, writeArgsSchema } from "./schemas"
+import { listArgsSchema, patchArgsSchema, readArgsSchema, smartReadArgsSchema, writeArgsSchema } from "./schemas"
 import { type ToolName } from "./tool-definitions"
 
 type FileRow = {
@@ -17,7 +17,7 @@ type FileRow = {
 async function logAccess(db: Db, input: {
   fileId?: string | null
   physicalPath: string
-  operation: "list" | "read" | "write" | "patch"
+  operation: "list" | "read" | "write" | "patch" | "smart_read" | "search"
   ctx: ToolContext
 }) {
   await db.query(
@@ -182,6 +182,90 @@ export async function executeMemoryPatch(db: Db, args: unknown, ctx: ToolContext
   }
 }
 
+type SmartReadRow = FileRow & {
+  rank?: number
+}
+
+function buildMemoryBlock(input: {
+  included: { path: string; content: string; updatedAt: Date }[]
+  omitted: string[]
+}): string {
+  const sections = input.included.map((file) => [
+    `## ${file.path}`,
+    `(updated ${file.updatedAt.toISOString()})`,
+    "",
+    file.content,
+  ].join("\n"))
+
+  const note = input.omitted.length > 0
+    ? [
+      "---",
+      `Note: ${input.omitted.length} file(s) omitted (budget limit). Use memory_search to find specific content.`,
+    ].join("\n")
+    : null
+
+  return [
+    "<memexai_memory>",
+    ...sections,
+    note,
+    "</memexai_memory>",
+  ].filter(Boolean).join("\n\n")
+}
+
+export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolContext) {
+  const { maxChars = 24_000, query } = smartReadArgsSchema.parse(args ?? {})
+  const values: unknown[] = [`users/${ctx.userId}/%`]
+  let sql = `
+    SELECT id, physical_path, content_text, created_at, updated_at
+    FROM mx_file
+    WHERE physical_path LIKE $1 OR physical_path LIKE 'shared/%'
+    ORDER BY updated_at DESC
+  `
+
+  if (query) {
+    values.unshift(query)
+    sql = `
+      WITH q AS (SELECT plainto_tsquery('english', $1) AS query)
+      SELECT id, physical_path, content_text, created_at, updated_at, ts_rank_cd(search_vector, q.query) AS rank
+      FROM mx_file, q
+      WHERE (physical_path LIKE $2 OR physical_path LIKE 'shared/%')
+        AND search_vector @@ q.query
+      ORDER BY rank DESC, updated_at DESC
+    `
+  }
+
+  const { rows } = await db.query<SmartReadRow>(sql, values)
+  const visibleFiles = rows.flatMap((row) => {
+    const path = physicalToVirtual(row.physical_path, ctx)
+    return path ? [{ path, content: row.content_text, updatedAt: row.updated_at }] : []
+  })
+
+  const included: { path: string; content: string; updatedAt: Date }[] = []
+  const omitted: string[] = []
+  let usedChars = 0
+
+  for (const file of visibleFiles) {
+    const sectionChars = file.path.length + file.content.length + 64
+    if (usedChars + sectionChars <= maxChars || included.length === 0) {
+      if (sectionChars <= maxChars || included.length === 0) {
+        included.push(file)
+        usedChars += sectionChars
+        continue
+      }
+    }
+    omitted.push(file.path)
+  }
+
+  await logAccess(db, { physicalPath: "*", operation: "smart_read", ctx })
+
+  return {
+    content: buildMemoryBlock({ included, omitted }),
+    filesIncluded: included.map((file) => file.path),
+    filesOmitted: omitted,
+    truncated: omitted.length > 0,
+  }
+}
+
 export async function executeTool(db: Db, toolName: string, args: unknown, ctx: ToolContext) {
   switch (toolName as ToolName) {
     case "memory_list":
@@ -192,6 +276,8 @@ export async function executeTool(db: Db, toolName: string, args: unknown, ctx: 
       return executeMemoryWrite(db, args, ctx)
     case "memory_patch":
       return executeMemoryPatch(db, args, ctx)
+    case "memory_smart_read":
+      return executeMemorySmartRead(db, args, ctx)
     default:
       throw new MemexError("UNKNOWN_TOOL", `Unknown tool: ${toolName}`)
   }

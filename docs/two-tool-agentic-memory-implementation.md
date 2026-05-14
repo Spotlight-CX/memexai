@@ -44,7 +44,7 @@ Commit:
 
 ## Task 3: Smart Read Core Logic
 
-Status: `pending`
+Status: `committed`
 
 Scope:
 - Implement `memory_smart_read`.
@@ -57,7 +57,7 @@ Validation:
 - Service route test through `/v1/tools/memory_smart_read/execute`.
 
 Commit:
-- Pending
+- Included in commit for Task 3.
 
 ## Task 4: BM25 `memory_search`
 

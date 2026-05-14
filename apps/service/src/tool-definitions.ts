@@ -57,6 +57,18 @@ export const toolDefinitions = [
       },
     },
   },
+  {
+    name: "memory_smart_read",
+    description: "Read all or the most relevant memory files in one merged context block under a character budget.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        maxChars: { type: "number", description: "Maximum characters to return. Default: 24000." },
+        query: { type: "string", description: "Optional query to rank files by keyword relevance." },
+      },
+    },
+  },
 ] as const
 
 export type ToolName = (typeof toolDefinitions)[number]["name"]

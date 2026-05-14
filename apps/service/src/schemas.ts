@@ -43,3 +43,8 @@ export const patchArgsSchema = z.discriminatedUnion("operation", [
     reason: z.string().optional(),
   }),
 ])
+
+export const smartReadArgsSchema = z.object({
+  maxChars: z.number().int().positive().max(200_000).default(24_000).optional(),
+  query: z.string().min(1).optional(),
+})
