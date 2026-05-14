@@ -275,9 +275,10 @@ type SearchRow = {
 }
 
 export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContext, options: { model?: unknown } = {}) {
-  const { query, limit = 10, prefix } = searchArgsSchema.parse(args)
+  const parsed = searchArgsSchema.parse(args)
+  const { query, limit = 10, prefix } = parsed
   if (options.model) {
-    return executeAgenticMemorySearch(db, { query, limit, prefix, ...searchArgsSchema.parse(args) }, ctx, options.model)
+    return executeAgenticMemorySearch(db, parsed, ctx, options.model)
   }
   return executeMemorySearchBm25(db, { query, limit, prefix }, ctx)
 }
@@ -410,6 +411,7 @@ async function executeMemorySearchBm25(db: Db, input: { query: string; limit?: n
 
   if (prefix) {
     const physicalPrefix = prefixToPhysical(prefix, ctx)
+    if (!physicalPrefix) throw new MemexError("INVALID_PATH", "prefix is required")
     visibilityWhere = "(physical_path = $2 OR physical_path LIKE $3)"
     values.length = 1
     values.push(physicalPrefix, `${physicalPrefix.endsWith("/") ? physicalPrefix : `${physicalPrefix}/`}%`)
@@ -433,7 +435,8 @@ async function executeMemorySearchBm25(db: Db, input: { query: string; limit?: n
     values,
   )
 
-  await logAccess(db, { physicalPath: prefix ? prefixToPhysical(prefix, ctx) : "*", operation: "search", ctx })
+  const logPath = prefix ? prefixToPhysical(prefix, ctx) : "*"
+  await logAccess(db, { physicalPath: logPath ?? "*", operation: "search", ctx })
 
   return {
     query,

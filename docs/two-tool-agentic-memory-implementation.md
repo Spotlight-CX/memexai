@@ -146,7 +146,7 @@ Commit:
 
 ## Task 9: Service Core Delegation
 
-Status: `pending`
+Status: `committed`
 
 Scope:
 - Add service dependency on `@memexai/core`.
@@ -159,7 +159,7 @@ Validation:
 - New service tool execution tests.
 
 Commit:
-- Pending
+- Included in commit for Task 9.
 
 ## Task 10: Prompt Block And Docs
 

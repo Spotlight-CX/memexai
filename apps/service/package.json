@@ -17,6 +17,7 @@
   "dependencies": {
     "@ai-sdk/google": "^2.0.29",
     "@ai-sdk/openai": "^2.0.46",
+    "@memexai/core": "workspace:*",
     "@mantine/core": "^9.0.1",
     "@mantine/hooks": "^9.0.1",
     "@mantine/spotlight": "^9.1.1",
