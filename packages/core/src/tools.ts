@@ -3,7 +3,7 @@ import { MemexError } from "./errors"
 import { newId } from "./ids"
 import { assertWritableVirtualPath, physicalToVirtual, prefixToPhysical, virtualToPhysical, type ToolContext } from "./paths"
 import { appendLinesAfterHeading, replaceExactText } from "./text-patch"
-import { listArgsSchema, patchArgsSchema, readArgsSchema, searchArgsSchema, smartReadArgsSchema, writeArgsSchema } from "./schemas"
+import { listArgsSchema, memorizeArgsSchema, patchArgsSchema, readArgsSchema, searchArgsSchema, smartReadArgsSchema, writeArgsSchema } from "./schemas"
 import { type ToolName } from "./tool-definitions"
 import { generateText, jsonSchema, stepCountIs } from "ai"
 
@@ -282,6 +282,126 @@ export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContex
   return executeMemorySearchBm25(db, { query, limit, prefix }, ctx)
 }
 
+type MemorizeWrite = {
+  tool: "memory_write" | "memory_patch"
+  path: string
+  reason?: string
+  args: unknown
+  result?: unknown
+}
+
+export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolContext, options: { model?: unknown } = {}) {
+  const { text, maxWrites = 5, dryRun = false } = memorizeArgsSchema.parse(args)
+  if (!options.model) {
+    throw new MemexError("MODEL_NOT_CONFIGURED", "memory_memorize requires a configured model")
+  }
+
+  const list = await executeMemoryList(db, {}, ctx)
+  const indexReads = await Promise.allSettled([
+    executeMemoryRead(db, { path: "user/index.md" }, ctx),
+    executeMemoryRead(db, { path: "shared/index.md" }, ctx),
+  ])
+  const indexes = indexReads.flatMap((result) => result.status === "fulfilled" ? [result.value] : [])
+  const writes: MemorizeWrite[] = []
+
+  const ensureWriteBudget = () => {
+    if (writes.length >= maxWrites) {
+      throw new MemexError("MAX_WRITES_EXCEEDED", "memory_memorize write budget exceeded")
+    }
+  }
+
+  const result = await generateText({
+    model: options.model as never,
+    system: [
+      "You are a memory ingestion agent.",
+      "Extract only durable facts worth remembering.",
+      "Use virtual paths only, such as user/profile.md.",
+      "Never use physical paths such as users/{userId}/...",
+      "Prefer memory_patch when a relevant user file already exists.",
+      "Use memory_write only for new user files.",
+      "Always include a concise reason.",
+      dryRun ? "Dry run is enabled; plan writes but do not commit them." : "Commit useful writes.",
+    ].join("\n"),
+    prompt: [
+      "Text to memorize:",
+      text,
+      "",
+      "Existing files:",
+      JSON.stringify(list.files, null, 2),
+      "",
+      "Index files:",
+      JSON.stringify(indexes.map((file) => ({ path: file.path, content: file.content })), null, 2),
+    ].join("\n"),
+    tools: {
+      memory_write: {
+        description: "Create or overwrite a writable user/** memory file.",
+        inputSchema: jsonSchema({
+          type: "object",
+          required: ["path", "content"],
+          additionalProperties: false,
+          properties: {
+            path: { type: "string" },
+            content: { type: "string" },
+            reason: { type: "string" },
+          },
+        }),
+        execute: async (toolArgs: unknown) => {
+          ensureWriteBudget()
+          const parsed = writeArgsSchema.parse(toolArgs)
+          assertWritableVirtualPath(parsed.path)
+          const planned: MemorizeWrite = {
+            tool: "memory_write",
+            path: parsed.path,
+            reason: parsed.reason,
+            args: parsed,
+          }
+          if (!dryRun) planned.result = await executeMemoryWrite(db, parsed, ctx)
+          writes.push(planned)
+          return dryRun ? { planned: true, path: parsed.path } : planned.result
+        },
+      },
+      memory_patch: {
+        description: "Patch a writable user/** memory file.",
+        inputSchema: jsonSchema({
+          type: "object",
+          required: ["path", "operation"],
+          additionalProperties: false,
+          properties: {
+            path: { type: "string" },
+            operation: { type: "string", enum: ["append_lines", "replace_lines"] },
+            after_heading: { type: "string" },
+            lines: { type: "array", items: { type: "string" } },
+            match: { type: "string" },
+            replacement: { oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }] },
+            reason: { type: "string" },
+          },
+        }),
+        execute: async (toolArgs: unknown) => {
+          ensureWriteBudget()
+          const parsed = patchArgsSchema.parse(toolArgs)
+          assertWritableVirtualPath(parsed.path)
+          const planned: MemorizeWrite = {
+            tool: "memory_patch",
+            path: parsed.path,
+            reason: parsed.reason,
+            args: parsed,
+          }
+          if (!dryRun) planned.result = await executeMemoryPatch(db, parsed, ctx)
+          writes.push(planned)
+          return dryRun ? { planned: true, path: parsed.path } : planned.result
+        },
+      },
+    },
+    stopWhen: stepCountIs(Math.max(1, maxWrites + 1)),
+  })
+
+  return {
+    text: result.text,
+    dryRun,
+    writes,
+  }
+}
+
 async function executeMemorySearchBm25(db: Db, input: { query: string; limit?: number; prefix?: string }, ctx: ToolContext) {
   const { query, limit = 10, prefix } = input
   const values: unknown[] = [query]
@@ -433,6 +553,8 @@ export async function executeTool(db: Db, toolName: string, args: unknown, ctx: 
       return executeMemorySmartRead(db, args, ctx)
     case "memory_search":
       return executeMemorySearch(db, args, ctx, options)
+    case "memory_memorize":
+      return executeMemoryMemorize(db, args, ctx, options)
     default:
       throw new MemexError("UNKNOWN_TOOL", `Unknown tool: ${toolName}`)
   }

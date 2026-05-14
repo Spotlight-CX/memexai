@@ -3,6 +3,8 @@ import type {
   ListFilesInput,
   MemoryContext,
   MemoryFile,
+  MemorizeInput,
+  MemorizeResult,
   MemexAIOptions,
   PatchFileInput,
   PatchFileResult,
@@ -133,6 +135,16 @@ export class MemexMemory {
     const { toolCallId, ...args } = normalized
     return this.client.executeTool({
       name: "memory_search",
+      context: withToolCallId(this.context, toolCallId),
+      arguments: args,
+    })
+  }
+
+  async memorize(input: MemorizeInput | string): Promise<MemorizeResult> {
+    const normalized = typeof input === "string" ? { text: input } : input
+    const { toolCallId, ...args } = normalized
+    return this.client.executeTool({
+      name: "memory_memorize",
       context: withToolCallId(this.context, toolCallId),
       arguments: args,
     })

@@ -56,3 +56,9 @@ export const searchArgsSchema = z.object({
   maxReads: z.number().int().positive().max(50).default(5).optional(),
   prefix: z.string().optional(),
 })
+
+export const memorizeArgsSchema = z.object({
+  text: z.string().min(1),
+  maxWrites: z.number().int().positive().max(50).default(5).optional(),
+  dryRun: z.boolean().default(false).optional(),
+})

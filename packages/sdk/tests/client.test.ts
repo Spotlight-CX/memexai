@@ -178,6 +178,25 @@ describe("MemexAI SDK — file operations", () => {
       arguments: { query: "neighborhood", limit: 3 },
     })
   })
+
+  test("executes memorize through the service", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({
+      text: "Remembered.",
+      dryRun: false,
+      writes: [{ tool: "memory_write", path: "user/profile.md", reason: "captured" }],
+    }))
+    const memory = createClient(fetchMock).forUser({ userId: "user_123", actor: "assistant" })
+
+    const result = await memory.memorize({ text: "remember quiet neighborhoods", toolCallId: "call_mem" })
+
+    expect(result.writes[0]?.path).toBe("user/profile.md")
+    const [url, request] = fetchMock.mock.calls[0]
+    expect(url).toBe("http://memex.local/v1/tools/memory_memorize/execute")
+    expect(JSON.parse(request.body as string)).toEqual({
+      context: { userId: "user_123", actor: "assistant", toolCallId: "call_mem" },
+      arguments: { text: "remember quiet neighborhoods" },
+    })
+  })
 })
 
 describe("MemexAI SDK — error handling", () => {

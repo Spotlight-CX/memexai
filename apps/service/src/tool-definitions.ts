@@ -1,5 +1,19 @@
 export const toolDefinitions = [
   {
+    name: "memory_memorize",
+    description: "Remember durable facts from raw text. MemexAI chooses the right memory files and records auditable writes.",
+    inputSchema: {
+      type: "object",
+      required: ["text"],
+      additionalProperties: false,
+      properties: {
+        text: { type: "string", description: "Raw conversation text or fact to remember." },
+        maxWrites: { type: "number", description: "Maximum write/patch operations. Default: 5." },
+        dryRun: { type: "boolean", description: "Plan writes without committing them." },
+      },
+    },
+  },
+  {
     name: "memory_search",
     description: "Search memory for a question. Uses BM25 by default and agentic read-only resolution when an LLM is configured.",
     inputSchema: {

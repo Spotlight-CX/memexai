@@ -6,6 +6,8 @@ export type {
   ListFilesInput,
   MemoryContext,
   MemoryFile,
+  MemorizeInput,
+  MemorizeResult,
   MemexAIOptions,
   PatchFileInput,
   PatchFileResult,

@@ -112,7 +112,7 @@ Commit:
 
 ## Task 7: Agentic `memory_memorize`
 
-Status: `pending`
+Status: `committed`
 
 Scope:
 - Add `user.memorize(text, opts)`.
@@ -126,7 +126,7 @@ Validation:
 - SDK and service route tests for `memory_memorize`.
 
 Commit:
-- Pending
+- Included in commit for Task 7.
 
 ## Task 8: Scoped Toolset Builders
 

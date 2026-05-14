@@ -86,6 +86,18 @@ export class MemexUser {
     )
   }
 
+  async memorize(text: string, options: { maxWrites?: number; dryRun?: boolean } = {}) {
+    return this.memex.executeTool<{
+      text: string
+      dryRun: boolean
+      writes: { tool: string; path: string; reason?: string; args: unknown; result?: unknown }[]
+    }>(
+      "memory_memorize",
+      { text, ...options },
+      this.ctx,
+    )
+  }
+
   async executeTool<T = unknown>(toolName: string, args: unknown, toolCallId?: string): Promise<T> {
     return this.memex.executeTool(toolName, args, toolCallId ? { ...this.ctx, toolCallId } : this.ctx)
   }

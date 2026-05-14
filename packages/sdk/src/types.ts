@@ -93,6 +93,25 @@ export type SearchMemoryResult = {
   truncated: boolean
 }
 
+export type MemorizeInput = {
+  text: string
+  maxWrites?: number
+  dryRun?: boolean
+  toolCallId?: string
+}
+
+export type MemorizeResult = {
+  text: string
+  dryRun: boolean
+  writes: {
+    tool: "memory_write" | "memory_patch"
+    path: string
+    reason?: string
+    args: unknown
+    result?: unknown
+  }[]
+}
+
 export type JsonSchema = Record<string, unknown>
 
 export type ToolDefinition = {
