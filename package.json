@@ -20,6 +20,8 @@
     "admin": "node packages/admin-cli/dist/cli.js --database-url postgresql://memexai:memexai@localhost:5433/memexai",
     "admin:dev": "bun run --cwd packages/admin-cli dev -- --database-url postgresql://memexai:memexai@localhost:5433/memexai",
     "seed:admin": "DATABASE_URL=\"postgresql://memexai:memexai@localhost:5433/memexai\" bun run --cwd apps/service seed:admin",
+    "publish:packages": "node scripts/build-and-publish.mjs",
+    "publish:packages:dry-run": "node scripts/build-and-publish.mjs --dry-run",
     "test": "vitest run",
     "test:watch": "vitest"
   },
