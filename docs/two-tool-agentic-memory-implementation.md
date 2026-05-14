@@ -94,7 +94,7 @@ Commit:
 
 ## Task 6: Agentic `memory_search` Resolution
 
-Status: `pending`
+Status: `committed`
 
 Scope:
 - Use BM25 fallback without model.
@@ -108,7 +108,7 @@ Validation:
 - Relevant SDK/service tests.
 
 Commit:
-- Pending
+- Included in commit for Task 6.
 
 ## Task 7: Agentic `memory_memorize`
 

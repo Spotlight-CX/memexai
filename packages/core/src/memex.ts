@@ -20,7 +20,7 @@ export class Memex {
   }
 
   async executeTool<T = unknown>(toolName: string, args: unknown, ctx: ToolContext): Promise<T> {
-    return executeTool(this.db, toolName, args, ctx) as Promise<T>
+    return executeTool(this.db, toolName, args, ctx, { model: this.model }) as Promise<T>
   }
 
   getModel(): unknown | undefined {

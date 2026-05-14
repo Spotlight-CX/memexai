@@ -42,7 +42,7 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
     }
 
     const body = executeToolRequestSchema.parse(request.body)
-    return executeTool(db, params.toolName, body.arguments, body.context)
+    return executeTool(db, params.toolName, body.arguments, body.context, { model: input.model })
   })
 
   app.get("/v1/prompt-block", { preHandler: apiAuth }, async (request) => {

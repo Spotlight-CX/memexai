@@ -5,6 +5,7 @@ import { assertWritableVirtualPath, physicalToVirtual, prefixToPhysical, virtual
 import { appendLinesAfterHeading, replaceExactText } from "./text-patch"
 import { listArgsSchema, patchArgsSchema, readArgsSchema, searchArgsSchema, smartReadArgsSchema, writeArgsSchema } from "./schemas"
 import { toolDefinitions, type ToolName } from "./tool-definitions"
+import { generateText, jsonSchema, stepCountIs } from "ai"
 
 type FileRow = {
   id: string
@@ -271,8 +272,16 @@ type SearchRow = {
   updated_at: Date
 }
 
-export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContext) {
+export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContext, options: { model?: unknown } = {}) {
   const { query, limit = 10, prefix } = searchArgsSchema.parse(args)
+  if (options.model) {
+    return executeAgenticMemorySearch(db, { query, limit, prefix, ...searchArgsSchema.parse(args) }, ctx, options.model)
+  }
+  return executeMemorySearchBm25(db, { query, limit, prefix }, ctx)
+}
+
+async function executeMemorySearchBm25(db: Db, input: { query: string; limit?: number; prefix?: string }, ctx: ToolContext) {
+  const { query, limit = 10, prefix } = input
   const values: unknown[] = [query]
   let visibilityWhere = "(physical_path LIKE $2 OR physical_path LIKE 'shared/%')"
   values.push(`users/${ctx.userId}/%`)
@@ -320,7 +329,95 @@ export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContex
   }
 }
 
-export async function executeTool(db: Db, toolName: string, args: unknown, ctx: ToolContext) {
+async function executeAgenticMemorySearch(
+  db: Db,
+  input: { query: string; maxChars?: number; limit?: number; maxReads?: number; prefix?: string },
+  ctx: ToolContext,
+  model: unknown,
+) {
+  const maxReads = input.maxReads ?? 5
+  const maxChars = input.maxChars ?? 8_000
+  const candidates = await executeMemorySearchBm25(db, { query: input.query, limit: input.limit, prefix: input.prefix }, ctx)
+  const list = await executeMemoryList(db, { prefix: input.prefix }, ctx)
+  const indexReads = await Promise.allSettled([
+    executeMemoryRead(db, { path: "user/index.md" }, ctx),
+    executeMemoryRead(db, { path: "shared/index.md" }, ctx),
+  ])
+  const indexes = indexReads.flatMap((result) => result.status === "fulfilled" ? [result.value] : [])
+  let reads = 0
+  const sources = new Set<string>()
+
+  const result = await generateText({
+    model: model as never,
+    system: [
+      "You are a read-only memory resolver.",
+      "Answer the user's query using only MemexAI memory.",
+      "Use virtual paths only, such as user/profile.md or shared/index.md.",
+      "Never use physical paths such as users/{userId}/...",
+      "Do not write, patch, memorize, or mutate memory.",
+      "Cite relevant memory paths in your answer.",
+      `Stay under ${maxChars} characters.`,
+    ].join("\n"),
+    prompt: [
+      `Query: ${input.query}`,
+      "",
+      "Visible files:",
+      JSON.stringify(list.files, null, 2),
+      "",
+      "BM25 candidates:",
+      JSON.stringify(candidates.results, null, 2),
+      "",
+      "Index files:",
+      JSON.stringify(indexes.map((file) => ({ path: file.path, content: file.content })), null, 2),
+    ].join("\n"),
+    tools: {
+      memory_read: {
+        description: "Read a memory file by virtual path. Read-only.",
+        inputSchema: jsonSchema({
+          type: "object",
+          required: ["path"],
+          additionalProperties: false,
+          properties: { path: { type: "string" } },
+        }),
+        execute: async (args: unknown) => {
+          if (reads >= maxReads) throw new HttpError(400, "MAX_READS_EXCEEDED", "memory_search read budget exceeded")
+          reads += 1
+          const parsed = readArgsSchema.parse(args)
+          const file = await executeMemoryRead(db, parsed, ctx)
+          sources.add(file.path)
+          return file
+        },
+      },
+      memory_smart_read: {
+        description: "Read a bounded context block by query. Read-only.",
+        inputSchema: jsonSchema({
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            maxChars: { type: "number" },
+            query: { type: "string" },
+          },
+        }),
+        execute: async (args: unknown) => {
+          if (reads >= maxReads) throw new HttpError(400, "MAX_READS_EXCEEDED", "memory_search read budget exceeded")
+          reads += 1
+          const block = await executeMemorySmartRead(db, args, ctx)
+          for (const path of block.filesIncluded) sources.add(path)
+          return block
+        },
+      },
+    },
+    stopWhen: stepCountIs(Math.max(1, maxReads + 1)),
+  })
+
+  return {
+    ...candidates,
+    answer: result.text.slice(0, maxChars),
+    sources: Array.from(sources),
+  }
+}
+
+export async function executeTool(db: Db, toolName: string, args: unknown, ctx: ToolContext, options: { model?: unknown } = {}) {
   switch (toolName as ToolName) {
     case "memory_list":
       return executeMemoryList(db, args, ctx)
@@ -333,7 +430,7 @@ export async function executeTool(db: Db, toolName: string, args: unknown, ctx: 
     case "memory_smart_read":
       return executeMemorySmartRead(db, args, ctx)
     case "memory_search":
-      return executeMemorySearch(db, args, ctx)
+      return executeMemorySearch(db, args, ctx, options)
     default:
       throw new HttpError(404, "UNKNOWN_TOOL", `Unknown tool: ${toolName}`)
   }

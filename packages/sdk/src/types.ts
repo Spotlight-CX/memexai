@@ -82,6 +82,8 @@ export type SearchMemoryInput = {
 
 export type SearchMemoryResult = {
   query: string
+  answer?: string
+  sources?: string[]
   results: {
     path: string
     snippet: string
