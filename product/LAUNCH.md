@@ -102,7 +102,7 @@ No architecture docs, no deep philosophy — that comes after stars.
 Ship a tiny installable skill so developers can add memexai guidance directly to their coding agent setup with Vercel's Skills CLI:
 
 ```bash
-npx skills add soorajshankar/memexai --skill memexai
+npx skills add Spotlight-CX/memexai --skill memexai
 ```
 
 This should not be a runtime dependency. It is distribution and developer activation: the skill teaches Claude Code, Codex, Cursor, Windsurf, and similar agents how to install memexai, choose direct Postgres vs HTTP service mode, wire the framework adapters, and use the admin UI.

@@ -1,6 +1,8 @@
 # @memexai/sdk
 
-TypeScript SDK for MemexAI, a persistent memory service for AI agents.
+TypeScript SDK for the MemexAI HTTP service.
+
+Use it when your app talks to a running MemexAI service or container. The SDK stays model-free: LLM configuration belongs to the service environment.
 
 ## Install
 
@@ -23,27 +25,22 @@ const memory = memex.forUser({
   actor: "assistant",
 })
 
-await memory.memorize("Prefers quiet projects near good schools")
-
-const result = await memory.search("What project style does this user prefer?")
+const result = await memory.search("What does this user prefer?")
 console.log(result.answer ?? result.results)
 ```
 
-## Vercel AI SDK Adapter
+`memory.search()` falls back to Postgres full-text search when the service has no model configured. `memory.memorize()` requires a service-side model and returns `MODEL_NOT_CONFIGURED` when none is available.
+
+## Agentic Toolset
+
+Use this for most agents. MemexAI handles memory file bookkeeping.
 
 ```ts
 import { generateText, stepCountIs } from "ai"
 
-const promptBlock = await memory.getPromptBlock()
-
 const result = await generateText({
   model,
-  system: [
-    "You are a helpful agent with durable memory.",
-    "Use memory tools when the user asks you to remember, retrieve, or update stable preferences.",
-    "",
-    promptBlock,
-  ].join("\n"),
+  system: "You are a helpful assistant with durable memory.",
   prompt: "Remember that I prefer quiet projects near good schools.",
   tools: memory.createAgenticToolset(),
   stopWhen: stepCountIs(5),
@@ -52,24 +49,53 @@ const result = await generateText({
 console.log(result.text)
 ```
 
+Exposes:
+
+```ts
+// memory_memorize, memory_search
+```
+
 ## Raw File Toolset
 
-Use raw mode when you want the agent to manage memory files explicitly:
+Use raw mode when you want the agent or app to manage memory files explicitly.
 
 ```ts
 const tools = memory.createRawToolset()
 // memory_list, memory_read, memory_write, memory_patch, memory_smart_read
 ```
 
-## Tool Adapters
+You can also call raw file methods directly:
 
-The SDK exports adapters for:
+```ts
+await memory.writeFile({
+  path: "user/profile.md",
+  content: "# Profile\n\n- Prefers quiet projects near good schools.",
+  reason: "captured user preference",
+})
 
-- `@memexai/sdk/adapters/vercel-ai`
+const file = await memory.readFile({ path: "user/profile.md" })
+console.log(file.content)
+```
+
+## Vercel AI Adapter
+
+```ts
+import { createVercelAITools } from "@memexai/sdk/adapters/vercel-ai"
+
+const agenticTools = createVercelAITools(memory)
+const rawTools = createVercelAITools(memory, { mode: "raw" })
+```
+
+## Other Adapters
+
+The SDK also exports:
+
 - `@memexai/sdk/adapters/openai`
 - `@memexai/sdk/adapters/langchain`
 
+Use `@memexai/core` for direct Postgres mode and core-only adapters.
+
 ## Links
 
-- Repository: https://github.com/soorajshankar/memexai
-- Admin dashboard and local service instructions are in the root README.
+- Repository: https://github.com/Spotlight-CX/memexai
+- Root README: deployment, admin UI, direct Postgres mode, and architecture.

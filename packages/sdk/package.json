@@ -45,13 +45,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/soorajshankar/memexai.git",
+    "url": "git+https://github.com/Spotlight-CX/memexai.git",
     "directory": "packages/sdk"
   },
   "bugs": {
-    "url": "https://github.com/soorajshankar/memexai/issues"
+    "url": "https://github.com/Spotlight-CX/memexai/issues"
   },
-  "homepage": "https://github.com/soorajshankar/memexai#readme",
+  "homepage": "https://github.com/Spotlight-CX/memexai#readme",
   "devDependencies": {
     "ai": "^5.0.98",
     "tsup": "^8.5.1"
