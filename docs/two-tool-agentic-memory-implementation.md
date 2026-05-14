@@ -130,7 +130,7 @@ Commit:
 
 ## Task 8: Scoped Toolset Builders
 
-Status: `pending`
+Status: `committed`
 
 Scope:
 - Add `createAgenticToolset()` and `createRawToolset()` to `MemexUser` and `MemexMemory`.
@@ -142,7 +142,7 @@ Validation:
 - `bun test packages/core/tests/adapters.test.ts packages/sdk/tests/adapters.test.ts apps/demo-agent/tests/index.test.ts`
 
 Commit:
-- Pending
+- Included in commit for Task 8.
 
 ## Task 9: Service Core Delegation
 

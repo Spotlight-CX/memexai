@@ -41,18 +41,36 @@ describe("tool adapters", () => {
   })
 
   test("Vercel AI adapter returns executable tool map", async () => {
-    const fetchMock = vi.fn(async () => jsonResponse({ path: "user/profile.md", created: true, updated: false }))
+    const fetchMock = vi.fn(async () => jsonResponse({ text: "Remembered.", dryRun: false, writes: [] }))
     const tools = createVercelAITools(createMemory(fetchMock))
 
-    expect(Object.keys(tools)).toContain("memory_write")
-    expect(tools.memory_write.inputSchema).toBeDefined()
-    await tools.memory_write.execute(
-      { path: "user/profile.md", content: "# Profile" },
+    expect(Object.keys(tools)).toEqual(["memory_memorize", "memory_search"])
+    expect(tools.memory_memorize.inputSchema).toBeDefined()
+    await tools.memory_memorize.execute(
+      { text: "remember this" },
       { toolCallId: "call_vercel" },
     )
 
-    expect(fetchMock.mock.calls[0][0]).toBe("http://memex.local/v1/tools/memory_write/execute")
+    expect(fetchMock.mock.calls[0][0]).toBe("http://memex.local/v1/tools/memory_memorize/execute")
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).context.toolCallId).toBe("call_vercel")
+  })
+
+  test("Vercel AI adapter can return raw tool map", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ path: "user/profile.md", created: true, updated: false }))
+    const tools = createVercelAITools(createMemory(fetchMock), { mode: "raw" })
+
+    expect(Object.keys(tools)).toEqual([
+      "memory_list",
+      "memory_read",
+      "memory_write",
+      "memory_patch",
+      "memory_smart_read",
+    ])
+    await tools.memory_write.execute(
+      { path: "user/profile.md", content: "# Profile" },
+      { toolCallId: "call_raw" },
+    )
+    expect(fetchMock.mock.calls[0][0]).toBe("http://memex.local/v1/tools/memory_write/execute")
   })
 
   test("LangChain adapter returns structured-tool-like objects", async () => {

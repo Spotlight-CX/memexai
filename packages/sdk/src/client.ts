@@ -1,4 +1,5 @@
 import { MemexAIError, type MemexAIErrorBody } from "./errors"
+import { agenticToolDefinitions, rawToolDefinitions } from "./tool-definitions"
 import type {
   ListFilesInput,
   MemoryContext,
@@ -16,11 +17,18 @@ import type {
   WriteFileInput,
   WriteFileResult,
 } from "./types"
+import { jsonSchema } from "ai"
 
 type ExecuteToolInput = {
   name: string
   arguments: unknown
   context: RequestContext
+}
+
+type VercelAITool = {
+  description: string
+  inputSchema: ReturnType<typeof jsonSchema>
+  execute: (args: unknown, options?: { toolCallId?: string }) => Promise<unknown>
 }
 
 export class MemexAI {
@@ -148,6 +156,29 @@ export class MemexMemory {
       context: withToolCallId(this.context, toolCallId),
       arguments: args,
     })
+  }
+
+  createAgenticToolset(): Record<string, VercelAITool> {
+    return this.createToolset(agenticToolDefinitions)
+  }
+
+  createRawToolset(): Record<string, VercelAITool> {
+    return this.createToolset(rawToolDefinitions)
+  }
+
+  private createToolset(definitions: typeof agenticToolDefinitions | typeof rawToolDefinitions): Record<string, VercelAITool> {
+    return Object.fromEntries(definitions.map((tool) => [
+      tool.name,
+      {
+        description: tool.description,
+        inputSchema: jsonSchema(tool.inputSchema),
+        execute: (args: unknown, options?: { toolCallId?: string }) => this.executeTool({
+          name: tool.name,
+          arguments: args,
+          toolCallId: options?.toolCallId,
+        }),
+      },
+    ]))
   }
 
   async executeTool<T = unknown>(input: { name: string; arguments: unknown; toolCallId?: string }): Promise<T> {

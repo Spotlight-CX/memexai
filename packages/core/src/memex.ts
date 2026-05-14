@@ -2,8 +2,15 @@ import { createPool, type Db } from "./db"
 import { runMigrations } from "./migrations"
 import type { ToolContext } from "./paths"
 import { buildPromptBlock } from "./prompt-block"
-import { toolDefinitions } from "./tool-definitions"
+import { agenticToolDefinitions, rawToolDefinitions, toolDefinitions, type ToolDefinition } from "./tool-definitions"
 import { executeTool } from "./tools"
+import { jsonSchema } from "ai"
+
+type VercelAITool = {
+  description: string
+  inputSchema: ReturnType<typeof jsonSchema>
+  execute: (args: unknown, options?: { toolCallId?: string }) => Promise<unknown>
+}
 
 export class Memex {
   constructor(
@@ -96,6 +103,29 @@ export class MemexUser {
       { text, ...options },
       this.ctx,
     )
+  }
+
+  createAgenticToolset(): Record<string, VercelAITool> {
+    return this.createToolset(agenticToolDefinitions)
+  }
+
+  createRawToolset(): Record<string, VercelAITool> {
+    return this.createToolset(rawToolDefinitions)
+  }
+
+  private createToolset(definitions: readonly ToolDefinition[]): Record<string, VercelAITool> {
+    return Object.fromEntries(definitions.map((tool) => [
+      tool.name,
+      {
+        description: tool.description,
+        inputSchema: jsonSchema(tool.inputSchema as Parameters<typeof jsonSchema>[0]),
+        execute: (args: unknown, options?: { toolCallId?: string }) => this.executeTool(
+          tool.name,
+          args,
+          options?.toolCallId,
+        ),
+      },
+    ]))
   }
 
   async executeTool<T = unknown>(toolName: string, args: unknown, toolCallId?: string): Promise<T> {
