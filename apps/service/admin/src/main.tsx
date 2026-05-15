@@ -10,16 +10,21 @@ import {
   Modal,
   PasswordInput,
   Stack,
+  Text,
   Title,
+  UnstyledButton,
 } from "@mantine/core"
 import { useState, useMemo } from "react"
 import { createRoot } from "react-dom/client"
 import { useAdminData } from "./hooks"
 import { DotsHorizontalIcon } from "./icons"
 import { FilesView } from "./components/FilesView"
+import { ToolPlayground } from "./components/ToolPlayground"
 import { UsersView, RevisionsView, AccessLogsView } from "./components/TableViews"
 import { AdminSpotlight, SpotlightTrigger } from "./components/Spotlight"
 import type { AdminFile, Overlay } from "./types"
+
+type Page = "files" | "playground"
 
 const storageKey = "memexai.adminSecret"
 
@@ -27,6 +32,7 @@ function App() {
   const [secret, setSecret] = useState(() => localStorage.getItem(storageKey) ?? "")
   const [overlay, setOverlay] = useState<Overlay>(null)
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const [activePage, setActivePage] = useState<Page>("files")
 
   const { data: filesData } = useAdminData<{ files: AdminFile[] }>(
     secret ? "/v1/admin/files" : null,
@@ -67,9 +73,33 @@ function App() {
       >
         <AppShell.Header>
           <Group h="100%" px="lg" justify="space-between" wrap="nowrap">
-            <Box miw={200}>
+            <Group gap="lg" wrap="nowrap">
               <Title order={3} size="h4" fw={600}>MemexAI Admin</Title>
-            </Box>
+              <Group gap={0}>
+                {(["files", "playground"] as Page[]).map((page) => (
+                  <UnstyledButton
+                    key={page}
+                    onClick={() => setActivePage(page)}
+                    px="sm"
+                    py={6}
+                    style={{
+                      borderBottom: activePage === page
+                        ? "2px solid var(--mantine-color-blue-5)"
+                        : "2px solid transparent",
+                    }}
+                  >
+                    <Text
+                      size="sm"
+                      fw={activePage === page ? 600 : 400}
+                      c={activePage === page ? "blue.6" : "gray.6"}
+                      style={{ textTransform: "capitalize" }}
+                    >
+                      {page}
+                    </Text>
+                  </UnstyledButton>
+                ))}
+              </Group>
+            </Group>
             <Group gap={4}>
               <SpotlightTrigger />
               <Menu shadow="md" width={180} position="bottom-end">
@@ -91,11 +121,15 @@ function App() {
         </AppShell.Header>
 
         <AppShell.Main>
-          <FilesView
-            secret={secret}
-            selectedPath={selectedPath}
-            onSelectPath={setSelectedPath}
-          />
+          {activePage === "files" ? (
+            <FilesView
+              secret={secret}
+              selectedPath={selectedPath}
+              onSelectPath={setSelectedPath}
+            />
+          ) : (
+            <ToolPlayground />
+          )}
         </AppShell.Main>
       </AppShell>
 
