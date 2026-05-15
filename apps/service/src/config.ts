@@ -1,18 +1,20 @@
 import { z } from "zod"
 
+const optionalNonEmptyString = z.preprocess((value) => value === "" ? undefined : value, z.string().optional())
+
 const envSchema = z.object({
-  NODE_ENV: z.string().optional(),
+  NODE_ENV: optionalNonEmptyString,
   PORT: z.coerce.number().int().positive().default(8080),
   DATABASE_URL: z.string().min(1),
   MEMEX_API_KEY: z.string().min(1),
-  MEMEX_ADMIN_SECRET: z.string().optional(),
-  MEMEX_LLM_PROVIDER: z.enum(["google", "openai"]).optional(),
-  GEMINI_API_KEY: z.string().optional(),
-  GOOGLE_GENERATIVE_AI_API_KEY: z.string().optional(),
-  GEMINI_MODEL: z.string().optional(),
-  GOOGLE_GENERATIVE_AI_MODEL: z.string().optional(),
-  OPENAI_API_KEY: z.string().optional(),
-  OPENAI_MODEL: z.string().optional(),
+  MEMEX_ADMIN_SECRET: optionalNonEmptyString,
+  MEMEX_LLM_PROVIDER: z.preprocess((value) => value === "" ? undefined : value, z.enum(["google", "openai"]).optional()),
+  GEMINI_API_KEY: optionalNonEmptyString,
+  GOOGLE_GENERATIVE_AI_API_KEY: optionalNonEmptyString,
+  GEMINI_MODEL: optionalNonEmptyString,
+  GOOGLE_GENERATIVE_AI_MODEL: optionalNonEmptyString,
+  OPENAI_API_KEY: optionalNonEmptyString,
+  OPENAI_MODEL: optionalNonEmptyString,
 })
 
 export type Config = z.infer<typeof envSchema> & {
