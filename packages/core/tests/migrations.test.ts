@@ -40,8 +40,30 @@ describe("runMigrations", () => {
     ])
   })
 
-  test("skips already-applied migrations", async () => {
+  test("includes baseline seed migration", async () => {
     const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql"])
+
+    await runMigrations(db)
+
+    const migrationSql = client.query.mock.calls
+      .map(([sql]) => sql)
+      .filter((sql): sql is string => typeof sql === "string")
+      .join("\n")
+
+    expect(migrationSql).toContain("shared/index.md")
+    expect(migrationSql).toContain("users/demo_user/index.md")
+    expect(migrationSql).toContain("ON CONFLICT (physical_path) DO NOTHING")
+    expect(migrationSql).toContain("INSERT INTO mx_revision")
+    expect(migrationSql).toContain("INSERT INTO mx_access_log")
+    expect(migrationSql).not.toContain("users/index.md")
+    expect(client.query.mock.calls).toContainEqual([
+      "INSERT INTO mx_migration (id) VALUES ($1)",
+      ["003_baseline_seed.sql"],
+    ])
+  })
+
+  test("skips already-applied migrations", async () => {
+    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql"])
 
     await runMigrations(db)
 
