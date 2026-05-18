@@ -3,13 +3,10 @@ import {
   ActionIcon,
   AppShell,
   Box,
-  Button,
   Group,
   MantineProvider,
   Menu,
   Modal,
-  PasswordInput,
-  Stack,
   Text,
   Title,
   UnstyledButton,
@@ -19,6 +16,7 @@ import { createRoot } from "react-dom/client"
 import { useAdminData } from "./hooks"
 import { DotsHorizontalIcon } from "./icons"
 import { FilesView } from "./components/FilesView"
+import { SecretGate } from "./components/SecretGate"
 import { ToolPlayground } from "./components/ToolPlayground"
 import { WelcomeModal } from "./components/WelcomeModal"
 import { UsersView, RevisionsView, AccessLogsView } from "./components/TableViews"
@@ -27,10 +25,13 @@ import type { AdminFile, Overlay } from "./types"
 
 type Page = "files" | "playground"
 
-const storageKey = "memexai.adminSecret"
+const ADMIN_SECRET_KEY = "memexai.adminSecret"
+const API_KEY_KEY = "memexai.apiKey"
 
 function App() {
-  const [secret, setSecret] = useState(() => localStorage.getItem(storageKey) ?? "")
+  const [secret, setSecret] = useState(() => localStorage.getItem(ADMIN_SECRET_KEY) ?? "")
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_KEY) ?? "")
+  const [gateError, setGateError] = useState<string | null>(null)
   const [overlay, setOverlay] = useState<Overlay>(null)
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [activePage, setActivePage] = useState<Page>("files")
@@ -42,16 +43,33 @@ function App() {
   const files = useMemo(() => filesData?.files ?? [], [filesData])
 
   const signOut = () => {
-    localStorage.removeItem(storageKey)
+    localStorage.removeItem(ADMIN_SECRET_KEY)
+    localStorage.removeItem(API_KEY_KEY)
     setSecret("")
+    setApiKey("")
+    setGateError(null)
+  }
+
+  const handleApiKeyInvalid = () => {
+    localStorage.removeItem(API_KEY_KEY)
+    setApiKey("")
+    setSecret("")
+    localStorage.removeItem(ADMIN_SECRET_KEY)
+    setGateError("API key rejected — check the MEMEX_API_KEY value in your container environment.")
   }
 
   if (!secret) {
     return (
-      <SecretGate onSubmit={(value) => {
-        localStorage.setItem(storageKey, value)
-        setSecret(value)
-      }} />
+      <SecretGate
+        error={gateError}
+        onSubmit={({ secret: s, apiKey: k }) => {
+          localStorage.setItem(ADMIN_SECRET_KEY, s)
+          localStorage.setItem(API_KEY_KEY, k)
+          setGateError(null)
+          setSecret(s)
+          setApiKey(k)
+        }}
+      />
     )
   }
 
@@ -129,7 +147,7 @@ function App() {
               onSelectPath={setSelectedPath}
             />
           ) : (
-            <ToolPlayground />
+            <ToolPlayground apiKey={apiKey} onApiKeyInvalid={handleApiKeyInvalid} />
           )}
         </AppShell.Main>
       </AppShell>
@@ -155,26 +173,5 @@ function App() {
   )
 }
 
-function SecretGate({ onSubmit }: { onSubmit: (value: string) => void }) {
-  const [value, setValue] = useState("")
-  return (
-    <MantineProvider defaultColorScheme="light">
-      <Box maw={420} mx="auto" mt={96} p="lg">
-        <Stack gap="md">
-          <Title order={2}>MemexAI Admin</Title>
-          <PasswordInput
-            label="Admin secret"
-            value={value}
-            onChange={(event) => setValue(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && value.trim()) onSubmit(value.trim())
-            }}
-          />
-          <Button disabled={!value.trim()} onClick={() => onSubmit(value.trim())}>Continue</Button>
-        </Stack>
-      </Box>
-    </MantineProvider>
-  )
-}
 
 createRoot(document.getElementById("root")!).render(<App />)

@@ -1,7 +1,32 @@
 export const rawToolDefinitions = [
   {
     name: "memory_list",
-    description: "List memory files visible to the current user. Optional prefix filters paths, e.g. user/ or shared/.",
+    description: `List memory files visible to the current user.
+
+Returns a flat list of virtual paths. Use \`prefix\` to scope to a namespace — \`user/\` for private files, \`shared/\` for globally readable files.
+
+### Parameters
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| \`prefix\` | string | no | Virtual path prefix, e.g. \`user/\` or \`shared/\` |
+
+### Example input
+
+\`\`\`json
+{ "prefix": "user/" }
+\`\`\`
+
+### Example output
+
+\`\`\`json
+{
+  "files": [
+    { "path": "user/profile.md", "size": 342, "updatedAt": "2025-01-15T10:23:00Z" },
+    { "path": "user/notes.md",   "size": 128, "updatedAt": "2025-01-10T08:00:00Z" }
+  ]
+}
+\`\`\``,
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -12,7 +37,30 @@ export const rawToolDefinitions = [
   },
   {
     name: "memory_read",
-    description: "Read a memory file by virtual path. Agents can read user/** and shared/**.",
+    description: `Read a single memory file by its virtual path.
+
+Agents can read both \`user/**\` (private to the current user) and \`shared/**\` (global, read-only). Returns the raw file content as a string.
+
+### Parameters
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| \`path\` | string | **yes** | Virtual file path, e.g. \`user/profile.md\` |
+
+### Example input
+
+\`\`\`json
+{ "path": "user/profile.md" }
+\`\`\`
+
+### Example output
+
+\`\`\`json
+{
+  "path": "user/profile.md",
+  "content": "# Profile\\n- Prefers 2BHK apartments\\n- Budget: ₹80L–₹1Cr"
+}
+\`\`\``,
     inputSchema: {
       type: "object",
       required: ["path"],
@@ -24,7 +72,33 @@ export const rawToolDefinitions = [
   },
   {
     name: "memory_write",
-    description: "Create or overwrite a writable user/** memory file.",
+    description: `Create or fully overwrite a \`user/**\` memory file.
+
+The entire file is replaced with \`content\`. Use \`memory_patch\` when you only need to change part of an existing file. Pass a \`reason\` to annotate the write — stored in revision history for auditability.
+
+### Parameters
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| \`path\` | string | **yes** | Writable virtual file path under \`user/**\` |
+| \`content\` | string | **yes** | Complete replacement content |
+| \`reason\` | string | no | Stored in revision history |
+
+### Example input
+
+\`\`\`json
+{
+  "path": "user/profile.md",
+  "content": "# Profile\\n- Prefers 2BHK\\n- Budget: ₹80L",
+  "reason": "Initial profile setup"
+}
+\`\`\`
+
+### Example output
+
+\`\`\`json
+{ "ok": true, "path": "user/profile.md", "bytes": 48 }
+\`\`\``,
     inputSchema: {
       type: "object",
       required: ["path", "content"],
@@ -38,7 +112,41 @@ export const rawToolDefinitions = [
   },
   {
     name: "memory_patch",
-    description: "Patch a writable user/** memory file by appending lines under a heading or replacing an exact text match.",
+    description: `Patch a \`user/**\` memory file without rewriting it entirely.
+
+Two operations available:
+- **\`append_lines\`** — insert lines immediately after a specific markdown heading
+- **\`replace_lines\`** — find an exact text match and replace it
+
+### Parameters
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| \`path\` | string | **yes** | Writable virtual file path |
+| \`operation\` | enum | **yes** | \`append_lines\` or \`replace_lines\` |
+| \`after_heading\` | string | no | For \`append_lines\`: exact markdown heading to insert after |
+| \`lines\` | string[] | no | For \`append_lines\`: lines to insert |
+| \`match\` | string | no | For \`replace_lines\`: exact text to find |
+| \`replacement\` | string \| string[] | no | For \`replace_lines\`: replacement content |
+| \`reason\` | string | no | Stored in revision history |
+
+### Example input
+
+\`\`\`json
+{
+  "path": "user/notes.md",
+  "operation": "append_lines",
+  "after_heading": "## Preferences",
+  "lines": ["- Likes rooftop gardens"],
+  "reason": "New preference noted"
+}
+\`\`\`
+
+### Example output
+
+\`\`\`json
+{ "ok": true, "linesChanged": 1 }
+\`\`\``,
     inputSchema: {
       type: "object",
       required: ["path", "operation"],
@@ -59,7 +167,32 @@ export const rawToolDefinitions = [
   },
   {
     name: "memory_smart_read",
-    description: "Read all or the most relevant memory files in one merged context block under a character budget.",
+    description: `Read all (or the most relevant) memory files within a character budget, returned as a single merged context block ready to inject into a system prompt.
+
+Optionally pass a \`query\` to rank files by keyword relevance so the most useful content fits within \`maxChars\`.
+
+### Parameters
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| \`maxChars\` | number | no | Maximum characters to return. Default: 24 000 |
+| \`query\` | string | no | Keyword query to rank files by relevance |
+
+### Example input
+
+\`\`\`json
+{ "maxChars": 4000, "query": "apartment preferences" }
+\`\`\`
+
+### Example output
+
+\`\`\`json
+{
+  "content": "<memory>\\n<file path=\\"user/profile.md\\">\\n# Profile\\n- Prefers 2BHK\\n</file>\\n</memory>",
+  "truncated": false,
+  "filesRead": 2
+}
+\`\`\``,
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -74,7 +207,37 @@ export const rawToolDefinitions = [
 export const agenticToolDefinitions = [
   {
     name: "memory_memorize",
-    description: "Remember durable facts from raw text. MemexAI chooses the right memory files and records auditable writes.",
+    description: `Feed raw text (conversation snippets, notes, observations) and let MemexAI autonomously decide what to remember and where to store it.
+
+MemexAI reads existing memory files, identifies durable facts, and writes or patches them — all with full audit trails. Use \`dryRun: true\` to preview planned writes without committing.
+
+### Parameters
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| \`text\` | string | **yes** | Raw text containing facts to remember |
+| \`maxWrites\` | number | no | Max write/patch operations. Default: 5 |
+| \`dryRun\` | boolean | no | Plan writes without committing |
+
+### Example input
+
+\`\`\`json
+{
+  "text": "User mentioned they prefer 2BHK, budget around ₹80L, and want a sea view.",
+  "maxWrites": 3
+}
+\`\`\`
+
+### Example output
+
+\`\`\`json
+{
+  "writes": [
+    { "path": "user/profile.md", "operation": "patch", "reason": "Added apartment preferences" }
+  ],
+  "dryRun": false
+}
+\`\`\``,
     inputSchema: {
       type: "object",
       required: ["text"],
@@ -88,7 +251,37 @@ export const agenticToolDefinitions = [
   },
   {
     name: "memory_search",
-    description: "Search memory for a question. Uses BM25 by default and agentic read-only resolution when an LLM is configured.",
+    description: `Search memory for a question using BM25 full-text search.
+
+When an LLM is configured, agentic resolution reads the top BM25 candidates and synthesizes a grounded answer. Without an LLM, returns raw matching file excerpts.
+
+### Parameters
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| \`query\` | string | **yes** | Question or topic to search for |
+| \`maxChars\` | number | no | Max characters to return. Default: 8 000 |
+| \`limit\` | number | no | Max BM25 candidates. Default: 10 |
+| \`maxReads\` | number | no | Max files the agentic resolver may inspect. Default: 5 |
+| \`prefix\` | string | no | Optional virtual path prefix, e.g. \`user/\` |
+
+### Example input
+
+\`\`\`json
+{
+  "query": "What is the user's budget?",
+  "maxChars": 2000
+}
+\`\`\`
+
+### Example output
+
+\`\`\`json
+{
+  "answer": "The user's budget is ₹80L–₹1Cr based on their profile notes.",
+  "sources": ["user/profile.md"]
+}
+\`\`\``,
     inputSchema: {
       type: "object",
       required: ["query"],
