@@ -17,6 +17,29 @@ AI agents need stable context:
 
 MemexAI stores memory as scoped Markdown-like files in Postgres. Agents can use a simple two-tool interface, while advanced workflows can use raw file tools directly.
 
+## How It Is Different
+
+Many memory systems are optimized for chat-log retrieval:
+
+```text
+store every message -> embed chunks -> retrieve similar past chunks -> answer
+```
+
+That is useful, but it is closer to RAG over conversation history than durable memory. MemexAI is built around a different loop:
+
+```text
+conversation happens -> agent writes only durable memory -> inspectable files -> targeted recall later
+```
+
+MemexAI does not need to store every session as memory. Raw conversation logs can live in your app, warehouse, or audit store. MemexAI is for the smaller working set an agent should actually remember: user profile facts, preferences, timelines, commitments, project notes, decisions, and source-backed updates.
+
+This tradeoff is intentional:
+
+- **Pros:** smaller context, human-readable memory, editable records, revision history, access logs, simple Postgres operations, and no separate vector infrastructure.
+- **Cons:** ingestion quality matters. If the agent fails to write a durable fact, later recall cannot recover it unless you replay raw logs or keep them elsewhere.
+
+Systems like mem0, Zep, and Supermemory are often strongest when the task is "find the relevant old chat chunk." MemexAI is strongest when the task is "maintain a clean, inspectable system of record that agents and humans can both use."
+
 ## Two Integration Paths
 
 ### Agentic Tools: The Default

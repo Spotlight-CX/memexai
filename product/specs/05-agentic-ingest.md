@@ -14,6 +14,26 @@ The current model requires developers to write custom prompts to decide what to 
 
 **Competitive positioning:** mem0's core feature is implicit extraction (their LLM runs in the cloud, you can't audit it). memexai's `ingest()` is explicit extraction — the LLM runs with your key, writes appear in revision history, you can see exactly what was extracted and why.
 
+## Product Stance
+
+Agentic ingestion is the center of MemexAI's approach. MemexAI should not need to store every chat session in memory for later retrieval. The preferred architecture is:
+
+```text
+raw session -> ingest durable facts -> write/update memory files -> recall files later
+```
+
+Raw transcripts may still be stored by the host app for compliance, replay, debugging, or offline re-ingestion. They are not the primary memory surface.
+
+This makes MemexAI different from systems that primarily optimize:
+
+```text
+raw chat corpus -> embeddings/hybrid retrieval -> answer from retrieved chunks
+```
+
+That retrieval-first approach is powerful when an arbitrary old detail might matter later. MemexAI's curated approach is stronger when memory should behave like a system of record: compact, editable, auditable, and understandable by humans.
+
+The cost tradeoff is explicit. Agentic ingestion spends model tokens when writing memory, then saves tokens at recall time by keeping only durable records. For high-volume workloads, local or small hosted models should be acceptable for ingestion if the output is structured and conservative. Stronger hosted models can be reserved for spot checks, difficult ingestion domains, or final answer/judge evaluation.
+
 ---
 
 ## API
@@ -163,6 +183,9 @@ print(result.writes)
 The extraction prompt matters a lot. Key principles:
 - Prefer patch over write (surgical updates keep history clean)
 - Only write durable facts, not ephemeral conversation content
+- Preserve source anchors when available, such as session IDs, dates, message IDs, or URLs
+- Track updates explicitly: current value plus previous value when the change matters
+- Prefer structured files such as `user/profile.md`, `user/preferences.md`, `user/timeline.md`, and `user/projects/{name}.md`
 - Use the reason field to explain what triggered the write
 - Don't write the same fact twice — the memory_list output shows existing files
 

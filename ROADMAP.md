@@ -1,8 +1,20 @@
 # memexai Roadmap
 
-Memory as structured, inspectable files — reasoned over by a lightweight LLM agent, not retrieved by vector similarity. Same philosophy as how Claude Code navigates a codebase: give the model file tools and let it think.
+Memory as structured, inspectable files — curated by an agent as work happens, then reasoned over with lightweight file tools. Same philosophy as how Claude Code navigates a codebase: give the model a real filesystem-shaped memory surface and let it think.
 
-No vector search. The model's reasoning is the retrieval engine.
+MemexAI is not primarily a chat-log retrieval engine. The core bet is not:
+
+```text
+store every chat session -> vector search old chunks -> answer from retrieved logs
+```
+
+The core bet is:
+
+```text
+observe a session -> write only durable facts -> maintain inspectable memory files -> recall targeted records later
+```
+
+Raw conversation logs can still exist outside MemexAI for replay, audit, or analytics. MemexAI owns the curated working memory: profile, preferences, timelines, commitments, decisions, project context, and source-backed updates.
 
 ---
 
@@ -44,7 +56,7 @@ After every `memex.ingest()` write, a post-write hook updates `user/index.md` wi
 Container mode: `MEMEX_PII_POLICY=redact|block|off` env var — server-side, zero client changes needed. Direct mode: `memex.addHook("before_write", createPiiRedactHook())`. Regex patterns for email, phone, SSN, credit card, IP. Optional Presidio integration for NLP-based detection. GDPR/HIPAA compliance story — unoccupied niche in the market.
 
 ### Agentic ingestion → [`product/specs/05-agentic-ingest.md`](product/specs/05-agentic-ingest.md)
-`memex.ingest(text, ctx, { model })` — pass raw conversation text, LLM extracts durable facts and writes them via the memory tools. Write-only tool access (prevents runaway reads). Full audit trail — unlike mem0's black-box extraction. Dry-run mode for human review. Hooks fire on ingest writes (PII applies).
+`memex.ingest(text, ctx, { model })` — pass raw conversation text, LLM extracts durable facts and writes them via the memory tools. This is the main MemexAI loop: per-session curation, not bulk session storage. Write-only tool access prevents runaway reads. Full audit trail — every extracted fact has a path, revision, actor, and reason. Dry-run mode for human review. Hooks fire on ingest writes (PII applies).
 
 ### Agentic recall → [`product/specs/06-agentic-recall.md`](product/specs/06-agentic-recall.md)
 `user.recall(query)` — targeted mid-conversation retrieval. BM25-ranked fast path; optional LLM reranker for precision. Also exposed as `memory_recall` tool so agents can invoke it themselves. Complements `memory_smart_read` (system prompt assembly) — recall is for surgical mid-conversation lookups.
@@ -69,18 +81,26 @@ Proper `org/` or `workspace/` scope above `user/`. Currently only `user/` and `s
 
 ## Competitive Position
 
-| | mem0 | Zep | Letta | **memexai** |
+| | mem0 | Zep | Supermemory | **memexai** |
 |---|---|---|---|---|
-| Storage | Vector + graph | Graph (needs Neo4j) | Tiered in-context | **Postgres only** |
-| Self-hosted | ✅ needs vector DB | ❌ killed Apr 2025 | ❌ managed | **✅ just Postgres** |
-| Revision history | ❌ | ❌ | ❌ | **✅** |
-| Admin UI | ❌ | ✅ cloud | ✅ cloud | **✅ self-hosted** |
-| PII hooks | ❌ | ❌ | ❌ | **Tier 2** |
-| Python SDK | ✅ | ✅ | ✅ | **Tier 1** |
-| MCP server | ❌ | ❌ | ❌ | **Tier 1** |
-| Funding | $24M Series A | $500K seed | $10M seed | bootstrapped |
+| Primary mental model | Retrieve old chat chunks | User memory graph / facts | Memory retrieval API | **Curated durable files** |
+| Typical flow | Store messages, embed, retrieve | Extract/graph, retrieve | Ingest chunks, hybrid retrieve | **Agent writes durable records** |
+| Best at | Semantic chat recall | Managed user memory | Fast retrieval over memory corpus | **Inspectable system of record** |
+| Storage | Vector + graph | Graph / managed service | Managed memory infra | **Postgres files** |
+| Raw session storage as memory | Common/default | Common input | Common input | **Optional, not the point** |
+| Human editability | Limited | Managed UI | Managed API/UI | **First-class files + admin** |
+| Revision history | Limited/opaque | Limited/managed | Limited/managed | **Every write snapshot** |
+| Self-hosted | Needs extra infra | No longer core offering | Managed-first | **Just Postgres** |
+| Vector DB required | Usually yes | No for user, infra hidden | Infra hidden | **No** |
 
-Defensible angle: self-hosted + Postgres-only + full audit trail. Zep killed self-hosting; mem0 requires a vector store; nobody ships revision history. These three together are unoccupied.
+The honest tradeoff:
+
+- **MemexAI wins** when memory should be small, inspectable, editable, auditable, source-backed, and easy to self-host.
+- **Vector/chat-log systems win** when the main task is recovering arbitrary details from huge raw conversation histories, especially if those details were not recognized as durable at write time.
+
+This means benchmarks like LongMemEval are useful, but they should be interpreted carefully. They often test "can the system retrieve evidence from old sessions?" MemexAI should also be evaluated on "did the ingestion loop write the right durable memory, keep it updated, and make it inspectable?"
+
+Defensible angle: self-hosted + Postgres-only + full audit trail + human-editable memory files. The lane is durable agent memory, not just semantic search over transcripts.
 
 ---
 
