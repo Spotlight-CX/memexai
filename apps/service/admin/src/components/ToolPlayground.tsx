@@ -16,6 +16,7 @@ import {
   UnstyledButton,
 } from "@mantine/core"
 import { useEffect, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -338,9 +339,10 @@ const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ToolPlayground({ apiKey, onApiKeyInvalid }: { apiKey: string; onApiKeyInvalid: () => void }) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedTool = searchParams.get("tool") ?? ""
   const [tools, setTools] = useState<ToolDef[]>([])
   const [toolsError, setToolsError] = useState<string | null>(null)
-  const [selectedTool, setSelectedTool] = useState<string>("")
   const [argMode, setArgMode] = useState<ArgMode>(() => loadPrefs().argMode ?? "form")
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   const [argsJson, setArgsJson] = useState<string>("{}")
@@ -362,7 +364,7 @@ export function ToolPlayground({ apiKey, onApiKeyInvalid }: { apiKey: string; on
         if (!cancelled) {
           setTools(t)
           setToolsError(null)
-          if (t.length && !selectedTool) doSelectTool(t[0].name)
+          if (t.length && !searchParams.get("tool")) doSelectTool(t[0].name)
         }
       })
       .catch((e) => {
@@ -374,7 +376,7 @@ export function ToolPlayground({ apiKey, onApiKeyInvalid }: { apiKey: string; on
 
   function doSelectTool(name: string) {
     const scaffold = TOOL_SCAFFOLDS[name] ?? {}
-    setSelectedTool(name)
+    setSearchParams((prev) => { prev.set("tool", name); return prev })
     setFormValues(scaffold)
     setArgsJson(scaffoldToJson(name))
     setResult(null)

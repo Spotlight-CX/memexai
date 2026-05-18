@@ -22,6 +22,7 @@ import {
 } from "@mantine/core"
 import { useEffect, useMemo, useState } from "react"
 import ReactMarkdown from "react-markdown"
+import { useSearchParams } from "react-router-dom"
 import { useAdminData } from "../hooks"
 import { FileTreeItem } from "./FileTree"
 import { PencilIcon, PlusIcon } from "../icons"
@@ -29,15 +30,9 @@ import type { AdminFile, AdminRevision } from "../types"
 import { deriveTree, formatDate, isCodeLike, relativeTime } from "../utils"
 import { ErrorText } from "./TableViews"
 
-export function FilesView({
-  secret,
-  selectedPath,
-  onSelectPath,
-}: {
-  secret: string
-  selectedPath: string | null
-  onSelectPath: (path: string) => void
-}) {
+export function FilesView({ secret }: { secret: string }) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedPath = searchParams.get("path")
   const [search, setSearch] = useState("")
   const [selectedRevision, setSelectedRevision] = useState<AdminRevision | null>(null)
   const [copied, setCopied] = useState(false)
@@ -74,14 +69,27 @@ export function FilesView({
   }, [selectedPath])
 
   useEffect(() => {
-    if (search.trim()) tree.setExpandedState(getTreeExpandedState(filteredTree, "*"))
-  }, [filteredTree, search])
+    if (search.trim()) {
+      tree.setExpandedState(getTreeExpandedState(filteredTree, "*"))
+      return
+    }
+
+    if (!selectedPath) return
+
+    const ancestorPaths = getAncestorPaths(selectedPath)
+    if (ancestorPaths.every((path) => tree.expandedState[path])) return
+
+    tree.setExpandedState({
+      ...tree.expandedState,
+      ...Object.fromEntries(ancestorPaths.map((path) => [path, true])),
+    })
+  }, [filteredTree, search, selectedPath])
 
   const handleSelectPath = (path: string) => {
     setSelectedRevision(null)
     setIsEditing(false)
     setSaveError(null)
-    onSelectPath(path)
+    setSearchParams({ path })
     tree.select(path)
   }
 
@@ -315,6 +323,11 @@ export function FilesView({
       </Stack>
     </Box>
   )
+}
+
+function getAncestorPaths(path: string) {
+  const parts = path.split("/")
+  return parts.slice(0, -1).map((_, index) => parts.slice(0, index + 1).join("/"))
 }
 
 function isRiskyPath(path: string | null) {

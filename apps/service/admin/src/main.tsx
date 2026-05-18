@@ -13,6 +13,14 @@ import {
 } from "@mantine/core"
 import { useState, useMemo } from "react"
 import { createRoot } from "react-dom/client"
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom"
 import { useAdminData } from "./hooks"
 import { DotsHorizontalIcon } from "./icons"
 import { FilesView } from "./components/FilesView"
@@ -23,18 +31,22 @@ import { UsersView, RevisionsView, AccessLogsView } from "./components/TableView
 import { AdminSpotlight, SpotlightTrigger } from "./components/Spotlight"
 import type { AdminFile, Overlay } from "./types"
 
-type Page = "files" | "playground"
-
 const ADMIN_SECRET_KEY = "memexai.adminSecret"
 const API_KEY_KEY = "memexai.apiKey"
 
-function App() {
-  const [secret, setSecret] = useState(() => localStorage.getItem(ADMIN_SECRET_KEY) ?? "")
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_KEY) ?? "")
-  const [gateError, setGateError] = useState<string | null>(null)
+const PAGES = ["files", "playground"] as const
+type Page = (typeof PAGES)[number]
+
+function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gateError }: {
+  secret: string
+  apiKey: string
+  onSignOut: () => void
+  onApiKeyInvalid: () => void
+  gateError: string | null
+}) {
   const [overlay, setOverlay] = useState<Overlay>(null)
-  const [selectedPath, setSelectedPath] = useState<string | null>(null)
-  const [activePage, setActivePage] = useState<Page>("files")
+  const location = useLocation()
+  const navigate = useNavigate()
 
   const { data: filesData } = useAdminData<{ files: AdminFile[] }>(
     secret ? "/v1/admin/files" : null,
@@ -42,42 +54,13 @@ function App() {
   )
   const files = useMemo(() => filesData?.files ?? [], [filesData])
 
-  const signOut = () => {
-    localStorage.removeItem(ADMIN_SECRET_KEY)
-    localStorage.removeItem(API_KEY_KEY)
-    setSecret("")
-    setApiKey("")
-    setGateError(null)
-  }
-
-  const handleApiKeyInvalid = () => {
-    localStorage.removeItem(API_KEY_KEY)
-    setApiKey("")
-    setSecret("")
-    localStorage.removeItem(ADMIN_SECRET_KEY)
-    setGateError("API key rejected — check the MEMEX_API_KEY value in your container environment.")
-  }
-
-  if (!secret) {
-    return (
-      <SecretGate
-        error={gateError}
-        onSubmit={({ secret: s, apiKey: k }) => {
-          localStorage.setItem(ADMIN_SECRET_KEY, s)
-          localStorage.setItem(API_KEY_KEY, k)
-          setGateError(null)
-          setSecret(s)
-          setApiKey(k)
-        }}
-      />
-    )
-  }
+  const activePage = (PAGES.find((p) => location.pathname === "/" + p) ?? "files") as Page
 
   return (
     <MantineProvider defaultColorScheme="light">
       <AdminSpotlight
         files={files}
-        onSelectFile={setSelectedPath}
+        onSelectFile={(path) => navigate("/files?path=" + encodeURIComponent(path))}
         onOpenOverlay={setOverlay}
       />
 
@@ -95,10 +78,10 @@ function App() {
             <Group gap="lg" wrap="nowrap">
               <Title order={3} size="h4" fw={600}>MemexAI Admin</Title>
               <Group gap={0}>
-                {(["files", "playground"] as Page[]).map((page) => (
+                {PAGES.map((page) => (
                   <UnstyledButton
                     key={page}
-                    onClick={() => setActivePage(page)}
+                    onClick={() => navigate("/" + page)}
                     px="sm"
                     py={6}
                     style={{
@@ -132,7 +115,7 @@ function App() {
                   <Menu.Item onClick={() => setOverlay("revisions")}>Revisions</Menu.Item>
                   <Menu.Item onClick={() => setOverlay("logs")}>Access Logs</Menu.Item>
                   <Menu.Divider />
-                  <Menu.Item color="red" onClick={signOut}>Sign out</Menu.Item>
+                  <Menu.Item color="red" onClick={onSignOut}>Sign out</Menu.Item>
                 </Menu.Dropdown>
               </Menu>
             </Group>
@@ -140,15 +123,11 @@ function App() {
         </AppShell.Header>
 
         <AppShell.Main>
-          {activePage === "files" ? (
-            <FilesView
-              secret={secret}
-              selectedPath={selectedPath}
-              onSelectPath={setSelectedPath}
-            />
-          ) : (
-            <ToolPlayground apiKey={apiKey} onApiKeyInvalid={handleApiKeyInvalid} />
-          )}
+          <Routes>
+            <Route path="/files" element={<FilesView secret={secret} />} />
+            <Route path="/playground" element={<ToolPlayground apiKey={apiKey} onApiKeyInvalid={onApiKeyInvalid} />} />
+            <Route path="*" element={<Navigate to="/files" replace />} />
+          </Routes>
         </AppShell.Main>
       </AppShell>
 
@@ -173,5 +152,53 @@ function App() {
   )
 }
 
+function App() {
+  const [secret, setSecret] = useState(() => localStorage.getItem(ADMIN_SECRET_KEY) ?? "")
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_KEY) ?? "")
+  const [gateError, setGateError] = useState<string | null>(null)
+
+  const signOut = () => {
+    localStorage.removeItem(ADMIN_SECRET_KEY)
+    localStorage.removeItem(API_KEY_KEY)
+    setSecret("")
+    setApiKey("")
+    setGateError(null)
+  }
+
+  const handleApiKeyInvalid = () => {
+    localStorage.removeItem(API_KEY_KEY)
+    setApiKey("")
+    setSecret("")
+    localStorage.removeItem(ADMIN_SECRET_KEY)
+    setGateError("API key rejected — check the MEMEX_API_KEY value in your container environment.")
+  }
+
+  if (!secret) {
+    return (
+      <SecretGate
+        error={gateError}
+        onSubmit={({ secret: s, apiKey: k }) => {
+          localStorage.setItem(ADMIN_SECRET_KEY, s)
+          localStorage.setItem(API_KEY_KEY, k)
+          setGateError(null)
+          setSecret(s)
+          setApiKey(k)
+        }}
+      />
+    )
+  }
+
+  return (
+    <BrowserRouter basename="/admin">
+      <AdminApp
+        secret={secret}
+        apiKey={apiKey}
+        onSignOut={signOut}
+        onApiKeyInvalid={handleApiKeyInvalid}
+        gateError={gateError}
+      />
+    </BrowserRouter>
+  )
+}
 
 createRoot(document.getElementById("root")!).render(<App />)
