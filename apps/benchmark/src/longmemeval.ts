@@ -212,15 +212,19 @@ async function main() {
           process.stdout.write(" [already ingested]")
         } else {
           const t0 = Date.now()
-          for (let s = 0; s < item.haystack_sessions.length; s++) {
+          const total = item.haystack_sessions.length
+          for (let s = 0; s < total; s++) {
+            process.stdout.write(`\n  session ${s + 1}/${total} …`)
+            const st = Date.now()
             const text = formatSession(
               item.haystack_sessions[s],
               item.haystack_dates[s] ?? "unknown date",
             )
-            await user.memorize(text, { maxWrites: 3, dryRun: DRY_RUN })
+            const result = await user.memorize(text, { maxWrites: 3, dryRun: DRY_RUN })
+            process.stdout.write(` ${Date.now() - st}ms (${result.writes.length} writes)`)
           }
           ingest_ms = Date.now() - t0
-          process.stdout.write(` ingest=${ingest_ms}ms`)
+          process.stdout.write(`\n  ingest done — ${total} sessions, ${ingest_ms}ms total`)
         }
       }
 
