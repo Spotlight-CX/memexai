@@ -1,5 +1,5 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
-import { openai } from "@ai-sdk/openai"
+import { openai, createOpenAI } from "@ai-sdk/openai"
 import { generateText, stepCountIs } from "ai"
 import { createMemex } from "@memexai/core"
 import { MemexAI } from "@memexai/sdk"
@@ -224,21 +224,19 @@ function createModelConfig(env: Env, openaiFactory?: OpenAIModelFactory, googleF
   if (geminiApiKey) {
     const modelName = env.GEMINI_MODEL || env.GOOGLE_GENERATIVE_AI_MODEL || "gemini-2.5-flash"
     const google = googleFactory ?? createGoogleGenerativeAI({ apiKey: geminiApiKey })
-    return {
-      provider: "google",
-      modelName,
-      model: google(modelName),
-    }
+    return { provider: "google", modelName, model: google(modelName) }
+  }
+
+  if (env.OLLAMA_MODEL) {
+    const baseURL = (env.OLLAMA_BASE_URL ?? "http://localhost:11434") + "/v1"
+    const modelName = env.OLLAMA_MODEL
+    return { provider: "ollama", modelName, model: createOpenAI({ baseURL, apiKey: "ollama" })(modelName) }
   }
 
   const modelName = env.OPENAI_MODEL || "gpt-4.1-mini"
   requireEnv(env, "OPENAI_API_KEY")
   const makeOpenAIModel = openaiFactory ?? openai
-  return {
-    provider: "openai",
-    modelName,
-    model: makeOpenAIModel(modelName),
-  }
+  return { provider: "openai", modelName, model: makeOpenAIModel(modelName) }
 }
 
 async function retryUntilReady<T>(fn: () => Promise<T>, delayMs: number): Promise<T> {
