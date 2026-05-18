@@ -20,6 +20,7 @@ import { useAdminData } from "./hooks"
 import { DotsHorizontalIcon } from "./icons"
 import { FilesView } from "./components/FilesView"
 import { ToolPlayground } from "./components/ToolPlayground"
+import { WelcomeModal } from "./components/WelcomeModal"
 import { UsersView, RevisionsView, AccessLogsView } from "./components/TableViews"
 import { AdminSpotlight, SpotlightTrigger } from "./components/Spotlight"
 import type { AdminFile, Overlay } from "./types"
@@ -148,6 +149,8 @@ function App() {
           <AccessLogsView secret={secret} physicalPath={null} />
         </Box>
       </Modal>
+
+      <WelcomeModal />
     </MantineProvider>
   )
 }

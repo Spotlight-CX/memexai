@@ -17,10 +17,11 @@
   "dependencies": {
     "@ai-sdk/google": "^2.0.29",
     "@ai-sdk/openai": "^2.0.46",
-    "@memexai/core": "workspace:*",
     "@mantine/core": "^9.0.1",
+    "@mantine/form": "^9.2.1",
     "@mantine/hooks": "^9.0.1",
     "@mantine/spotlight": "^9.1.1",
+    "@memexai/core": "workspace:*",
     "ai": "^5.0.98",
     "fastify": "^5.6.2",
     "pg": "^8.16.3",

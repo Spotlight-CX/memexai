@@ -52,14 +52,49 @@ Both paths use the same scoped paths, revision history, and access logs.
 
 The service path is the best default for teams and production apps. Your app talks to an HTTP API; it never needs database credentials.
 
-```bash
-git clone https://github.com/Spotlight-CX/memexai.git
-cd memexai
+Create a `compose.yml`:
 
-docker compose -f compose.yml up -d
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: memexai
+      POSTGRES_PASSWORD: memexai
+      POSTGRES_DB: memexai
+    volumes:
+      - memexai_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memexai"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  memexai:
+    image: soorajsanker/memexai:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://memexai:memexai@postgres:5432/memexai
+      MEMEX_API_KEY: dev-agent-key
+      MEMEX_ADMIN_SECRET: dev-admin-secret
+      GEMINI_API_KEY: ...     # RECOMMENDED — enables LLM-backed memory_memorize / memory_search
+      # OPENAI_API_KEY: ...
+    ports:
+      - "8080:8080"
+
+volumes:
+  memexai_postgres_data:
+```
+
+Then:
+
+```bash
+docker compose up -d
 # API and admin UI: http://localhost:8080
-# Demo API key: dev-agent-key
-# Admin secret: dev-admin-secret
+# API key:          dev-agent-key
+# Admin secret:     dev-admin-secret
 
 npm install @memexai/sdk ai @ai-sdk/google
 ```
@@ -278,10 +313,10 @@ cd ../anthropic
 DATABASE_URL=postgresql://... ANTHROPIC_API_KEY=... bun run start "Remember I prefer 2BHK apartments"
 ```
 
-HTTP service demo agent:
+HTTP service demo agent (requires cloning the repo):
 
 ```bash
-docker compose -f compose.yml up -d
+docker compose up -d
 
 MEMEX_URL=http://localhost:8080 \
 MEMEX_API_KEY=dev-agent-key \
