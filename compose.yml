@@ -24,6 +24,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # allows the service to reach Ollama running on the host machine
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       NODE_ENV: production
       PORT: 8080
@@ -37,6 +40,8 @@ services:
       GOOGLE_GENERATIVE_AI_MODEL: ${GOOGLE_GENERATIVE_AI_MODEL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
     ports:
       - "${MEMEX_PORT:-8080}:8080"
 

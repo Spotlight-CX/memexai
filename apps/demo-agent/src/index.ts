@@ -230,7 +230,7 @@ function createModelConfig(env: Env, openaiFactory?: OpenAIModelFactory, googleF
   if (env.OLLAMA_MODEL) {
     const baseURL = (env.OLLAMA_BASE_URL ?? "http://localhost:11434") + "/v1"
     const modelName = env.OLLAMA_MODEL
-    return { provider: "ollama", modelName, model: createOpenAI({ baseURL, apiKey: "ollama" })(modelName) }
+    return { provider: "ollama", modelName, model: createOpenAI({ baseURL, apiKey: "ollama" }).chat(modelName) }
   }
 
   const modelName = env.OPENAI_MODEL || "gpt-4.1-mini"

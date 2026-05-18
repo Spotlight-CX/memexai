@@ -10,6 +10,16 @@
         "vitest": "^4.0.15",
       },
     },
+    "apps/benchmark": {
+      "name": "@memexai/benchmark",
+      "version": "0.1.0",
+      "dependencies": {
+        "@ai-sdk/google": "^2.0.29",
+        "@ai-sdk/openai": "^2.0.46",
+        "@memexai/core": "workspace:*",
+        "ai": "^5.0.98",
+      },
+    },
     "apps/demo-agent": {
       "name": "@memexai/demo-agent",
       "version": "0.1.0",
@@ -253,6 +263,8 @@
     "@mantine/store": ["@mantine/store@9.1.1", "", { "peerDependencies": { "react": "^19.2.0" } }, "sha512-kbxEU8wVGbobHlmQmk0lu9M+xCILKjuAPcMAshgzPznGLfXeE9zrB0gNT2cbk11Ik8dlV9J6Vsn9cuACyOSpfQ=="],
 
     "@memexai/admin": ["@memexai/admin@workspace:packages/admin-cli"],
+
+    "@memexai/benchmark": ["@memexai/benchmark@workspace:apps/benchmark"],
 
     "@memexai/core": ["@memexai/core@workspace:packages/core"],
 

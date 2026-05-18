@@ -1,17 +1,17 @@
 FROM node:20-slim AS bun-base
 ENV BUN_INSTALL=/usr/local
-RUN npm config set registry https://registry.npmmirror.com \
-  && npm install -g bun@1.3.10
+RUN npm install -g bun@1.3.10
 
 FROM bun-base AS deps
 WORKDIR /app
 COPY package.json bun.lock tsconfig.base.json ./
 COPY apps/service/package.json apps/service/package.json
 COPY apps/demo-agent/package.json apps/demo-agent/package.json
+COPY apps/benchmark/package.json apps/benchmark/package.json
 COPY packages/core/package.json packages/core/package.json
 COPY packages/sdk/package.json packages/sdk/package.json
 COPY packages/admin-cli/package.json packages/admin-cli/package.json
-RUN bun install --registry=https://registry.npmmirror.com --frozen-lockfile
+RUN bun install --frozen-lockfile
 
 FROM deps AS build
 COPY . .

@@ -24,7 +24,8 @@
     "publish:packages:dry-run": "node scripts/build-and-publish.mjs --dry-run",
     "test": "vitest run",
     "test:unit": "vitest run packages/core/tests/schemas.test.ts packages/core/tests/paths.test.ts packages/core/tests/text-patch.test.ts packages/core/tests/memex.test.ts packages/sdk/tests/client.test.ts packages/sdk/tests/adapters.test.ts apps/service/tests/config.test.ts",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "bench:longmemeval": "bun run apps/benchmark/src/longmemeval.ts"
   },
   "devDependencies": {
     "@types/node": "^20.19.25",

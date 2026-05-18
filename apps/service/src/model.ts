@@ -31,7 +31,7 @@ export async function createServiceModel(config: Config, factories: ModelFactory
     const baseURL = (config.OLLAMA_BASE_URL ?? "http://localhost:11434") + "/v1"
     const modelName = config.OLLAMA_MODEL ?? "llama3.2"
     const { createOpenAI } = await import("@ai-sdk/openai")
-    return { provider, modelName, model: createOpenAI({ baseURL, apiKey: "ollama" })(modelName) }
+    return { provider, modelName, model: createOpenAI({ baseURL, apiKey: "ollama" }).chat(modelName) }
   }
 
   const apiKey = config.OPENAI_API_KEY
