@@ -125,7 +125,7 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
         <AppShell.Main>
           <Routes>
             <Route path="/files" element={<FilesView secret={secret} />} />
-            <Route path="/playground" element={<ToolPlayground apiKey={apiKey} onApiKeyInvalid={onApiKeyInvalid} />} />
+            <Route path="/playground" element={<ToolPlayground apiKey={apiKey} secret={secret} onApiKeyInvalid={onApiKeyInvalid} />} />
             <Route path="*" element={<Navigate to="/files" replace />} />
           </Routes>
         </AppShell.Main>

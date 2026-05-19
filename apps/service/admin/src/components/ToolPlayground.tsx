@@ -19,12 +19,13 @@ import { useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
+import { useAdminData } from "../hooks"
+import type { AdminUser } from "../types"
 
 const PREFS_STORAGE = "memexai.playgroundPrefs"
-const DEMO_USER = "demo_user"
 
 type ArgMode = "form" | "json"
-type Prefs = { argMode: ArgMode }
+type Prefs = { argMode: ArgMode; userId?: string }
 
 function loadPrefs(): Prefs {
   try {
@@ -338,7 +339,7 @@ const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export function ToolPlayground({ apiKey, onApiKeyInvalid }: { apiKey: string; onApiKeyInvalid: () => void }) {
+export function ToolPlayground({ apiKey, secret, onApiKeyInvalid }: { apiKey: string; secret: string; onApiKeyInvalid: () => void }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedTool = searchParams.get("tool") ?? ""
   const [tools, setTools] = useState<ToolDef[]>([])
@@ -349,6 +350,9 @@ export function ToolPlayground({ apiKey, onApiKeyInvalid }: { apiKey: string; on
   const [result, setResult] = useState<RunResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [argsError, setArgsError] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string>(() => loadPrefs().userId ?? "")
+  const { data: usersData } = useAdminData<{ users: AdminUser[] }>(secret ? "/v1/admin/users" : null, secret)
+  const userOptions = (usersData?.users ?? []).map((u) => u.userId)
 
   useEffect(() => {
     if (!apiKey) { setTools([]); setToolsError(null); return }
@@ -394,7 +398,7 @@ export function ToolPlayground({ apiKey, onApiKeyInvalid }: { apiKey: string; on
       setFormValues(jsonToForm(argsJson, props))
     }
     setArgMode(mode)
-    savePrefs({ argMode: mode })
+    savePrefs({ argMode: mode, userId })
   }
 
   async function handleRun() {
@@ -414,7 +418,7 @@ export function ToolPlayground({ apiKey, onApiKeyInvalid }: { apiKey: string; on
       const response = await fetch(`/v1/tools/${selectedTool}/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ context: { userId: DEMO_USER }, arguments: args }),
+        body: JSON.stringify({ context: { userId: userId.trim() || "demo_user" }, arguments: args }),
       })
       const body = await response.json()
       setResult({ status: response.status, latency: Date.now() - start, body })
@@ -431,6 +435,29 @@ export function ToolPlayground({ apiKey, onApiKeyInvalid }: { apiKey: string; on
 
   return (
     <Box style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+      {/* User selector strip */}
+      <Box px="sm" py={6} style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", flexShrink: 0 }}>
+        <Group gap="xs" align="center" wrap="nowrap">
+          <Text size="xs" fw={600} c="dimmed" style={{ whiteSpace: "nowrap" }}>User</Text>
+          <TextInput
+            size="xs"
+            value={userId}
+            onChange={(e) => {
+              const next = e.currentTarget.value
+              setUserId(next)
+              savePrefs({ ...loadPrefs(), userId: next })
+            }}
+            placeholder="Enter or select a userId…"
+            style={{ flex: 1, minWidth: 0 }}
+            styles={{ input: { fontFamily: "monospace", fontSize: 11 } }}
+            list="playground-user-options"
+          />
+          <datalist id="playground-user-options">
+            {userOptions.map((u) => <option key={u} value={u} />)}
+          </datalist>
+        </Group>
+      </Box>
 
       {/* Main: sidebar + content */}
       <Box style={{ flex: 1, overflow: "hidden", display: "flex" }}>
