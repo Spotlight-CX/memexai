@@ -322,6 +322,8 @@ export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolCont
       "Use memory_write only for new user files.",
       "Always include a concise reason.",
       "After writing or patching any user file, also update user/index.md: patch it if it exists, write it if not. Add or update a one-line entry per file in the format: `- user/filename.md — <short purpose>`.",
+      "After all writes, append one line per written file to user/log.md (patch if exists, write if not): `- [YYYY-MM-DD] <wrote|patched> user/filename.md — <reason>`. Use today's date.",
+      "When writing a new file, if related files already exist, add a `## See also` section with `[[user/related.md]]` links. When patching, add links if newly relevant.",
       dryRun ? "Dry run is enabled; plan writes but do not commit them." : "Commit useful writes.",
     ].join("\n"),
     prompt: [

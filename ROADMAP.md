@@ -61,8 +61,8 @@ Container mode: `MEMEX_PII_POLICY=redact|block|off` env var — server-side, zer
 ### Agentic recall → [`product/specs/06-agentic-recall.md`](product/specs/06-agentic-recall.md)
 `user.recall(query)` — targeted mid-conversation retrieval. BM25-ranked fast path; optional LLM reranker for precision. Also exposed as `memory_recall` tool so agents can invoke it themselves. Complements `memory_smart_read` (system prompt assembly) — recall is for surgical mid-conversation lookups.
 
-### Wiki bookkeeping — log file + cross-references → [`product/specs/08-wiki-bookkeeping.md`](product/specs/08-wiki-bookkeeping.md)
-Two additions to the `memory_memorize` inner model: (1) append a dated entry to `user/log.md` after every write — gives future sessions a chronological trail without reading all files; (2) instruct the model to add `## See also` cross-reference links when writing new pages. Inspired by Karpathy's LLM Wiki pattern. Implementation is two lines added to the `executeMemoryMemorize` system prompt in `packages/core/src/tools.ts`. `user/index.md` maintenance already ships as part of Tier 1 smart index work.
+### Bookkeeping — log file + cross-references → [`product/specs/08-bookkeeping.md`](product/specs/08-bookkeeping.md)
+Two additions to the `memory_memorize` inner model: (1) append a dated entry to `user/log.md` after every write — gives future sessions a chronological trail without reading all files; (2) instruct the model to add `## See also` cross-reference links when writing new pages. Implementation is two lines added to the `executeMemoryMemorize` system prompt in `packages/core/src/tools.ts`. `user/index.md` maintenance already ships as part of Tier 1 smart index work.
 
 ---
 
@@ -72,7 +72,7 @@ Two additions to the `memory_memorize` inner model: (1) append a dated entry to 
 When a file exceeds a configurable threshold (default 16K chars), LLM summarizes and deduplicates while preserving durable facts. Archives original under `user/archive/` (as a readable file) — spec 07 chose this over storing archives in `mx_revision` so agents can reference old archives directly via memory tools. Triggered on-write (async, non-blocking) or manually via admin UI "Compact now" button. Revision created with `reason: "auto-compaction"`.
 
 ### Memory lint → [`product/specs/09-memory-lint.md`](product/specs/09-memory-lint.md)
-`memory_lint` tool + `user.lint({ model })` — periodic health-check pass over user memory. Finds orphan files, stale facts, missing cross-references, and index drift. Returns a structured issue list with categories (`orphan`, `stale`, `missing_index_entry`, `broken_link`, `missing_crossref`). `autoFix: true` applies trivial fixes (missing index/log entries) via the normal write path. Surfaced in admin UI as a "Lint" button with a report modal. Inspired by Karpathy's LLM Wiki lint operation.
+`memory_lint` tool + `user.lint({ model })` — periodic health-check pass over user memory. Finds orphan files, stale facts, missing cross-references, and index drift. Returns a structured issue list with categories (`orphan`, `stale`, `missing_index_entry`, `broken_link`, `missing_crossref`). `autoFix: true` applies trivial fixes (missing index/log entries) via the normal write path. Surfaced in admin UI as a "Lint" button with a report modal.
 
 ### Human memory editor in admin UI
 Admin can edit, delete, or rewrite any memory entry directly in the dashboard. Edits create a new revision with `actor: admin`. Builds on the existing revision trail — no new schema needed.
