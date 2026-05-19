@@ -1,8 +1,7 @@
 # Spec: Memory Lint
 
 **Priority:** Tier 3 — post-launch  
-**API:** `memory_lint` tool + `user.lint({ model })` convenience method  
-**Status:** Not started  
+**API:** `memory_lint` tool + `user.lint({ model })` SDK method + admin cron (future)  
 **Status:** Not started
 
 ---
@@ -17,7 +16,41 @@ As a user's memory grows — dozens of files across sessions — quality degrade
 
 None of this triggers an error. Memory just quietly gets harder to navigate and trust.
 
-Lint is the repair mechanism: a periodic health-check pass that surfaces problems and optionally fixes trivial ones. Karpathy: *"The LLM is good at suggesting new questions to investigate and new sources to look for."*
+Lint is the repair mechanism: a periodic health-check pass that surfaces problems and optionally fixes trivial ones.
+
+---
+
+## Delivery modes
+
+### Mode 1 — SDK (per-user, developer-triggered)
+
+The developer calls `user.lint()` from their application code. Use cases:
+- Run after every N ingestion sessions as a maintenance step
+- Trigger from a background job after bulk ingest
+- Expose as an admin action in the host app
+
+```ts
+const user = memex.forUser({ userId: "user_123", actor: "assistant" })
+const report = await user.lint({ model, autoFix: true })
+console.log(report.issues)
+```
+
+Scope: single user. The developer controls when it runs and for whom.
+
+### Mode 2 — Admin cron (all users, operator-configured) — future
+
+An operator-configurable scheduled lint run in the admin UI. The admin sets a schedule (e.g. daily at 02:00) and the service runs lint across all known users automatically. Results are stored and surfaced in the admin UI as a health dashboard.
+
+Distinct from Mode 1 in two ways:
+- **Scope**: iterates all users via an internal `memex.lintAll()` loop, not a per-user call
+- **Trigger**: time-based, not developer-initiated
+
+Design notes for when this is built:
+- Uses the same `executeMemoryLint` core function as Mode 1, called once per userId
+- Stores `LintResult` per user in a new `mx_lint_run` table (or as a special memory file under `shared/lint/`)
+- Admin UI shows: last run time, issue counts per user, trend over time
+- `MEMEX_LINT_SCHEDULE` env var controls the cron expression; disabled by default
+- Auto-fix in cron mode is off by default — flag issues, let the operator decide
 
 ---
 
@@ -80,12 +113,19 @@ Parameters:
   dryRun?    boolean  Report without applying fixes
 ```
 
-### SDK convenience
+### SDK — per-user
 
 ```ts
 const user = memex.forUser({ userId: "user_123", actor: "assistant" })
 const report = await user.lint({ model, autoFix: true })
-console.log(report.issues)
+```
+
+### SDK — all users (backing method for admin cron)
+
+```ts
+// Internal, not public API in v1
+await memex.lintAll({ model, autoFix: false })
+// Calls user.lint() for each userId returned by the admin users query
 ```
 
 ---
@@ -116,19 +156,7 @@ console.log(report.issues)
 
 ## Implementation
 
-**New function:** `executeMemoryLint` in `packages/core/src/tools.ts`
-
-**New tool definition:** `memory_lint` in `packages/core/src/tool-definitions.ts`
-
-**Wire up:** `executeTool` switch in `packages/core/src/tools.ts`
-
-**SDK method:** `user.lint(options)` on `MemexUser` in `packages/core/src/memex.ts`
-
-**Admin UI trigger:** "Lint" button in FilesView or as a menu item in the admin header. Shows the lint report in a modal. Auto-fix toggle.
-
----
-
-## Files to Create/Modify
+### Mode 1 (SDK) — build now
 
 | File | Change |
 |---|---|
@@ -136,7 +164,16 @@ console.log(report.issues)
 | `packages/core/src/tool-definitions.ts` | Add `memory_lint` tool definition |
 | `packages/core/src/memex.ts` | Add `user.lint()` method |
 | `packages/core/src/index.ts` | Export `LintResult`, `LintIssue` types |
-| `apps/service/admin/src/components/FilesView.tsx` | Add "Lint" button → modal |
+| `apps/service/admin/src/components/FilesView.tsx` | "Lint" button → report modal with auto-fix toggle |
+
+### Mode 2 (admin cron) — future
+
+| File | Change |
+|---|---|
+| `packages/core/src/memex.ts` | Add `memex.lintAll()` internal method |
+| `apps/service/src/server.ts` | Register cron job using `MEMEX_LINT_SCHEDULE` env var |
+| `apps/service/migrations/` | New `mx_lint_run` table (id, userId, runAt, issueCount, result jsonb) |
+| `apps/service/admin/src/` | Lint history view in admin UI |
 
 ---
 
