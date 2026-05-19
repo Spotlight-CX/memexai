@@ -132,8 +132,8 @@ The service (`apps/service`) is a Fastify app. You can deploy it anywhere Node.j
 bun run build:service
 
 # Run with environment variables
-POSTGRES_URL=postgresql://...
-MEMEX_AGENT_KEYS=your-api-key        # comma-separated list of valid API keys
+DATABASE_URL=postgresql://...
+MEMEX_API_KEY=your-api-key           # comma-separated list of valid API keys
 MEMEX_ADMIN_SECRET=your-admin-secret  # for admin endpoints (separate from agent keys)
 ```
 
@@ -141,7 +141,7 @@ The Docker image bundles the compiled service + admin UI static files. The admin
 
 For production, you want:
 - The service behind a reverse proxy (nginx, Caddy, or a managed load balancer)
-- `MEMEX_AGENT_KEYS` rotated as needed (the service checks on every request)
+- `MEMEX_API_KEY` rotated as needed (the service checks on every request)
 - Postgres with standard backup and monitoring
 
 ---

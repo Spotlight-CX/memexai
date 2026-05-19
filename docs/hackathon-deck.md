@@ -78,8 +78,8 @@ Agents read and write files by path.
 Examples:
 
 - `shared/index.md`
-- `users/user_123/profile.md`
-- `users/user_123/preferences/commute.md`
+- `user/profile.md`
+- `user/preferences/commute.md`
 
 ---
 
