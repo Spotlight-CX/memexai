@@ -9,12 +9,27 @@ import { buildPromptBlock } from "./prompt-block"
 import { executeToolRequestSchema, promptBlockQuerySchema } from "./schemas"
 import { executeTool, listTools } from "./tools"
 import { registerAdminStaticRoutes } from "./static-admin"
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js"
+import { newId } from "./ids"
+import { activeMcpSessions, createConnectionScopedMcpServer } from "./mcp"
 
 export function buildServer(input: { db: Db; config: Config; model?: unknown }): FastifyInstance {
   const app = Fastify({ logger: true })
   const { db, config } = input
   const apiAuth = requireApiKey(config.MEMEX_API_KEY)
   const adminAuth = requireAdminSecret(config.MEMEX_ADMIN_SECRET)
+
+  const mcpAuth = async (request: any) => {
+    const authHeader = request.headers.authorization
+    if (authHeader === `Bearer ${config.MEMEX_API_KEY}`) {
+      return
+    }
+    const query = request.query as { apiKey?: string; token?: string }
+    if (query.apiKey === config.MEMEX_API_KEY || query.token === config.MEMEX_API_KEY) {
+      return
+    }
+    throw new HttpError(401, "UNAUTHORIZED", "Missing or invalid API key")
+  }
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {
@@ -32,6 +47,51 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
   })
 
   app.get("/health", async () => ({ ok: true }))
+
+  app.get("/v1/mcp/sse", { preHandler: mcpAuth }, async (request, reply) => {
+    const query = request.query as { userId?: string; actor?: string }
+    const userId = query.userId || "default"
+    const actor = query.actor || "mcp-client"
+
+    const connectionId = newId("conn")
+    const transport = new SSEServerTransport(`/v1/mcp/messages?connectionId=${connectionId}`, reply.raw)
+
+    const ctx = { userId, actor }
+    const mcpServer = createConnectionScopedMcpServer(db, ctx, input.model)
+
+    await mcpServer.connect(transport)
+
+    activeMcpSessions.set(connectionId, {
+      server: mcpServer,
+      transport,
+      userId,
+      actor,
+    })
+
+    request.raw.on("close", () => {
+      activeMcpSessions.delete(connectionId)
+      transport.close().catch(() => {})
+    })
+
+    reply.hijack()
+  })
+
+  app.post("/v1/mcp/messages", { preHandler: mcpAuth }, async (request, reply) => {
+    const query = request.query as { connectionId?: string }
+    const connectionId = query.connectionId
+
+    if (!connectionId) {
+      throw new HttpError(400, "CONNECTION_ID_REQUIRED", "connectionId query parameter is required")
+    }
+
+    const session = activeMcpSessions.get(connectionId)
+    if (!session) {
+      throw new HttpError(404, "SESSION_NOT_FOUND", "MCP session not found")
+    }
+
+    await session.transport.handlePostMessage(request.raw, reply.raw)
+    reply.hijack()
+  })
 
   app.get("/v1/tools", { preHandler: apiAuth }, async () => listTools())
 
