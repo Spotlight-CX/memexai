@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js"
 import { executeTool } from "./tools"
 import type { Db } from "./db"
 import { type ToolContext, toolDefinitions } from "@memexai/core"
@@ -12,6 +13,15 @@ import {
   memorizeArgsSchema,
 } from "./schemas"
 import type { z } from "zod"
+
+export interface McpSession {
+  server: McpServer
+  transport: SSEServerTransport
+  userId: string
+  actor?: string
+}
+
+export const activeMcpSessions = new Map<string, McpSession>()
 
 const schemaMap: Record<string, z.ZodTypeAny> = {
   memory_list: listArgsSchema,
