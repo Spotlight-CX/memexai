@@ -72,13 +72,42 @@ The admin CLI connects to the same Postgres database separately when you need to
 
 ---
 
+## Tool layers
+
+MemexAI exposes memory through two layers. Most applications use the agentic layer; the raw layer is available for precise control.
+
+### Agentic tools (recommended — 2 tools)
+
+| Tool | What it does |
+|---|---|
+| `memory_memorize` | Feed raw text; an inner model decides what's durable, writes fact files, and maintains bookkeeping (`user/index.md`, `user/log.md`, cross-reference links) |
+| `memory_search` | BM25 full-text search over all user memory files; returns ranked file excerpts |
+
+These are the default tools injected into the model's system prompt via `getPromptBlock()`. The model calls `memory_memorize` to persist facts and `memory_search` to retrieve them. Neither requires the model to reason about file paths or write operations directly.
+
+`memory_memorize` runs an inner agentic loop: it lists existing files, reads the current index, and calls an inner model that has access only to `memory_write` and `memory_patch`. This prevents runaway reads while still producing structured, auditable writes. After every write the inner model also patches `user/index.md` (content catalog), appends to `user/log.md` (dated ingest timeline), and adds `## See also` cross-reference links between related files.
+
+### Raw tools (4 tools)
+
+| Tool | What it does |
+|---|---|
+| `memory_list` | List all files for a user, with sizes and timestamps |
+| `memory_read` | Read a single file by virtual path |
+| `memory_write` | Create or overwrite a file |
+| `memory_patch` | Append or replace lines within a file |
+
+These give the model (or your code) precise control over individual files. Use them when you need deterministic writes, custom extraction logic, or when you're building tooling on top of MemexAI. Every write through raw tools still creates a revision snapshot and an access log entry.
+
+---
+
 ## Tool call flow
 
-This is the same in both modes — the difference is whether step 3 crosses an HTTP boundary.
+This is the same in both modes — the difference is whether step 3 crosses an HTTP boundary. Agentic tools (`memory_memorize`, `memory_search`) resolve internally and then call the raw tool path for any actual writes.
 
 ```
 1.  AI model generates a tool call
-    e.g. { name: "memory_write", input: { path: "user/profile.md", content: "..." } }
+    e.g. { name: "memory_memorize", input: { text: "User prefers 2BHK" } }
+         or { name: "memory_write", input: { path: "user/profile.md", content: "..." } }
 
 2.  Framework adapter intercepts
     Vercel AI SDK, Anthropic SDK, LangChain, or raw JSON Schema
