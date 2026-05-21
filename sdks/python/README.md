@@ -1,6 +1,6 @@
 # MemexAI Python SDK
 
-A direct-Postgres Python client for MemexAI, mirroring `@memexai/core` precisely.
+A Python client for MemexAI. The recommended path is to connect to the containerized MemexAI service; direct Postgres mode is available for advanced in-process deployments.
 
 ## Install
 
@@ -20,16 +20,23 @@ python3 -m pip install -e ".[crewai]"
 
 Run those commands from `sdks/python`. From the repository root, keep the `sdks/python[...]` path form.
 
-## Direct Postgres Usage
+## Service Usage
+
+Start the MemexAI service first:
+
+```bash
+docker compose up -d
+```
+
+Then connect from Python:
 
 ```python
-from memexai import create_memex
+from memexai import MemexAI
 
-memex = await create_memex({
-    "databaseUrl": "postgresql://memexai:memexai@localhost:5433/memexai",
-})
-
-await memex.migrate()
+memex = MemexAI(
+    url="http://localhost:8080",
+    api_key="dev-agent-key",
+)
 
 memory = memex.for_user("user_123", actor="assistant")
 await memory.write_file(
@@ -44,9 +51,26 @@ print(result["content"])
 await memex.close()
 ```
 
-The Python SDK is direct-Postgres only. Use the TypeScript `@memexai/sdk` package when you want a REST client for the hosted service.
+The service runs migrations and holds database credentials. Your Python app only needs the service URL and API key.
 
-Call `await memex.migrate()` once during startup or deployment before reading and writing memory.
+## Advanced Direct Postgres Usage
+
+Use direct Postgres mode only when your Python application should own database credentials.
+
+```python
+from memexai import create_memex
+
+memex = await create_memex({
+    "databaseUrl": "postgresql://memexai:memexai@localhost:5433/memexai",
+})
+
+await memex.migrate()
+
+memory = memex.for_user("user_123", actor="assistant")
+result = await memory.search("quiet neighborhoods")
+
+await memex.close()
+```
 
 ## Tools
 
