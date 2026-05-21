@@ -18,7 +18,7 @@ CTX = RequestContext(userId="user_123", actor="pytest")
 
 
 def test_patch_helpers_append_and_replace():
-    appended = append_lines_after_heading("# Notes\n\n## Likes\n- Tea\n\n## Work\n", "## Likes", ["- Tea", "- Quiet"]) 
+    appended = append_lines_after_heading("# Notes\n\n## Likes\n- Tea\n\n## Work\n", "## Likes", ["- Tea", "- Quiet"])
     assert appended["changed"] is True
     assert appended["content"].count("- Tea") == 1
     assert "- Quiet" in appended["content"]

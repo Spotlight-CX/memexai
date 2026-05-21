@@ -7,16 +7,18 @@ A direct-Postgres Python client for MemexAI, mirroring `@memexai/core` precisely
 From this repository:
 
 ```bash
-python3 -m pip install -e "sdks/python[test]"
+python3 -m pip install -e ".[test]"
 ```
 
 For optional framework adapters:
 
 ```bash
-python3 -m pip install -e "sdks/python[langchain]"
-python3 -m pip install -e "sdks/python[llamaindex]"
-python3 -m pip install -e "sdks/python[crewai]"
+python3 -m pip install -e ".[langchain]"
+python3 -m pip install -e ".[llamaindex]"
+python3 -m pip install -e ".[crewai]"
 ```
+
+Run those commands from `sdks/python`. From the repository root, keep the `sdks/python[...]` path form.
 
 ## Direct Postgres Usage
 
@@ -43,6 +45,8 @@ await memex.close()
 ```
 
 The Python SDK is direct-Postgres only. Use the TypeScript `@memexai/sdk` package when you want a REST client for the hosted service.
+
+Call `await memex.migrate()` once during startup or deployment before reading and writing memory.
 
 ## Tools
 
@@ -98,11 +102,27 @@ llamaindex_tools = get_llamaindex_tools(memory)
 crewai_tools = get_crewai_tools(memory)
 ```
 
+Install the matching optional dependency before importing an adapter:
+
+```bash
+python3 -m pip install -e ".[langchain]"
+python3 -m pip install -e ".[llamaindex]"
+python3 -m pip install -e ".[crewai]"
+```
+
 ## Tests
 
 ```bash
 cd sdks/python
+python3 -m pip install -e ".[test]"
 python3 -m pytest
+```
+
+With `uv`:
+
+```bash
+cd sdks/python
+uv run --extra test pytest
 ```
 
 Postgres integration tests are skipped unless `MEMEXAI_TEST_DATABASE_URL` is set:

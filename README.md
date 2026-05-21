@@ -178,12 +178,24 @@ http://localhost:8080/v1/mcp/sse?userId=user_123&actor=claude&apiKey=dev-agent-k
 
 `userId` defaults to `default`, and `actor` defaults to `mcp-client`. The API key can be sent as `Authorization: Bearer ...`; `apiKey` and `token` query parameters are also accepted for MCP clients that cannot set headers on SSE GET requests.
 
+Messages for SSE sessions are posted back to:
+
+```text
+http://localhost:8080/v1/mcp/messages?connectionId=...
+```
+
 Stdio transport:
 
 ```bash
 DATABASE_URL=postgresql://memexai:memexai@localhost:5433/memexai \
 MEMEX_API_KEY=dev-agent-key \
 node apps/service/dist/index.js --stdio --user-id user_123 --actor claude-desktop
+```
+
+Build the service before using the local stdio command:
+
+```bash
+bun run build:service
 ```
 
 ## Quick Start: Direct Postgres
@@ -229,6 +241,37 @@ Inspect direct-mode memory with the local admin CLI:
 npx @memexai/admin --database-url postgresql://...
 # Opens http://localhost:4040/admin
 ```
+
+## Python SDK
+
+The Python SDK is direct-Postgres only. It is useful when your Python application owns database access and wants the same memory semantics as `@memexai/core`.
+
+```bash
+python3 -m pip install -e "sdks/python[test]"
+```
+
+```python
+from memexai import create_memex
+
+memex = await create_memex({
+    "databaseUrl": "postgresql://memexai:memexai@localhost:5433/memexai",
+})
+
+await memex.migrate()
+
+memory = memex.for_user("user_123", actor="assistant")
+await memory.write_file(
+    "user/profile.md",
+    "# Profile\n\n- Prefers quiet neighborhoods.",
+    reason="captured preference",
+)
+
+result = await memory.search("quiet neighborhoods")
+
+await memex.close()
+```
+
+Optional adapters are available for LangChain, LlamaIndex, and CrewAI. See [sdks/python/README.md](sdks/python/README.md).
 
 ## Tool Adapters
 

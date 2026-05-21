@@ -30,6 +30,7 @@ Your application never touches Postgres directly. It calls the memory service ov
 - Path validation and virtual→physical translation
 - SQL reads/writes to `mx_file`, `mx_revision`, `mx_access_log`
 - Serving the admin UI
+- Model Context Protocol transport over SSE and stdio
 
 **Start:**
 ```bash
@@ -64,6 +65,8 @@ npx @memexai/admin --database-url postgresql://...
 
 The admin CLI connects to the same Postgres database separately when you need to inspect memory.
 
+The Python SDK follows the same direct-Postgres pattern as `@memexai/core`. It shares the schema and virtual path rules, and can be used from Python apps without running the HTTP service.
+
 **Why you'd pick this:**
 - Zero extra services. If you already have Postgres, you have everything.
 - Works in serverless environments (Neon, Supabase, PlanetScale Postgres). Poolers like PgBouncer or Neon's serverless driver work fine — just point `DATABASE_URL` at them.
@@ -81,13 +84,13 @@ MemexAI exposes memory through two layers. Most applications use the agentic lay
 | Tool | What it does |
 |---|---|
 | `memory_memorize` | Feed raw text; an inner model decides what's durable, writes fact files, and maintains bookkeeping (`user/index.md`, `user/log.md`, cross-reference links) |
-| `memory_search` | BM25 full-text search over all user memory files; returns ranked file excerpts |
+| `memory_search` | Recalls relevant memory. Without a model it returns BM25-ranked excerpts; with a configured model it resolves over memory files and returns an answer with sources |
 
 These are the default tools injected into the model's system prompt via `getPromptBlock()`. The model calls `memory_memorize` to persist facts and `memory_search` to retrieve them. Neither requires the model to reason about file paths or write operations directly.
 
 `memory_memorize` runs an inner agentic loop: it lists existing files, reads the current index, and calls an inner model that has access only to `memory_write` and `memory_patch`. This prevents runaway reads while still producing structured, auditable writes. After every write the inner model also patches `user/index.md` (content catalog), appends to `user/log.md` (dated ingest timeline), and adds `## See also` cross-reference links between related files.
 
-### Raw tools (4 tools)
+### Raw tools (5 tools)
 
 | Tool | What it does |
 |---|---|
@@ -95,6 +98,7 @@ These are the default tools injected into the model's system prompt via `getProm
 | `memory_read` | Read a single file by virtual path |
 | `memory_write` | Create or overwrite a file |
 | `memory_patch` | Append or replace lines within a file |
+| `memory_smart_read` | Build one bounded markdown context block from visible memory files |
 
 These give the model (or your code) precise control over individual files. Use them when you need deterministic writes, custom extraction logic, or when you're building tooling on top of MemexAI. Every write through raw tools still creates a revision snapshot and an access log entry.
 
@@ -133,7 +137,7 @@ This is the same in both modes — the difference is whether step 3 crosses an H
 8.  Model generates next response (or calls another tool)
 ```
 
-Every step from 3 onward is identical whether you're using the HTTP service or direct Postgres. The adapters just call `executeTool` — they don't know or care which mode is in use.
+Every step from 3 onward is identical whether you're using the HTTP service, MCP, or direct Postgres. The adapters just call `executeTool` — they don't know or care which mode is in use.
 
 ---
 
