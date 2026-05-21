@@ -1,14 +1,14 @@
 ---
 title: TypeScript SDKs
-description: Use @memexai/sdk for the HTTP service or @memexai/core for direct Postgres.
+description: Use @memexai/sdk for the service or @memexai/core as an in-process runtime.
 ---
 
 MemexAI has two TypeScript packages:
 
-- `@memexai/sdk` talks to the HTTP service.
-- `@memexai/core` talks directly to Postgres.
+- `@memexai/sdk` is the recommended TypeScript service client for the containerized MemexAI service.
+- `@memexai/core` is the advanced direct Postgres runtime.
 
-## HTTP service SDK
+## Service SDK
 
 ```bash
 npm install @memexai/sdk
@@ -31,7 +31,7 @@ const result = await memory.search('What does this user prefer?')
 console.log(result.answer ?? result.results)
 ```
 
-## Direct Postgres core
+## Advanced: direct Postgres core runtime
 
 ```bash
 npm install @memexai/core

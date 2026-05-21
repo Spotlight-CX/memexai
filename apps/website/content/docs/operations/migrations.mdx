@@ -31,7 +31,7 @@ await memex.migrate()
 
 ## When to call migrate
 
-- HTTP service mode: the service runs migrations on startup.
-- Direct Postgres mode: call `migrate()` once during startup or deploy.
+- Recommended service mode: the service runs migrations on startup.
+- Advanced direct Postgres mode: call `migrate()` once during startup or deploy.
 
 It is safe to call on every startup. Once migrations are applied, the checks are fast.

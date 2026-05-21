@@ -1,9 +1,9 @@
 ---
-title: Docker Service
-description: Run MemexAI as an HTTP service with Postgres and the admin UI.
+title: Containerized Service
+description: Run MemexAI as a separate service, then connect over TypeScript, Python, or MCP.
 ---
 
-The service path is the best default for teams and production apps. Your application talks to an HTTP API and does not need database credentials.
+The containerized service path is the recommended default. Your application does not need database credentials; it connects to MemexAI over HTTP with the TypeScript SDK, Python SDK, or through MCP over SSE/stdio.
 
 ## Compose file
 
@@ -48,7 +48,7 @@ docker compose up -d
 
 The API and admin UI are available at `http://localhost:8080`.
 
-## Use the TypeScript SDK
+## Connect with the TypeScript SDK
 
 ```bash
 npm install @memexai/sdk ai @ai-sdk/google
@@ -76,6 +76,48 @@ const result = await generateText({
 
 console.log(result.text)
 ```
+
+## Connect with the Python SDK
+
+```bash
+python3 -m pip install memexai
+```
+
+```python
+from memexai import MemexAI
+
+memex = MemexAI(
+    url="http://localhost:8080",
+    api_key="dev-agent-key",
+)
+
+memory = memex.for_user("user_123", actor="assistant")
+
+result = await memory.search("What does this user prefer?")
+print(result.get("answer") or result["results"])
+
+await memex.close()
+```
+
+## Connect with MCP
+
+MCP clients can connect to the same service over SSE:
+
+```txt
+http://localhost:8080/v1/mcp/sse?userId=user_123&actor=claude&apiKey=dev-agent-key
+```
+
+Or through stdio after building the service:
+
+```bash
+bun run build:service
+
+DATABASE_URL=postgresql://memexai:memexai@localhost:5433/memexai \
+MEMEX_API_KEY=dev-agent-key \
+node apps/service/dist/index.js --stdio --user-id user_123 --actor claude-desktop
+```
+
+See [MCP Clients](/docs/mcp) for details.
 
 ## Model configuration
 

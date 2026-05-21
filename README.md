@@ -145,6 +145,22 @@ const result = await generateText({
 console.log(result.text)
 ```
 
+Python apps use the same containerized service:
+
+```python
+from memexai import MemexAI
+
+memex = MemexAI(
+    url="http://localhost:8080",
+    api_key="dev-agent-key",
+)
+
+memory = memex.for_user("user_123", actor="assistant")
+result = await memory.search("What does this user prefer?")
+
+await memex.close()
+```
+
 In HTTP mode, the SDK constructor stays simple:
 
 ```ts
@@ -244,20 +260,19 @@ npx @memexai/admin --database-url postgresql://...
 
 ## Python SDK
 
-The Python SDK is direct-Postgres only. It is useful when your Python application owns database access and wants the same memory semantics as `@memexai/core`.
+The Python SDK is service-first. Use it with the containerized MemexAI service so your Python app does not need database credentials.
 
 ```bash
 python3 -m pip install -e "sdks/python[test]"
 ```
 
 ```python
-from memexai import create_memex
+from memexai import MemexAI
 
-memex = await create_memex({
-    "databaseUrl": "postgresql://memexai:memexai@localhost:5433/memexai",
-})
-
-await memex.migrate()
+memex = MemexAI(
+    url="http://localhost:8080",
+    api_key="dev-agent-key",
+)
 
 memory = memex.for_user("user_123", actor="assistant")
 await memory.write_file(
@@ -272,6 +287,8 @@ await memex.close()
 ```
 
 Optional adapters are available for LangChain, LlamaIndex, and CrewAI. See [sdks/python/README.md](sdks/python/README.md).
+
+Advanced direct Postgres mode remains available through `create_memex({"databaseUrl": "postgresql://..."})` when a Python app intentionally owns database credentials.
 
 ## Tool Adapters
 

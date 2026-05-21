@@ -1,11 +1,13 @@
 ---
-title: Direct Postgres
-description: Use MemexAI in-process when your app already owns Postgres access.
+title: "Advanced: Direct Postgres Runtime"
+description: Skip the service only when your app intentionally owns database credentials.
 ---
 
-Direct mode runs the memory engine inside your application process. Use it when you want no HTTP service or when your app already owns database credentials.
+Direct Postgres mode runs the memory engine inside your application process. The recommended default is the [containerized service](/docs/quickstart/docker-service); use this path only when your app intentionally owns database credentials.
 
-## TypeScript
+Both direct runtimes take a Postgres URL, run MemexAI migrations, and execute memory tools directly against the database.
+
+## JavaScript/TypeScript direct runtime
 
 ```bash
 npm install @memexai/core ai @ai-sdk/google
@@ -40,7 +42,7 @@ console.log(result.text)
 await memex.end()
 ```
 
-## Python
+## Python direct runtime
 
 ```bash
 python3 -m pip install -e "sdks/python[test]"

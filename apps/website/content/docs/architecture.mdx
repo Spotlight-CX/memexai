@@ -3,14 +3,16 @@ title: Architecture
 description: How MemexAI is deployed, how tools flow, and where memory lives.
 ---
 
-MemexAI has two deployment modes that share the same Postgres schema and admin UI. The difference is where the logic runs: inside an HTTP service container, or directly in your application process.
+MemexAI has two runtime modes that share the same Postgres schema. The recommended default is the containerized service. Direct Postgres runtime is available for apps that intentionally own database credentials.
 
-## HTTP service mode
+## Containerized service mode
 
 Use service mode when teams or production apps should not hold database credentials.
 
 ```txt
-Your application -> @memexai/sdk -> MemexAI service -> Postgres
+TypeScript app -> @memexai/sdk -> MemexAI service -> Postgres
+Python app -> memexai.MemexAI -> MemexAI service -> Postgres
+MCP client -> MemexAI service -> Postgres
 ```
 
 The service handles:
@@ -21,15 +23,16 @@ The service handles:
 - The admin UI at `/admin`.
 - MCP transport over SSE and stdio.
 
-## Direct Postgres mode
+## Advanced: direct Postgres runtime mode
 
-Use direct mode when your application already owns database access.
+Use direct Postgres mode only when your application should own database access.
 
 ```txt
-Your application -> @memexai/core or Python SDK -> Postgres
+Your JavaScript app -> @memexai/core -> Postgres
+Your Python app -> memexai Python SDK -> Postgres
 ```
 
-There is no HTTP layer, no service auth, and no extra deploy target. Your app calls `migrate()` on startup or during deploy, then executes tools in-process.
+There is no HTTP layer, no service auth, and no separate MemexAI container. Your app passes a Postgres URL, calls `migrate()` on startup or during deploy, then executes memory tools in-process.
 
 ## Tool layers
 
@@ -60,4 +63,4 @@ There is no HTTP layer, no service auth, and no extra deploy target. Your app ca
 6. Writes create revision snapshots, and reads/writes create access log entries.
 7. The result returns to the model or application.
 
-Every step after tool execution is shared by HTTP service mode, direct Postgres mode, and MCP.
+Every step after tool execution is shared by the containerized service, MCP, and in-process runtimes.

@@ -4,6 +4,7 @@ import {
   BookOpen,
   Boxes,
   Database,
+  Eye,
   FileClock,
   GitPullRequest,
   Network,
@@ -15,18 +16,18 @@ import {
 const features = [
   {
     icon: Database,
-    title: 'Postgres as memory',
-    text: 'Store durable agent memory as scoped files in ordinary tables, with no vector database required for the core loop.',
+    title: 'The file system abstraction',
+    text: 'Store facts as explicit markdown files. LLMs know exactly how to read them, and you don’t need a vector DB for your core loop.',
   },
   {
     icon: FileClock,
-    title: 'Auditable by default',
-    text: 'Every write creates a revision and every access leaves a lightweight trail for debugging agent behavior.',
+    title: "Never wonder 'why did it do that?'",
+    text: 'Every read leaves an access log. Every write creates a revision. Full traceability for agent behavior out of the box.',
   },
   {
     icon: ShieldCheck,
-    title: 'Scoped paths',
-    text: 'Agents see virtual paths like user/profile.md while MemexAI enforces user isolation and shared read-only context.',
+    title: 'Secure & multi-tenant by design',
+    text: 'Agents only see virtual paths like user/profile.md. MemexAI strictly enforces tenant isolation under the hood.',
   },
 ];
 
@@ -38,12 +39,12 @@ export default function HomePage() {
           <div>
             <div className="eyebrow">
               <Database size={15} aria-hidden />
-              Postgres-backed agent memory
+              The file system abstraction for agent memory
             </div>
-            <h1>Persistent memory for AI agents, backed by Postgres.</h1>
+            <h1>Agent memory you can actually inspect and trust.</h1>
             <p className="hero-copy">
-              MemexAI gives agents a small, durable memory surface and gives humans a real system of record: files,
-              search, revisions, access logs, and an admin UI.
+              Stop dumping chat logs into vector databases. MemexAI gives your agents a scoped file system backed by
+              Postgres—creating a durable, auditable system of record that humans can read and edit.
             </p>
             <div className="hero-actions">
               <Link className="site-button site-button-primary" href="/docs">
@@ -128,6 +129,16 @@ export default function HomePage() {
       </section>
 
       <section className="section">
+        <div className="section-kicker">Human in the loop</div>
+        <h2>Memory isn&apos;t just for agents. It&apos;s for your team, too.</h2>
+        <p className="section-lede">
+          When an agent gets a fact wrong, you shouldn&apos;t have to delete embeddings. With MemexAI&apos;s Admin UI,
+          your team can review revisions, audit access logs, and manually edit a user&apos;s memory files to fix
+          errors directly.
+        </p>
+      </section>
+
+      <section className="section">
         <div className="section-kicker">Integration paths</div>
         <h2>Start with two tools. Drop down to files when you need control.</h2>
         <div className="split">
@@ -152,13 +163,13 @@ export default function HomePage() {
         <div className="feature-grid">
           <div className="feature">
             <Network size={24} aria-hidden />
-            <h3>HTTP service</h3>
-            <p>Run the Docker service for team deployments where apps should not hold database credentials.</p>
+            <h3>Containerized service</h3>
+            <p>Run MemexAI as a separate service, then connect with the TypeScript SDK, Python SDK, or MCP.</p>
           </div>
           <div className="feature">
             <Database size={24} aria-hidden />
-            <h3>Direct mode</h3>
-            <p>Use @memexai/core or the Python SDK when your process already owns Postgres access.</p>
+            <h3>Advanced direct runtime</h3>
+            <p>Use JavaScript or Python directly with Postgres only when your app should own database credentials.</p>
           </div>
           <div className="feature">
             <Search size={24} aria-hidden />
@@ -170,11 +181,11 @@ export default function HomePage() {
 
       <section className="cta-band">
         <div className="section">
-          <div className="section-kicker">Launch path</div>
-          <h2>Build memory your agents and your team can both understand.</h2>
+          <div className="section-kicker">Ready to launch</div>
+          <h2>Ready to move past black-box memory?</h2>
           <p className="section-lede">
-            Start with Docker service mode, inspect writes in the admin UI, then choose direct Postgres or MCP when
-            your integration needs it.
+            Drop MemexAI into your stack with MCP, our Python/TS SDKs, or standard Postgres. Start building agents with
+            a memory system you can actually debug.
           </p>
           <div className="hero-actions">
             <Link className="site-button site-button-primary" href="/docs">

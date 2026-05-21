@@ -1,9 +1,9 @@
 ---
 title: Python SDK
-description: Use the direct-Postgres Python client.
+description: Connect Python apps to the recommended MemexAI service.
 ---
 
-The Python SDK is direct-Postgres only. Use it when your Python application owns database access and wants the same memory semantics as `@memexai/core`.
+The Python SDK connects to the recommended containerized MemexAI service by default. Direct Postgres mode is still available for advanced deployments where your Python app intentionally owns database credentials.
 
 ## Install
 
@@ -19,16 +19,15 @@ From `sdks/python`:
 python3 -m pip install -e ".[test]"
 ```
 
-## Usage
+## Service usage
 
 ```python
-from memexai import create_memex
+from memexai import MemexAI
 
-memex = await create_memex({
-    "databaseUrl": "postgresql://memexai:memexai@localhost:5433/memexai",
-})
-
-await memex.migrate()
+memex = MemexAI(
+    url="http://localhost:8080",
+    api_key="dev-agent-key",
+)
 
 memory = memex.for_user("user_123", actor="assistant")
 await memory.write_file(
@@ -61,3 +60,22 @@ await memory.memorize("Remember that the user prefers quiet neighborhoods.")
 ```
 
 Optional adapters are available for LangChain, LlamaIndex, and CrewAI.
+
+## Advanced: direct Postgres
+
+Use `create_memex` only when your Python app should connect directly to Postgres.
+
+```python
+from memexai import create_memex
+
+memex = await create_memex({
+    "databaseUrl": "postgresql://memexai:memexai@localhost:5433/memexai",
+})
+
+await memex.migrate()
+
+memory = memex.for_user("user_123", actor="assistant")
+result = await memory.search("quiet neighborhoods")
+
+await memex.close()
+```

@@ -5,13 +5,26 @@ description: Persistent memory for AI agents, backed by Postgres.
 
 MemexAI gives agents durable memory without hiding everything in chat history, prompt glue, or a separate vector store. Memory is stored as scoped Markdown-like files in Postgres, with revisions, access logs, search, and an admin UI.
 
-## Start here
+## Start with the service
 
 <Cards>
-  <Card title="Docker service" href="/docs/quickstart/docker-service" description="Run MemexAI as an HTTP service with an admin UI." />
-  <Card title="Direct Postgres" href="/docs/quickstart/direct-postgres" description="Use @memexai/core inside your app process." />
-  <Card title="MCP clients" href="/docs/mcp" description="Expose MemexAI tools over SSE or stdio." />
+  <Card title="Recommended: Containerized service" href="/docs/quickstart/docker-service" description="Run MemexAI as a separate service, then connect over the TypeScript SDK, Python SDK, or MCP." />
+  <Card title="Advanced: Direct Postgres runtime" href="/docs/quickstart/direct-postgres" description="Skip the service only when your app intentionally owns database credentials." />
 </Cards>
+
+## How the two paths work
+
+### 1. Recommended: containerized service
+
+Run the MemexAI service alongside Postgres. Your app never gets database credentials; it connects to the service over HTTP with the TypeScript or Python SDK, or through MCP over SSE/stdio.
+
+Use this when you want a deployable memory service with API key auth and the admin UI built in.
+
+### 2. Advanced: direct Postgres runtime
+
+Skip the MemexAI service container only when your JavaScript or Python app should own the Postgres connection directly. Your app imports the MemexAI runtime, passes a Postgres URL, runs migrations, and executes memory tools in-process.
+
+Use this for embedded deployments, local experiments, or environments where sharing database credentials with the app is an intentional tradeoff.
 
 ## Two integration paths
 
