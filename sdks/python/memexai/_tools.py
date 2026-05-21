@@ -70,6 +70,29 @@ def replace_exact_text(content: str, match: str, replacement: Union[str, List[st
 def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex}"
 
+def positive_int_arg(args: Dict[str, Any], name: str, default: int, max_value: int) -> int:
+    value = args.get(name)
+    if value is None:
+        return default
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0 or value > max_value:
+        raise MemexError("INVALID_ARGS", f"{name} must be a positive integer <= {max_value}")
+    return value
+
+def bool_arg(args: Dict[str, Any], name: str, default: bool) -> bool:
+    value = args.get(name)
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        raise MemexError("INVALID_ARGS", f"{name} must be a boolean")
+    return value
+
+def datetime_to_iso(value: Any) -> str:
+    if not isinstance(value, datetime):
+        return str(value)
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
 async def log_access(db: DbPool, file_id: Optional[str], physical_path: str, operation: str, ctx: RequestContext) -> None:
     await db.execute(
         """INSERT INTO mx_access_log (id, file_id, physical_path, operation, actor, user_id, tool_call_id)
@@ -250,8 +273,10 @@ async def execute_memory_patch(db: DbPool, args: Dict[str, Any], ctx: RequestCon
     }
 
 async def execute_memory_smart_read(db: DbPool, args: Dict[str, Any], ctx: RequestContext) -> Dict[str, Any]:
-    max_chars = args.get("maxChars") or 24000
+    max_chars = positive_int_arg(args, "maxChars", 24000, 200000)
     query_str = args.get("query")
+    if query_str is not None and (not isinstance(query_str, str) or not query_str):
+        raise MemexError("INVALID_ARGS", "query must be a non-empty string")
 
     values = [f"users/{ctx.user_id}/%"]
     if query_str:
@@ -300,7 +325,7 @@ async def execute_memory_smart_read(db: DbPool, args: Dict[str, Any], ctx: Reque
     # Build memory block
     sections = []
     for file in included:
-        updated_iso = file["updatedAt"].replace(tzinfo=timezone.utc).isoformat() if hasattr(file["updatedAt"], "replace") else str(file["updatedAt"])
+        updated_iso = datetime_to_iso(file["updatedAt"])
         sections.append(f"## {file['path']}\n(updated {updated_iso})\n\n{file['content']}")
 
     note = f"---\nNote: {len(omitted)} file(s) omitted (budget limit). Use memory_search to find specific content." if omitted else None
@@ -323,9 +348,9 @@ async def execute_memory_smart_read(db: DbPool, args: Dict[str, Any], ctx: Reque
 
 async def execute_memory_search_bm25(db: DbPool, input_args: Dict[str, Any], ctx: RequestContext) -> Dict[str, Any]:
     query_str = input_args.get("query")
-    if not query_str:
+    if not isinstance(query_str, str) or not query_str:
         raise MemexError("INVALID_ARGS", "query is required")
-    limit = input_args.get("limit") or 10
+    limit = positive_int_arg(input_args, "limit", 10, 100)
     prefix = input_args.get("prefix")
 
     values = [query_str]
@@ -389,8 +414,8 @@ async def execute_agentic_memory_search(db: DbPool, args: Dict[str, Any], ctx: R
     query_str = args.get("query")
     if not query_str:
         raise MemexError("INVALID_ARGS", "query is required")
-    max_reads = args.get("maxReads") or 5
-    max_chars = args.get("maxChars") or 8000
+    max_reads = positive_int_arg(args, "maxReads", 5, 50)
+    max_chars = positive_int_arg(args, "maxChars", 8000, 200000)
 
     candidates = await execute_memory_search_bm25(db, args, ctx)
     list_res = await execute_memory_list(db, {"prefix": args.get("prefix")}, ctx)
@@ -477,8 +502,8 @@ async def execute_memory_memorize(db: DbPool, args: Dict[str, Any], ctx: Request
     text = args.get("text")
     if not text:
         raise MemexError("INVALID_ARGS", "text is required")
-    max_writes = args.get("maxWrites") or 5
-    dry_run = args.get("dryRun") or False
+    max_writes = positive_int_arg(args, "maxWrites", 5, 50)
+    dry_run = bool_arg(args, "dryRun", False)
 
     list_res = await execute_memory_list(db, {}, ctx)
 

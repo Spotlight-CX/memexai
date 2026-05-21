@@ -89,7 +89,7 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
       throw new HttpError(404, "SESSION_NOT_FOUND", "MCP session not found")
     }
 
-    await session.transport.handlePostMessage(request.raw, reply.raw)
+    await session.transport.handlePostMessage(request.raw, reply.raw, request.body)
     reply.hijack()
   })
 

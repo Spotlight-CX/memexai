@@ -166,6 +166,26 @@ Without a service model, `memory_search` still works through Postgres full-text 
 
 Open the admin UI at `http://localhost:8080/admin`.
 
+### MCP Clients
+
+The same service also exposes MemexAI as a Model Context Protocol server. REST and MCP both route through the same core tool engine.
+
+SSE transport:
+
+```text
+http://localhost:8080/v1/mcp/sse?userId=user_123&actor=claude&apiKey=dev-agent-key
+```
+
+`userId` defaults to `default`, and `actor` defaults to `mcp-client`. The API key can be sent as `Authorization: Bearer ...`; `apiKey` and `token` query parameters are also accepted for MCP clients that cannot set headers on SSE GET requests.
+
+Stdio transport:
+
+```bash
+DATABASE_URL=postgresql://memexai:memexai@localhost:5433/memexai \
+MEMEX_API_KEY=dev-agent-key \
+node apps/service/dist/index.js --stdio --user-id user_123 --actor claude-desktop
+```
+
 ## Quick Start: Direct Postgres
 
 Use direct mode when your app already owns Postgres or you want no HTTP service. The model is part of the local MemexAI container because agentic memory runs in your process.
