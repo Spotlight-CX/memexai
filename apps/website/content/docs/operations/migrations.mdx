@@ -1,0 +1,37 @@
+---
+title: Migrations
+description: How MemexAI manages its Postgres schema.
+---
+
+MemexAI manages its schema with a lightweight migration runner. Calling `migrate()` creates and updates the tables it owns.
+
+## How it works
+
+```ts
+const memex = createMemex(process.env.DATABASE_URL!)
+await memex.migrate()
+```
+
+`migrate()` is idempotent:
+
+1. It creates `mx_migration` if it does not exist.
+2. It checks each known migration ID.
+3. It runs unapplied SQL in a transaction.
+4. It inserts the applied migration ID.
+5. It skips already applied migrations.
+
+## Current tables
+
+| Table | Purpose |
+| --- | --- |
+| `mx_migration` | Tracks applied migrations |
+| `mx_file` | Stores current memory file content |
+| `mx_revision` | Stores write snapshots |
+| `mx_access_log` | Stores lightweight read/write activity |
+
+## When to call migrate
+
+- HTTP service mode: the service runs migrations on startup.
+- Direct Postgres mode: call `migrate()` once during startup or deploy.
+
+It is safe to call on every startup. Once migrations are applied, the checks are fast.

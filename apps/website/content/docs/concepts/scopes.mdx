@@ -1,0 +1,46 @@
+---
+title: Memory Scopes
+description: How virtual paths isolate user memory and shared memory.
+---
+
+MemexAI uses a two-level path namespace. Every path an agent sees is a virtual path. The system translates it to a physical path in the database before SQL runs.
+
+## `user/`
+
+Virtual paths starting with `user/` belong to the user whose `userId` is in the tool context.
+
+```txt
+user/profile.md
+user/notes/session-2026-05.md
+user/reminders.md
+```
+
+When an agent writes `user/profile.md` for `user_123`, MemexAI stores it as:
+
+```txt
+users/user_123/profile.md
+```
+
+The agent never sees the physical path.
+
+## `shared/`
+
+Virtual paths starting with `shared/` are visible to every user but cannot be written by agents.
+
+```txt
+shared/index.md
+shared/policy.md
+shared/faq.md
+```
+
+Use shared files for context your agents should always have access to: policies, reference docs, product facts, or team guidance.
+
+## Blocked paths
+
+MemexAI rejects:
+
+- Physical paths like `users/someone/profile.md`.
+- Paths with `..`, `//`, or backslashes.
+- Writes to `shared/`.
+
+Path isolation is enforced in code, not left to the model prompt.

@@ -1,0 +1,66 @@
+---
+title: TypeScript SDKs
+description: Use @memexai/sdk for the HTTP service or @memexai/core for direct Postgres.
+---
+
+MemexAI has two TypeScript packages:
+
+- `@memexai/sdk` talks to the HTTP service.
+- `@memexai/core` talks directly to Postgres.
+
+## HTTP service SDK
+
+```bash
+npm install @memexai/sdk
+```
+
+```ts
+import { MemexAI } from '@memexai/sdk'
+
+const memex = new MemexAI({
+  url: 'http://localhost:8080',
+  apiKey: 'dev-agent-key',
+})
+
+const memory = memex.forUser({
+  userId: 'demo_user',
+  actor: 'assistant',
+})
+
+const result = await memory.search('What does this user prefer?')
+console.log(result.answer ?? result.results)
+```
+
+## Direct Postgres core
+
+```bash
+npm install @memexai/core
+```
+
+```ts
+import { createMemex } from '@memexai/core'
+
+const memex = createMemex({
+  databaseUrl: process.env.DATABASE_URL!,
+})
+
+await memex.migrate()
+
+const memory = memex.forUser({ userId: 'demo_user', actor: 'assistant' })
+await memory.writeFile({
+  path: 'user/profile.md',
+  content: '# Profile\n\n- Prefers quiet neighborhoods.',
+  reason: 'captured user preference',
+})
+
+await memex.end()
+```
+
+## Toolsets
+
+```ts
+const agenticTools = memory.createAgenticToolset()
+const rawTools = memory.createRawToolset()
+```
+
+The Vercel AI adapter is available in both packages. OpenAI, Anthropic, and LangChain adapters are available where the package supports them.

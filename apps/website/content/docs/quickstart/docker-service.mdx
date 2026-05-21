@@ -1,0 +1,93 @@
+---
+title: Docker Service
+description: Run MemexAI as an HTTP service with Postgres and the admin UI.
+---
+
+The service path is the best default for teams and production apps. Your application talks to an HTTP API and does not need database credentials.
+
+## Compose file
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: memexai
+      POSTGRES_PASSWORD: memexai
+      POSTGRES_DB: memexai
+    volumes:
+      - memexai_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memexai"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  memexai:
+    image: soorajsanker/memexai:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://memexai:memexai@postgres:5432/memexai
+      MEMEX_API_KEY: dev-agent-key
+      MEMEX_ADMIN_SECRET: dev-admin-secret
+      GEMINI_API_KEY: ...
+    ports:
+      - "8080:8080"
+
+volumes:
+  memexai_postgres_data:
+```
+
+Start it:
+
+```bash
+docker compose up -d
+```
+
+The API and admin UI are available at `http://localhost:8080`.
+
+## Use the TypeScript SDK
+
+```bash
+npm install @memexai/sdk ai @ai-sdk/google
+```
+
+```ts
+import { MemexAI } from '@memexai/sdk'
+import { generateText, stepCountIs } from 'ai'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
+
+const memex = new MemexAI({
+  url: 'http://localhost:8080',
+  apiKey: process.env.MEMEX_API_KEY ?? 'dev-agent-key',
+})
+
+const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
+
+const result = await generateText({
+  model: createGoogleGenerativeAI()('gemini-2.5-flash'),
+  system: 'You are a helpful assistant with durable memory.',
+  prompt: 'Remember that I prefer quiet neighborhoods near good schools.',
+  tools: memory.createAgenticToolset(),
+  stopWhen: stepCountIs(5),
+})
+
+console.log(result.text)
+```
+
+## Model configuration
+
+LLM-backed `memory_memorize` and agentic `memory_search` are configured on the service, not in the SDK.
+
+```bash
+GEMINI_API_KEY=...
+GEMINI_MODEL=gemini-2.5-flash
+
+# or
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-4.1-mini
+```
+
+Without a service model, `memory_search` still works through Postgres full-text search. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.

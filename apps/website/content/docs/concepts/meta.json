@@ -1,0 +1,5 @@
+{
+  "title": "Concepts",
+  "defaultOpen": true,
+  "pages": ["scopes", "revisions", "access-logs"]
+}

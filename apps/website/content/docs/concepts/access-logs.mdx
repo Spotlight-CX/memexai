@@ -1,0 +1,34 @@
+---
+title: Access Logs
+description: Track reads and writes performed by agents.
+---
+
+Every tool call that touches memory creates a row in `mx_access_log`. Unlike revisions, access logs include reads.
+
+## What an access log stores
+
+| Column | What it stores |
+| --- | --- |
+| `id` | Unique log ID |
+| `file_id` | Foreign key to `mx_file`, nullable |
+| `physical_path` | Full path at access time |
+| `operation` | `list`, `read`, `write`, `patch`, `search`, or `smart_read` |
+| `actor` | Who performed the access |
+| `user_id` | The user whose memory was accessed |
+| `tool_call_id` | The LLM tool call ID |
+| `created_at` | Timestamp |
+
+Access logs do not store file content. Revisions store content for writes.
+
+## Why access logs matter
+
+Revision history tells you what changed. Access logs tell you what happened.
+
+With access logs you can reconstruct the agent activity around a session:
+
+1. It listed visible files.
+2. It read `user/profile.md`.
+3. It searched for relevant memory.
+4. It patched `user/profile.md`.
+
+That sequence is not visible from revisions alone.

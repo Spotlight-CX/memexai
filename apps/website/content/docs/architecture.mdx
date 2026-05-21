@@ -1,0 +1,63 @@
+---
+title: Architecture
+description: How MemexAI is deployed, how tools flow, and where memory lives.
+---
+
+MemexAI has two deployment modes that share the same Postgres schema and admin UI. The difference is where the logic runs: inside an HTTP service container, or directly in your application process.
+
+## HTTP service mode
+
+Use service mode when teams or production apps should not hold database credentials.
+
+```txt
+Your application -> @memexai/sdk -> MemexAI service -> Postgres
+```
+
+The service handles:
+
+- API key verification.
+- Path validation and virtual-to-physical translation.
+- SQL reads and writes to `mx_file`, `mx_revision`, and `mx_access_log`.
+- The admin UI at `/admin`.
+- MCP transport over SSE and stdio.
+
+## Direct Postgres mode
+
+Use direct mode when your application already owns database access.
+
+```txt
+Your application -> @memexai/core or Python SDK -> Postgres
+```
+
+There is no HTTP layer, no service auth, and no extra deploy target. Your app calls `migrate()` on startup or during deploy, then executes tools in-process.
+
+## Tool layers
+
+### Agentic tools
+
+| Tool | What it does |
+| --- | --- |
+| `memory_memorize` | Feeds raw text to an inner model that decides what to remember and writes files. |
+| `memory_search` | Recalls relevant memory with BM25 fallback or model-backed answer synthesis. |
+
+### Raw tools
+
+| Tool | What it does |
+| --- | --- |
+| `memory_list` | Lists visible files for a user. |
+| `memory_read` | Reads one file by virtual path. |
+| `memory_write` | Creates or overwrites a user file. |
+| `memory_patch` | Appends under a heading or replaces exact text. |
+| `memory_smart_read` | Builds one bounded context block from visible files. |
+
+## Tool call flow
+
+1. The AI model emits a tool call.
+2. A framework adapter receives the call.
+3. MemexAI validates the tool name, arguments, and context.
+4. Virtual paths like `user/profile.md` are translated to physical paths like `users/user_123/profile.md`.
+5. Reads and writes execute against Postgres.
+6. Writes create revision snapshots, and reads/writes create access log entries.
+7. The result returns to the model or application.
+
+Every step after tool execution is shared by HTTP service mode, direct Postgres mode, and MCP.

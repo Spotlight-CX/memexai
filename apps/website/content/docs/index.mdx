@@ -1,0 +1,47 @@
+---
+title: MemexAI Docs
+description: Persistent memory for AI agents, backed by Postgres.
+---
+
+MemexAI gives agents durable memory without hiding everything in chat history, prompt glue, or a separate vector store. Memory is stored as scoped Markdown-like files in Postgres, with revisions, access logs, search, and an admin UI.
+
+## Start here
+
+<Cards>
+  <Card title="Docker service" href="/docs/quickstart/docker-service" description="Run MemexAI as an HTTP service with an admin UI." />
+  <Card title="Direct Postgres" href="/docs/quickstart/direct-postgres" description="Use @memexai/core inside your app process." />
+  <Card title="MCP clients" href="/docs/mcp" description="Expose MemexAI tools over SSE or stdio." />
+</Cards>
+
+## Two integration paths
+
+### Agentic tools
+
+Use this for most assistants. The model gets two tools and MemexAI handles file bookkeeping.
+
+```ts
+const tools = memory.createAgenticToolset()
+// memory_memorize, memory_search
+```
+
+### Raw tools
+
+Use this when your agent or application should manage memory files directly.
+
+```ts
+const tools = memory.createRawToolset()
+// memory_list, memory_read, memory_write, memory_patch, memory_smart_read
+```
+
+## What MemexAI stores
+
+Memory lives in Postgres tables:
+
+| Table | Purpose |
+| --- | --- |
+| `mx_file` | Current memory file contents |
+| `mx_revision` | Full write snapshots for auditability |
+| `mx_access_log` | Lightweight read/write activity |
+| `mx_migration` | Applied schema migrations |
+
+Agents use virtual paths like `user/profile.md` and `shared/policy.md`. MemexAI translates those paths to physical database paths and enforces user isolation.

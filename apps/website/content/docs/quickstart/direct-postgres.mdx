@@ -1,0 +1,78 @@
+---
+title: Direct Postgres
+description: Use MemexAI in-process when your app already owns Postgres access.
+---
+
+Direct mode runs the memory engine inside your application process. Use it when you want no HTTP service or when your app already owns database credentials.
+
+## TypeScript
+
+```bash
+npm install @memexai/core ai @ai-sdk/google
+```
+
+```ts
+import { createMemex } from '@memexai/core'
+import { generateText, stepCountIs } from 'ai'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
+
+const google = createGoogleGenerativeAI()
+
+const memex = createMemex({
+  databaseUrl: process.env.DATABASE_URL!,
+  model: google('gemini-2.5-flash'),
+})
+
+await memex.migrate()
+
+const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
+
+const result = await generateText({
+  model: google('gemini-2.5-flash'),
+  system: 'You are a helpful assistant with durable memory.',
+  prompt: 'Remember that I prefer quiet neighborhoods near good schools.',
+  tools: memory.createAgenticToolset(),
+  stopWhen: stepCountIs(5),
+})
+
+console.log(result.text)
+
+await memex.end()
+```
+
+## Python
+
+```bash
+python3 -m pip install -e "sdks/python[test]"
+```
+
+```python
+from memexai import create_memex
+
+memex = await create_memex({
+    "databaseUrl": "postgresql://memexai:memexai@localhost:5433/memexai",
+})
+
+await memex.migrate()
+
+memory = memex.for_user("user_123", actor="assistant")
+await memory.write_file(
+    "user/profile.md",
+    "# Profile\n\n- Prefers quiet neighborhoods.",
+    reason="captured preference",
+)
+
+result = await memory.search("quiet neighborhoods")
+
+await memex.close()
+```
+
+## Admin UI
+
+Inspect direct-mode memory with the local admin CLI:
+
+```bash
+npx @memexai/admin --database-url postgresql://...
+```
+
+The CLI opens `http://localhost:4040/admin`.

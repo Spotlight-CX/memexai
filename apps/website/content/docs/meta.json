@@ -1,0 +1,12 @@
+{
+  "title": "MemexAI",
+  "pages": [
+    "index",
+    "architecture",
+    "quickstart",
+    "mcp",
+    "sdks",
+    "concepts",
+    "operations"
+  ]
+}

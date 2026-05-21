@@ -1,0 +1,63 @@
+---
+title: Python SDK
+description: Use the direct-Postgres Python client.
+---
+
+The Python SDK is direct-Postgres only. Use it when your Python application owns database access and wants the same memory semantics as `@memexai/core`.
+
+## Install
+
+From the repository root:
+
+```bash
+python3 -m pip install -e "sdks/python[test]"
+```
+
+From `sdks/python`:
+
+```bash
+python3 -m pip install -e ".[test]"
+```
+
+## Usage
+
+```python
+from memexai import create_memex
+
+memex = await create_memex({
+    "databaseUrl": "postgresql://memexai:memexai@localhost:5433/memexai",
+})
+
+await memex.migrate()
+
+memory = memex.for_user("user_123", actor="assistant")
+await memory.write_file(
+    "user/profile.md",
+    "# Profile\n\n- Prefers quiet neighborhoods.",
+    reason="captured preference",
+)
+
+result = await memory.read_file("user/profile.md")
+print(result["content"])
+
+await memex.close()
+```
+
+## Helpers
+
+```python
+await memory.list_files(prefix="user/")
+await memory.read_file("user/profile.md")
+await memory.write_file("user/profile.md", "# Profile", reason="initial write")
+await memory.patch_file(
+    "user/profile.md",
+    "append_lines",
+    after_heading="# Profile",
+    lines=["- Likes good tests"],
+    reason="new preference",
+)
+await memory.search("quiet neighborhoods")
+await memory.memorize("Remember that the user prefers quiet neighborhoods.")
+```
+
+Optional adapters are available for LangChain, LlamaIndex, and CrewAI.

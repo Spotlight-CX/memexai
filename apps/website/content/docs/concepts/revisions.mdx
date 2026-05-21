@@ -1,0 +1,43 @@
+---
+title: Revision History
+description: Every write creates a full snapshot for auditability.
+---
+
+Every `memory_write` and `memory_patch` creates a row in `mx_revision`. Reads do not create revisions; reads create access log entries instead.
+
+## What a revision stores
+
+| Column | What it stores |
+| --- | --- |
+| `id` | Unique revision ID |
+| `file_id` | Foreign key to `mx_file` |
+| `physical_path` | Full path at write time |
+| `operation` | `write` or `patch` |
+| `content_text` | Full file content after the write |
+| `reason` | Optional human-readable reason |
+| `actor` | Who performed the write |
+| `user_id` | The user whose memory changed |
+| `tool_call_id` | The LLM tool call ID |
+| `created_at` | Timestamp |
+
+## Why snapshots
+
+Memory files are usually small. Full snapshots make point-in-time inspection simple:
+
+- No diff replay chain.
+- No corruption risk from broken intermediate patches.
+- Straightforward auditing in SQL and the admin UI.
+
+## Reason strings
+
+Agents should provide a `reason` when writing or patching memory.
+
+```ts
+await memory.writeFile({
+  path: 'user/profile.md',
+  content,
+  reason: 'User confirmed preference for quiet neighborhoods',
+})
+```
+
+A good reason answers why the write was necessary at that moment.
