@@ -50,7 +50,7 @@ if [[ "$ASSUME_YES" != "true" ]]; then
 fi
 
 echo "Installing dependencies with Bun registry: $REGISTRY"
-bun install --registry="$REGISTRY"
+bun install --frozen-lockfile --registry="$REGISTRY"
 
 echo "Stopping Docker Compose services and removing volumes..."
 docker compose down --volumes --remove-orphans

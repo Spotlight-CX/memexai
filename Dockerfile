@@ -8,14 +8,15 @@ COPY package.json bun.lock tsconfig.base.json ./
 COPY apps/service/package.json apps/service/package.json
 COPY apps/demo-agent/package.json apps/demo-agent/package.json
 COPY apps/benchmark/package.json apps/benchmark/package.json
+COPY apps/website/package.json apps/website/package.json
 COPY packages/core/package.json packages/core/package.json
 COPY packages/sdk/package.json packages/sdk/package.json
 COPY packages/admin-cli/package.json packages/admin-cli/package.json
-RUN bun install --frozen-lockfile
+RUN bun install --frozen-lockfile --ignore-scripts
 
 FROM deps AS build
 COPY . .
-RUN bun run build
+RUN bun run build:core && bun run build:service
 
 FROM node:20-slim AS runtime
 WORKDIR /app
