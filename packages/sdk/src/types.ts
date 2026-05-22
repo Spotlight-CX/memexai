@@ -50,7 +50,7 @@ export type PatchFileInput =
   | {
       path: string
       operation: "append_lines"
-      after_heading: string
+      after_heading?: string
       lines: string[]
       reason?: string
       toolCallId?: string

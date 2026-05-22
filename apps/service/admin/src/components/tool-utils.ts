@@ -43,7 +43,7 @@ export const TOOL_SCAFFOLDS: Record<string, Record<string, string>> = {
   memory_list: {},
   memory_read: { path: "user/" },
   memory_write: { path: "user/note.md", content: "", reason: "" },
-  memory_patch: { path: "user/note.md", operation: "append_lines", after_heading: "", lines: "" },
+  memory_patch: { path: "user/log.md", operation: "append_lines", lines: "" },
   memory_search: { query: "" },
   memory_memorize: { text: "" },
   memory_smart_read: {},

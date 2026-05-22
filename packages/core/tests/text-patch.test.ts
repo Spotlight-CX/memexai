@@ -22,6 +22,17 @@ describe("appendLinesAfterHeading", () => {
     expect(result.changed).toBe(false)
   })
 
+  test("appends lines to the end of the file when no heading is provided", () => {
+    const result = appendLinesAfterHeading("- existing log\n", undefined, ["- new log"])
+    expect(result.changed).toBe(true)
+    expect(result.content).toBe("- existing log\n- new log\n")
+  })
+
+  test("does not duplicate an existing line when appending without a heading", () => {
+    const result = appendLinesAfterHeading("- existing log\n", undefined, ["- existing log"])
+    expect(result.changed).toBe(false)
+  })
+
   test("stops before the next heading at the same or higher level", () => {
     const content = "# Profile\n\n## Preferences\n\nold line\n\n## Other\n"
     const result = appendLinesAfterHeading(content, "## Preferences", ["new line"])

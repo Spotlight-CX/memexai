@@ -1,8 +1,19 @@
 import { HttpError } from "./errors"
 
-export function appendLinesAfterHeading(content: string, afterHeading: string, lines: string[]) {
+export function appendLinesAfterHeading(content: string, afterHeading: string | undefined, lines: string[]) {
   const newline = content.includes("\r\n") ? "\r\n" : "\n"
   const all = content.split(/\r?\n/)
+  if (!afterHeading?.trim()) {
+    const linesToAdd = lines.filter((line) => !all.includes(line))
+    if (linesToAdd.length === 0) return { content, changed: false }
+
+    if (content === "") return { content: linesToAdd.join(newline), changed: true }
+    const insertionPoint = content.endsWith("\n") || content.endsWith("\r\n") ? all.length - 1 : all.length
+    const next = [...all]
+    next.splice(insertionPoint, 0, ...linesToAdd)
+    return { content: next.join(newline), changed: true }
+  }
+
   const heading = afterHeading.trim()
   const headingIndex = all.findIndex((line) => line.trim() === heading)
   if (headingIndex < 0) {

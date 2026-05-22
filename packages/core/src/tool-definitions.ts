@@ -115,7 +115,7 @@ The entire file is replaced with \`content\`. Use \`memory_patch\` when you only
     description: `Patch a \`user/**\` memory file without rewriting it entirely.
 
 Two operations available:
-- **\`append_lines\`** — insert lines immediately after a specific markdown heading
+- **\`append_lines\`** — append lines to the end of the file, or insert them under a specific markdown heading when \`after_heading\` is provided
 - **\`replace_lines\`** — find an exact text match and replace it
 
 ### Parameters
@@ -124,7 +124,7 @@ Two operations available:
 |---|---|---|---|
 | \`path\` | string | **yes** | Writable virtual file path |
 | \`operation\` | enum | **yes** | \`append_lines\` or \`replace_lines\` |
-| \`after_heading\` | string | no | For \`append_lines\`: exact markdown heading to insert after |
+| \`after_heading\` | string | no | For \`append_lines\`: exact markdown heading to insert under; omit to append at EOF |
 | \`lines\` | string[] | no | For \`append_lines\`: lines to insert |
 | \`match\` | string | no | For \`replace_lines\`: exact text to find |
 | \`replacement\` | string \| string[] | no | For \`replace_lines\`: replacement content |
@@ -136,7 +136,6 @@ Two operations available:
 {
   "path": "user/notes.md",
   "operation": "append_lines",
-  "after_heading": "## Preferences",
   "lines": ["- Likes rooftop gardens"],
   "reason": "New preference noted"
 }
@@ -154,7 +153,7 @@ Two operations available:
       properties: {
         path: { type: "string" },
         operation: { type: "string", enum: ["append_lines", "replace_lines"] },
-        after_heading: { type: "string", description: "For append_lines: exact markdown heading" },
+        after_heading: { type: "string", description: "For append_lines: exact markdown heading; omit to append at EOF" },
         lines: { type: "array", items: { type: "string" }, description: "For append_lines" },
         match: { type: "string", description: "For replace_lines: exact text to replace" },
         replacement: {

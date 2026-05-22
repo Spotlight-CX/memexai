@@ -31,7 +31,7 @@ export const patchArgsSchema = z.discriminatedUnion("operation", [
   z.object({
     path: z.string().min(1),
     operation: z.literal("append_lines"),
-    after_heading: z.string().min(1),
+    after_heading: z.string().min(1).optional(),
     lines: z.array(z.string()).min(1),
     reason: z.string().optional(),
   }),

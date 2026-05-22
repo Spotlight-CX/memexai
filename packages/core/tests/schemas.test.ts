@@ -51,6 +51,15 @@ describe("patchArgsSchema", () => {
     expect(result.operation).toBe("append_lines")
   })
 
+  test("allows append_lines without after_heading for EOF append", () => {
+    const result = patchArgsSchema.parse({
+      path: "user/log.md",
+      operation: "append_lines",
+      lines: ["- log entry"],
+    })
+    expect(result).toMatchObject({ operation: "append_lines", lines: ["- log entry"] })
+  })
+
   test("validates replace_lines operation with string replacement", () => {
     const result = patchArgsSchema.parse({
       path: "user/f.md",

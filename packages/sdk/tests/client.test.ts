@@ -136,6 +136,31 @@ describe("MemexAI SDK — file operations", () => {
     })
   })
 
+  test("executes patchFile append_lines without after_heading", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({
+      path: "user/log.md",
+      operation: "append_lines",
+      changed: true,
+      noOp: false,
+    }))
+    const memory = createClient(fetchMock).forUser({ userId: "user_123" })
+
+    await memory.patchFile({
+      path: "user/log.md",
+      operation: "append_lines",
+      lines: ["- [2026-05-22] wrote user/profile.md - User likes cars."],
+      reason: "captured",
+    })
+
+    const [, request] = fetchMock.mock.calls[0]
+    expect(JSON.parse(request.body as string).arguments).toEqual({
+      path: "user/log.md",
+      operation: "append_lines",
+      lines: ["- [2026-05-22] wrote user/profile.md - User likes cars."],
+      reason: "captured",
+    })
+  })
+
   test("executes patchFile (replace_lines) through the service", async () => {
     const fetchMock = vi.fn(async () => jsonResponse({
       path: "user/profile.md",

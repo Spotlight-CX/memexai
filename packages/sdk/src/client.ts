@@ -171,7 +171,7 @@ export class MemexMemory {
       tool.name,
       {
         description: tool.description,
-        inputSchema: jsonSchema(tool.inputSchema),
+        inputSchema: jsonSchema(tool.inputSchema as unknown as Parameters<typeof jsonSchema>[0]),
         execute: (args: unknown, options?: { toolCallId?: string }) => this.executeTool({
           name: tool.name,
           arguments: args,

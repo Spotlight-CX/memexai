@@ -68,7 +68,7 @@ export const toolDefinitions = [
   },
   {
     name: "memory_patch",
-    description: "Patch a writable user/** memory file by appending lines under a heading or replacing an exact text match.",
+    description: "Patch a writable user/** memory file by appending lines at EOF or under a heading, or by replacing an exact text match.",
     inputSchema: {
       type: "object",
       required: ["path", "operation"],
@@ -76,7 +76,7 @@ export const toolDefinitions = [
       properties: {
         path: { type: "string" },
         operation: { type: "string", enum: ["append_lines", "replace_lines"] },
-        after_heading: { type: "string", description: "For append_lines: exact markdown heading" },
+        after_heading: { type: "string", description: "For append_lines: exact markdown heading; omit to append at EOF" },
         lines: { type: "array", items: { type: "string" }, description: "For append_lines" },
         match: { type: "string", description: "For replace_lines: exact text to replace" },
         replacement: {
