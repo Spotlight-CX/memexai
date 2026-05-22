@@ -10,13 +10,13 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL('https://memexai.dev'),
   title: {
-    default: 'MemexAI',
+    default: 'MemexAI - Inspectable memory for AI agents',
     template: '%s | MemexAI',
   },
-  description: 'Persistent memory for AI agents, backed by Postgres.',
+  description: 'Durable agent memory as inspectable files, backed by Postgres.',
   openGraph: {
-    title: 'MemexAI',
-    description: 'Persistent memory for AI agents, backed by Postgres.',
+    title: 'MemexAI - Inspectable memory for AI agents',
+    description: 'Durable agent memory as inspectable files, backed by Postgres.',
     type: 'website',
     url: 'https://memexai.dev',
   },

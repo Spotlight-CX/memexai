@@ -1,6 +1,6 @@
 # memexai Roadmap
 
-Memory as structured, inspectable files — curated by an agent as work happens, then reasoned over with lightweight file tools. Same philosophy as how Claude Code navigates a codebase: give the model a real filesystem-shaped memory surface and let it think.
+Memory as structured, inspectable files — curated by an agent as work happens, then reasoned over with lightweight file tools.
 
 MemexAI is not primarily a chat-log retrieval engine. The core bet is not:
 
@@ -14,74 +14,115 @@ The core bet is:
 observe a session -> write only durable facts -> maintain inspectable memory files -> recall targeted records later
 ```
 
-Raw conversation logs can still exist outside MemexAI for replay, audit, or analytics. MemexAI owns the curated working memory: profile, preferences, timelines, commitments, decisions, project context, and source-backed updates.
+Raw conversation logs can still exist outside MemexAI for replay, audit, or analytics. MemexAI owns curated working memory: profiles, preferences, timelines, commitments, decisions, project context, and source-backed updates.
 
 ---
 
-## Shipped
+## Done
 
 - `@memexai/core` — direct Postgres TypeScript SDK
 - `@memexai/sdk` — HTTP client SDK
-- `@memexai/admin` — admin CLI + UI (`npx @memexai/admin`)
+- Python SDK — direct Postgres + HTTP client, with LangChain, LlamaIndex, and CrewAI adapters
+- `@memexai/admin` — admin CLI + UI
 - Docker compose — Postgres + HTTP service + admin UI
-- Four memory tools: `memory_list`, `memory_read`, `memory_write`, `memory_patch`
-- Framework adapters: Vercel AI, Anthropic, LangChain
+- Service MCP server — SSE transport over the same tool engine
+- Raw memory tools — `memory_list`, `memory_read`, `memory_write`, `memory_patch`
+- Agentic memory tools — `memory_memorize`, `memory_search`
+- Smart context tool — `memory_smart_read`
+- Postgres full-text search — generated `tsvector`, no vector database required
+- Agentic search path — BM25 shortlist, optional model-backed read-only synthesis
+- Bookkeeping prompts — `user/index.md`, `user/log.md`, and `## See also` links during memorize
+- Admin memory editor — inspect and edit files through the dashboard
 - Revision history — every write creates a full snapshot
-- Access logs — every tool call logged
-- Virtual path isolation — `user/` auto-scoped to userId, `shared/` read-only
-- Dual deployment: container (HTTP service) and direct Postgres
-- Docs: architecture, scopes, revisions, access logs, migrations
+- Access logs — every tool call is logged
+- Virtual path isolation — `user/` auto-scoped to `userId`, `shared/` read-only
+- Framework adapters — Vercel AI, Anthropic, LangChain, LlamaIndex, CrewAI
+- Dual deployment — containerized HTTP service and direct Postgres mode
 
 ---
 
-## Tier 1 — Launch Blockers
+## Next
 
-### Python SDK → [`product/specs/01-python-sdk.md`](product/specs/01-python-sdk.md)
-Direct Postgres Python client. Mirrors `@memexai/core` exactly. `asyncpg`, inline migrations, LangChain + LlamaIndex + CrewAI adapters. PyPI: `pip install memexai`.
+### Launch polish
+Make the first 10 minutes excellent: clear quick-test flow, copyable SDK snippets, better examples, and fewer places where a new developer has to infer the happy path.
 
-### Smart context assembler → [`product/specs/02-smart-context.md`](product/specs/02-smart-context.md)
-New `memory_smart_read` tool — loads all user memory in one call if it fits within a char budget; BFS-merges by recency if too large. Replaces the current hardcoded three-file `getPromptBlock`. Includes `memory_search` (BM25 via Postgres `tsvector GENERATED ALWAYS AS STORED` — no trigger needed). BM25 also serves as a pre-filter for the agentic retrieval harness — shortlists candidate files before the LLM reasons over them.
+Why it matters: adoption depends on the product feeling obvious before it feels powerful.
 
-### Smart index auto-maintenance
-After every `memex.ingest()` write, a post-write hook updates `user/index.md` with a short summary of the changed file. This gives the retrieval agent a navigation map (what each file contains, when last updated) without reading all file contents upfront. Distinct from `memory_smart_read`, which loads files dynamically — this is a proactively maintained table of contents. Lightweight LLM call: given the changed file, update its index entry. Configurable: enabled by default when `memex.ingest()` is used.
+### Memory health
+Add a simple health loop for stale files, index drift, duplicate facts, missing links, failed writes, and low-signal memory.
 
-### MCP server → [`product/specs/03-mcp-server.md`](product/specs/03-mcp-server.md)
-`@memexai/mcp` — two lines in `claude_desktop_config.json`, memory tools appear in Claude Desktop, Cursor, Windsurf. Direct Postgres mode (local, no auth) and HTTP proxy mode. High virality, low build cost.
+Why it matters: durable memory only matters if people can trust it over time.
+
+Keep it simple: start with diagnosis and visibility. Auto-fix comes later.
+
+### Memory compaction
+When files get too large, summarize and deduplicate while preserving durable facts and keeping the original readable in an archive.
+
+Why it matters: inspectable files should stay useful to humans and agents.
+
+Keep it simple: preserve provenance and make compaction explicit in revision history.
+
+### PII hooks
+Support redaction/blocking before writes in service mode and direct SDK mode.
+
+Why it matters: memory systems are trust systems. Sensitive data handling should be boring and inspectable.
+
+Keep it simple: regex-first, optional heavier integrations later.
+
+### Post-write hooks
+Let developers trigger webhooks or callbacks after memory changes.
+
+Why it matters: memory writes often need to update surrounding workflows: Slack, n8n, Zapier, app events, or audit stores.
+
+Keep it simple: one clear after-write contract before adding connector-specific features.
 
 ---
 
-## Tier 2 — Significant Differentiation
+## Later Bets
 
-### Pre-write hooks + PII redaction → [`product/specs/04-pii-hooks.md`](product/specs/04-pii-hooks.md)
-Container mode: `MEMEX_PII_POLICY=redact|block|off` env var — server-side, zero client changes needed. Direct mode: `memex.addHook("before_write", createPiiRedactHook())`. Regex patterns for email, phone, SSN, credit card, IP. Optional Presidio integration for NLP-based detection. GDPR/HIPAA compliance story — unoccupied niche in the market.
+These are not feature tickets. They are product directions to revisit when they clearly make MemexAI more durable, legible, trustworthy, or easier to adopt.
 
-### Agentic ingestion → [`product/specs/05-agentic-ingest.md`](product/specs/05-agentic-ingest.md)
-`memex.ingest(text, ctx, { model })` — pass raw conversation text, LLM extracts durable facts and writes them via the memory tools. This is the main MemexAI loop: per-session curation, not bulk session storage. Write-only tool access prevents runaway reads. Full audit trail — every extracted fact has a path, revision, actor, and reason. Dry-run mode for human review. Hooks fire on ingest writes (PII applies).
+### Local-first memory mode
+Explore a zero-server local mode for developers who want memory running beside their agent without Docker or hosted infrastructure.
 
-### Agentic recall → [`product/specs/06-agentic-recall.md`](product/specs/06-agentic-recall.md)
-`user.recall(query)` — targeted mid-conversation retrieval. BM25-ranked fast path; optional LLM reranker for precision. Also exposed as `memory_recall` tool so agents can invoke it themselves. Complements `memory_smart_read` (system prompt assembly) — recall is for surgical mid-conversation lookups.
+Why it matters: "try it in two minutes" is a different adoption curve than "stand up infrastructure first."
 
-### Bookkeeping — log file + cross-references → [`product/specs/08-bookkeeping.md`](product/specs/08-bookkeeping.md)
-Two additions to the `memory_memorize` inner model: (1) append a dated entry to `user/log.md` after every write — gives future sessions a chronological trail without reading all files; (2) instruct the model to add `## See also` cross-reference links when writing new pages. Implementation is two lines added to the `executeMemoryMemorize` system prompt in `packages/core/src/tools.ts`. `user/index.md` maintenance already ships as part of Tier 1 smart index work.
+Restraint: preserve the same mental model as the service: files, scopes, auditability, and search.
 
----
+### Source-scoped memory
+Organize memory around projects, teams, customers, workspaces, or imported knowledge bases, not only `shared/` and per-user files.
 
-## Tier 3 — Post-Launch
+Why it matters: real memory often belongs to a context bigger than one user.
 
-### Memory compaction → [`product/specs/07-memory-compaction.md`](product/specs/07-memory-compaction.md)
-When a file exceeds a configurable threshold (default 16K chars), LLM summarizes and deduplicates while preserving durable facts. Archives original under `user/archive/` (as a readable file) — spec 07 chose this over storing archives in `mx_revision` so agents can reference old archives directly via memory tools. Triggered on-write (async, non-blocking) or manually via admin UI "Compact now" button. Revision created with `reason: "auto-compaction"`.
+Restraint: clearer boundaries first, permission machinery later.
 
-### Memory lint → [`product/specs/09-memory-lint.md`](product/specs/09-memory-lint.md)
-`memory_lint` tool + `user.lint({ model })` SDK method + admin-configured cron (future). Periodic health-check over user memory: finds orphan files, stale facts, missing cross-references, and index drift. Two delivery modes: (1) SDK — per-user, developer-triggered, composable with ingest pipelines; (2) admin cron — operator-scheduled across all users, results stored in `mx_lint_run` and surfaced in an admin health dashboard. `autoFix: true` applies trivial fixes via the normal write path; auto-fix is off by default in cron mode.
+### Link-aware memory
+Treat explicit links between memory files as first-class signals.
 
-### Human memory editor in admin UI
-Admin can edit, delete, or rewrite any memory entry directly in the dashboard. Edits create a new revision with `actor: admin`. Builds on the existing revision trail — no new schema needed.
+Why it matters: visible links make memory more navigable for humans and more useful for agents without hiding the system's reasoning.
 
-### Webhooks (post-write)
-`memex.addHook("after_write", fn)` — trigger Slack, n8n, Zapier, or custom endpoints after any write. Powers notification and automation use cases.
+Restraint: start from links users can see in the files. Avoid invisible graph magic.
 
-### Org / workspace namespacing
-Proper `org/` or `workspace/` scope above `user/`. Currently only `user/` and `shared/`. Defer until there's a real enterprise customer requesting it.
+### Optional deeper retrieval
+Keep Postgres full-text search as the default, but leave room for stronger retrieval when memory sets get much larger or messier.
+
+Why it matters: some teams will outgrow keyword search.
+
+Restraint: this must stay opt-in and measurable. No vector infrastructure as a default requirement.
+
+### Disciplined ingestion
+Support repeatable ways to bring in notes, transcripts, docs, and app events without pretending every raw input deserves to become memory.
+
+Why it matters: MemexAI's thesis is selective durable memory, not hoarding.
+
+Restraint: the product question is "what should be remembered?", not "how many connectors can we ship?"
+
+### Product-shaped evals
+Evaluate the behaviors that matter: remembering the right facts, finding them later, preserving context, and avoiding junk accumulation.
+
+Why it matters: evals let us say no to features that make the product bigger without making memory more trustworthy.
+
+Restraint: useful decision support over benchmark theater.
 
 ---
 
@@ -104,18 +145,17 @@ The honest tradeoff:
 - **MemexAI wins** when memory should be small, inspectable, editable, auditable, source-backed, and easy to self-host.
 - **Vector/chat-log systems win** when the main task is recovering arbitrary details from huge raw conversation histories, especially if those details were not recognized as durable at write time.
 
-This means benchmarks like LongMemEval are useful, but they should be interpreted carefully. They often test "can the system retrieve evidence from old sessions?" MemexAI should also be evaluated on "did the ingestion loop write the right durable memory, keep it updated, and make it inspectable?"
-
-Defensible angle: self-hosted + Postgres-only + full audit trail + human-editable memory files. The lane is durable agent memory, not just semantic search over transcripts.
+Defensible angle: self-hosted + Postgres-only + full audit trail + human-editable memory files. The lane is durable agent memory, not semantic search over transcripts.
 
 ---
 
-## Out of Scope (OSS edition)
+## Out of Scope
 
-- SSO / IAM
+- SSO / IAM until there is a real customer pull
 - Knowledge graph visualization
-- Vector / semantic embeddings
+- Vector / semantic embeddings as a default requirement
 - Automatic conversation extraction without developer opt-in
+- Connector sprawl without a memory-quality reason
 
 ---
 

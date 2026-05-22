@@ -7,6 +7,7 @@ import {
   Eye,
   FileClock,
   GitPullRequest,
+  ListChecks,
   Network,
   Search,
   ShieldCheck,
@@ -16,19 +17,26 @@ import {
 const features = [
   {
     icon: Database,
-    title: 'The file system abstraction',
-    text: 'Store facts as explicit markdown files. LLMs know exactly how to read them, and you don’t need a vector DB for your core loop.',
+    title: 'Memory as files',
+    text: 'Durable facts live in scoped Markdown-like files. Agents can read them. Humans can inspect and fix them.',
   },
   {
     icon: FileClock,
-    title: "Never wonder 'why did it do that?'",
-    text: 'Every read leaves an access log. Every write creates a revision. Full traceability for agent behavior out of the box.',
+    title: 'Every change has a trail',
+    text: 'Reads create access logs. Writes create revisions. Memory stops being a mystery blob.',
   },
   {
     icon: ShieldCheck,
-    title: 'Secure & multi-tenant by design',
-    text: 'Agents only see virtual paths like user/profile.md. MemexAI strictly enforces tenant isolation under the hood.',
+    title: 'Scoped by default',
+    text: 'Agents work with virtual paths like user/profile.md and shared/policy.md while MemexAI enforces isolation.',
   },
+];
+
+const loop = [
+  'Conversation happens',
+  'Agent writes only durable memory',
+  'Files stay inspectable',
+  'Search recalls targeted records later',
 ];
 
 export default function HomePage() {
@@ -39,20 +47,20 @@ export default function HomePage() {
           <div>
             <div className="eyebrow">
               <Database size={15} aria-hidden />
-              The file system abstraction for agent memory
+              Durable memory for agents
             </div>
-            <h1>Agent memory you can actually inspect and trust.</h1>
+            <h1>Stop treating old chat logs like memory.</h1>
             <p className="hero-copy">
-              Stop dumping chat logs into vector databases. MemexAI gives your agents a scoped file system backed by
-              Postgres—creating a durable, auditable system of record that humans can read and edit.
+              MemexAI gives agents a small, inspectable memory surface backed by Postgres. They remember durable facts
+              as files, not as hidden chunks in a retrieval pipeline.
             </p>
             <div className="hero-actions">
               <Link className="site-button site-button-primary" href="/docs">
                 <BookOpen size={17} aria-hidden />
-                Get started
+                Start with Docker
                 <ArrowRight size={17} aria-hidden />
               </Link>
-              <a className="site-button site-button-secondary" href="https://github.com/soorajsanker/memexai">
+              <a className="site-button site-button-secondary" href="https://github.com/Spotlight-CX/memexai">
                 <GitPullRequest size={17} aria-hidden />
                 GitHub
               </a>
@@ -108,11 +116,46 @@ export default function HomePage() {
       </section>
 
       <section className="section">
-        <div className="section-kicker">Why MemexAI</div>
-        <h2>Agent memory should be inspectable, scoped, and boring to operate.</h2>
+        <div className="section-kicker">The bet</div>
+        <h2>Most memory systems retrieve the past. MemexAI maintains what should survive.</h2>
         <p className="section-lede">
-          Most memory systems optimize for retrieving old chat chunks. MemexAI focuses on the smaller working set an
-          agent should actually remember: durable facts, preferences, timelines, decisions, and source-backed updates.
+          Raw transcripts can live in your app, warehouse, or audit store. MemexAI owns the smaller working set your
+          agent should actually carry forward: preferences, commitments, decisions, timelines, project notes, and
+          source-backed updates.
+        </p>
+        <div className="memory-loop" aria-label="MemexAI memory loop">
+          {loop.map((item, index) => (
+            <div className="loop-step" key={item}>
+              <span>{String(index + 1).padStart(2, '0')}</span>
+              <strong>{item}</strong>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="section contrast-section">
+        <div className="section-kicker">The difference</div>
+        <h2>RAG over transcripts is useful. It is not the same as durable memory.</h2>
+        <div className="comparison">
+          <div className="comparison-panel muted-panel">
+            <h3>Chat-log retrieval</h3>
+            <p>Store everything, embed chunks, retrieve similar fragments, hope the right old detail appears.</p>
+            <pre>{`store every message\n→ embed chunks\n→ retrieve old text\n→ answer from fragments`}</pre>
+          </div>
+          <div className="comparison-panel strong-panel">
+            <h3>MemexAI</h3>
+            <p>Let the agent write only durable facts into files that humans can inspect, edit, and audit.</p>
+            <pre>{`observe a session\n→ write durable memory\n→ maintain files\n→ recall targeted records`}</pre>
+          </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-kicker">What stays simple</div>
+        <h2>A memory system should be legible before it is clever.</h2>
+        <p className="section-lede">
+          MemexAI is deliberately conservative: Postgres, files, revisions, access logs, and a small set of tools. The
+          point is not to ship every memory feature. The point is to make memory dependable.
         </p>
         <div className="feature-grid">
           {features.map((feature) => {
@@ -129,29 +172,42 @@ export default function HomePage() {
       </section>
 
       <section className="section">
-        <div className="section-kicker">Human in the loop</div>
-        <h2>Memory isn&apos;t just for agents. It&apos;s for your team, too.</h2>
+        <div className="section-kicker">Trust surface</div>
+        <h2>If a memory is wrong, you should be able to open it and fix it.</h2>
         <p className="section-lede">
-          When an agent gets a fact wrong, you shouldn&apos;t have to delete embeddings. With MemexAI&apos;s Admin UI,
-          your team can review revisions, audit access logs, and manually edit a user&apos;s memory files to fix
-          errors directly.
+          Memory is not just model context. It is an operational record. The admin UI shows what was remembered, when it
+          changed, who touched it, and which reads happened later.
         </p>
+        <div className="trust-list">
+          <div>
+            <Eye size={20} aria-hidden />
+            <span>Inspect memory files directly</span>
+          </div>
+          <div>
+            <FileClock size={20} aria-hidden />
+            <span>Review revisions and access logs</span>
+          </div>
+          <div>
+            <ListChecks size={20} aria-hidden />
+            <span>Correct records without rebuilding an index</span>
+          </div>
+        </div>
       </section>
 
       <section className="section">
         <div className="section-kicker">Integration paths</div>
-        <h2>Start with two tools. Drop down to files when you need control.</h2>
+        <h2>Start with two tools. Drop down to files when control matters.</h2>
         <div className="split">
           <div className="path-panel">
             <Boxes size={24} aria-hidden />
             <h3>Agentic tools</h3>
-            <p>Give the model memory_memorize and memory_search; MemexAI handles the file bookkeeping.</p>
+            <p>Give the model `memory_memorize` and `memory_search`; MemexAI handles the file bookkeeping.</p>
             <pre>{`const tools = memory.createAgenticToolset()\n// memory_memorize, memory_search`}</pre>
           </div>
           <div className="path-panel">
             <Terminal size={24} aria-hidden />
             <h3>Raw file tools</h3>
-            <p>Use explicit file operations for deterministic writes, custom extraction, or admin workflows.</p>
+            <p>Use explicit file operations for deterministic writes, custom extraction, and admin workflows.</p>
             <pre>{`const tools = memory.createRawToolset()\n// list, read, write, patch, smart_read`}</pre>
           </div>
         </div>
@@ -181,11 +237,11 @@ export default function HomePage() {
 
       <section className="cta-band">
         <div className="section">
-          <div className="section-kicker">Ready to launch</div>
-          <h2>Ready to move past black-box memory?</h2>
+          <div className="section-kicker">Build the record</div>
+          <h2>Give your agent memory your team can trust.</h2>
           <p className="section-lede">
-            Drop MemexAI into your stack with MCP, our Python/TS SDKs, or standard Postgres. Start building agents with
-            a memory system you can actually debug.
+            Drop MemexAI into your stack with MCP, Python, TypeScript, or standard Postgres. Start with the simple loop:
+            remember durable facts, inspect the files, search them later.
           </p>
           <div className="hero-actions">
             <Link className="site-button site-button-primary" href="/docs">
