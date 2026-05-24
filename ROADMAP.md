@@ -43,6 +43,9 @@ Raw conversation logs can still exist outside MemexAI for replay, audit, or anal
 
 ## Next
 
+### shared/index.md 
+claude.md for operational guidance - make it clear in the readme , product and website
+
 ### Launch polish
 Make the first 10 minutes excellent: clear quick-test flow, copyable SDK snippets, better examples, and fewer places where a new developer has to infer the happy path.
 
