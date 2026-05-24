@@ -60,8 +60,20 @@ Raw conversation logs can still exist outside MemexAI for replay, audit, or anal
 
 ## Next
 
-### shared/index.md 
-claude.md for operational guidance - make it clear in the readme , product and website
+### Shared memory bookkeeper + admin setup (shipped)
+`shared/index.md` is now a root driver pointing to sub-files. `shared/user-memory.md` provides the default memory management guide. `buildPromptBlock()` now injects all `shared/` files so every new sub-file is immediately visible to agents. First-time admins land on a guided setup wizard (`/admin/setup`) — 3-step form generates initial shared memory files. Ongoing refinement via a Gemini-powered Configure tab in the admin UI.
+
+### Team Memory — contribution requests
+The next evolution of shared memory: individual agents or users can propose contributions to `shared/` that admins review before they become canonical context.
+
+How it works:
+- New tool `memory_propose` queues a contribution (fact or file edit) targeting `shared/`
+- Admin sees pending proposals in the Configure tab (or a dedicated Proposals tab)
+- Accept / reject / auto-approve modes (auto-approve after N approvals, or by trusted user ID)
+- Accepted proposals applied via existing admin file write path (full audit trail)
+- Makes `shared/` a living team knowledge base, not just operator-set defaults
+
+Why it matters: the gap between "operator configures once" and "team learns together" is where most memory systems stagnate. This closes it without requiring manual curation of every insight.
 
 ### Launch polish
 Make the first 10 minutes excellent: clear quick-test flow, copyable SDK snippets, better examples, and fewer places where a new developer has to infer the happy path.

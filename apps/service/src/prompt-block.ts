@@ -11,15 +11,17 @@ async function readOptionalFile(db: Db, physicalPath: string): Promise<string | 
 }
 
 export async function buildPromptBlock(db: Db, ctx: ToolContext): Promise<string> {
-  const [sharedIndex, sharedClaude, userIndex] = await Promise.all([
-    readOptionalFile(db, "shared/index.md"),
-    readOptionalFile(db, "shared/claude.md"),
+  const [sharedResult, userIndex] = await Promise.all([
+    db.query<{ physical_path: string; content_text: string }>(
+      "SELECT physical_path, content_text FROM mx_file WHERE physical_path LIKE 'shared/%' AND physical_path NOT LIKE 'shared/.%' ORDER BY physical_path ASC",
+    ),
     readOptionalFile(db, `users/${ctx.userId}/index.md`),
   ])
 
   const docs = [
-    sharedIndex ? `<shared_index path="shared/index.md">\n${sharedIndex}\n</shared_index>` : null,
-    sharedClaude ? `<shared_instructions path="shared/claude.md">\n${sharedClaude}\n</shared_instructions>` : null,
+    ...sharedResult.rows.map(
+      (row) => `<shared_file path="${row.physical_path}">\n${row.content_text}\n</shared_file>`,
+    ),
     userIndex ? `<user_index path="user/index.md">\n${userIndex}\n</user_index>` : null,
   ].filter(Boolean)
 

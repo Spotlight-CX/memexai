@@ -63,7 +63,7 @@ describe("runMigrations", () => {
   })
 
   test("skips already-applied migrations", async () => {
-    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql"])
+    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql"])
 
     await runMigrations(db)
 

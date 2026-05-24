@@ -11,7 +11,7 @@ import {
   Title,
   UnstyledButton,
 } from "@mantine/core"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { createRoot } from "react-dom/client"
 import {
   BrowserRouter,
@@ -25,6 +25,8 @@ import { useAdminData } from "./hooks"
 import { DotsHorizontalIcon } from "./icons"
 import { FilesView } from "./components/FilesView"
 import { SecretGate } from "./components/SecretGate"
+import { SetupWizard } from "./components/SetupWizard"
+import { ConfigureTab } from "./components/ConfigureTab"
 import { ToolPlayground } from "./components/ToolPlayground"
 import { WelcomeModal } from "./components/WelcomeModal"
 import { UsersView, RevisionsView, AccessLogsView } from "./components/TableViews"
@@ -34,7 +36,7 @@ import type { AdminFile, Overlay } from "./types"
 const ADMIN_SECRET_KEY = "memexai.adminSecret"
 const API_KEY_KEY = "memexai.apiKey"
 
-const PAGES = ["files", "playground"] as const
+const PAGES = ["files", "configure", "playground"] as const
 type Page = (typeof PAGES)[number]
 
 function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gateError }: {
@@ -45,16 +47,27 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
   gateError: string | null
 }) {
   const [overlay, setOverlay] = useState<Overlay>(null)
+  const [filesRefreshKey, setFilesRefreshKey] = useState(0)
   const location = useLocation()
   const navigate = useNavigate()
 
   const { data: filesData } = useAdminData<{ files: AdminFile[] }>(
     secret ? "/v1/admin/files" : null,
     secret,
+    filesRefreshKey,
   )
   const files = useMemo(() => filesData?.files ?? [], [filesData])
 
   const activePage = (PAGES.find((p) => location.pathname === "/" + p) ?? "files") as Page
+
+  // Redirect to setup wizard if shared/.setup-complete marker is missing
+  useEffect(() => {
+    if (!filesData) return
+    const hasSetupComplete = files.some((f) => f.physicalPath === "shared/.setup-complete")
+    if (!hasSetupComplete && location.pathname !== "/setup") {
+      navigate("/setup")
+    }
+  }, [filesData, files, location.pathname, navigate])
 
   return (
     <MantineProvider defaultColorScheme="light">
@@ -125,7 +138,9 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
         <AppShell.Main>
           <Routes>
             <Route path="/files" element={<FilesView secret={secret} />} />
+            <Route path="/configure" element={<ConfigureTab secret={secret} />} />
             <Route path="/playground" element={<ToolPlayground apiKey={apiKey} secret={secret} onApiKeyInvalid={onApiKeyInvalid} />} />
+            <Route path="/setup" element={<SetupWizard secret={secret} onComplete={() => { navigate("/files"); setFilesRefreshKey((k) => k + 1) }} />} />
             <Route path="*" element={<Navigate to="/files" replace />} />
           </Routes>
         </AppShell.Main>

@@ -165,6 +165,7 @@ describe("demo agent CLI — direct mode (@memexai/core)", () => {
         return { rows: [] }
       }
       if (sql.includes("mx_file") && sql.includes("INSERT")) {
+        if (params == null) return { rows: [] } // migration INSERT (inline SQL, no params)
         storedContent = (params as string[])[2] ?? ""
         return { rows: [{ id: "file_abc", created: true }] }
       }
