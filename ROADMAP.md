@@ -1,5 +1,22 @@
 # memexai Roadmap
 
+## North Star
+
+> "Human taste is now more important than ever as codegen tools make everyone a 10x engineer."
+> — Leo Paz (Outlit, W25)
+
+Leo was talking about engineers. But the insight is universal.
+
+AI can now write, advise, plan, and act at near-zero marginal cost. The bottleneck is no longer capability — it is knowing **whose** taste to apply. Not just for engineers. For anyone interacting with an AI agent: the career coach user who has specific anxieties about interviews, the finance app user who hates aggressive upsells, the creative writing user who writes in a particular voice.
+
+Every person has taste. AI currently ignores it — because it has no way to hold it.
+
+MemexAI is the infrastructure that captures and maintains human taste so AI can act confidently on a person's behalf. Not "what did the user say?" — "who is this user?" When the AI knows your taste — your preferences, friction points, style, and identity — it can reduce the decisions you need to make, not just answer questions faster.
+
+The end state: an AI that genuinely knows each user well enough to act for them with high confidence.
+
+---
+
 Memory as structured, inspectable files — curated by an agent as work happens, then reasoned over with lightweight file tools.
 
 MemexAI is not primarily a chat-log retrieval engine. The core bet is not:
