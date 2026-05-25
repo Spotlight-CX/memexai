@@ -1,19 +1,42 @@
-import { Box, Button, Code, Group, SegmentedControl, Stack, Text, UnstyledButton } from "@mantine/core"
+import { Box, Button, Group, SegmentedControl, Stack, Text, UnstyledButton } from "@mantine/core"
 import { useMemo, useState } from "react"
-import { loadPrefs, savePrefs, type SnippetHarness, type SnippetLanguage } from "./tool-utils"
+import {
+  loadPrefs,
+  savePrefs,
+  type PythonSnippetHarness,
+  type SnippetLanguage,
+  type TypeScriptSnippetHarness,
+} from "./tool-utils"
+
+type SnippetHarness = TypeScriptSnippetHarness | PythonSnippetHarness
 
 const AGENTIC_TOOLS = new Set(["memory_memorize", "memory_search"])
-
-const HARNESS_OPTIONS: { label: string; value: SnippetHarness }[] = [
+const LANGUAGE_OPTIONS: { label: string; value: SnippetLanguage }[] = [
+  { label: "TypeScript", value: "typescript" },
+  { label: "Python", value: "python" },
+]
+const TYPESCRIPT_HARNESSES: { label: string; value: TypeScriptSnippetHarness }[] = [
   { label: "Vercel AI", value: "vercel-ai" },
   { label: "OpenAI", value: "openai" },
   { label: "LangChain", value: "langchain" },
   { label: "Raw SDK", value: "raw-sdk" },
 ]
+const PYTHON_HARNESSES: { label: string; value: PythonSnippetHarness }[] = [
+  { label: "Raw SDK", value: "raw-sdk" },
+  { label: "LangChain", value: "langchain" },
+  { label: "LlamaIndex", value: "llamaindex" },
+  { label: "CrewAI", value: "crewai" },
+]
 
-function buildSnippet(language: SnippetLanguage, harness: SnippetHarness, toolName: string, args: unknown, userId: string): string {
+function buildSnippet(
+  language: SnippetLanguage,
+  harness: SnippetHarness,
+  toolName: string,
+  args: unknown,
+  userId: string,
+): string {
   const url = window.location.origin
-  if (language === "python") return buildPythonSnippet(url, toolName, args, userId)
+  if (language === "python") return buildPythonSnippet(url, harness as PythonSnippetHarness, toolName, args, userId)
   if (harness === "raw-sdk") return buildRawSdkSnippet(url, toolName, args, userId)
   if (harness === "openai") return buildOpenAISnippet(url, toolName, args, userId)
   if (harness === "langchain") return buildLangChainSnippet(url, toolName, args, userId)
@@ -121,7 +144,20 @@ const result = await ${buildTsMemoryCall(toolName, args)}
 console.log(result)`
 }
 
-function buildPythonSnippet(url: string, toolName: string, args: unknown, userId: string): string {
+function buildPythonSnippet(
+  url: string,
+  harness: PythonSnippetHarness,
+  toolName: string,
+  args: unknown,
+  userId: string,
+): string {
+  if (harness === "langchain") return buildPythonLangChainSnippet(url, toolName, args, userId)
+  if (harness === "llamaindex") return buildPythonLlamaIndexSnippet(url, toolName, args, userId)
+  if (harness === "crewai") return buildPythonCrewAISnippet(url, toolName, args, userId)
+  return buildPythonRawSdkSnippet(url, toolName, args, userId)
+}
+
+function buildPythonRawSdkSnippet(url: string, toolName: string, args: unknown, userId: string): string {
   return `from memexai import MemexAI
 
 memex = MemexAI(
@@ -132,6 +168,75 @@ memex = MemexAI(
 memory = memex.for_user(${pyString(userId)}, actor="assistant")
 
 result = await ${buildPythonMemoryCall(toolName, args)}
+print(result)
+
+await memex.close()`
+}
+
+function buildPythonLangChainSnippet(url: string, toolName: string, args: unknown, userId: string): string {
+  return `from memexai import MemexAI
+from memexai.adapters.langchain import get_langchain_tools
+
+memex = MemexAI(
+    url=${pyString(url)},
+    api_key="YOUR_API_KEY",
+)
+
+memory = memex.for_user(${pyString(userId)}, actor="assistant")
+tools = get_langchain_tools(memory)
+tool = next((candidate for candidate in tools if candidate.name == ${pyString(toolName)}), None)
+if tool is None:
+    raise RuntimeError("MemexAI tool not found")
+
+tool_args = ${formatPy(args)}
+result = await tool.ainvoke(tool_args)
+print(result)
+
+await memex.close()`
+}
+
+function buildPythonLlamaIndexSnippet(url: string, toolName: string, args: unknown, userId: string): string {
+  return `from memexai import MemexAI
+from memexai.adapters.llamaindex import get_llamaindex_tools
+
+memex = MemexAI(
+    url=${pyString(url)},
+    api_key="YOUR_API_KEY",
+)
+
+memory = memex.for_user(${pyString(userId)}, actor="assistant")
+tools = get_llamaindex_tools(memory)
+tool = next((candidate for candidate in tools if candidate.metadata.name == ${pyString(toolName)}), None)
+if tool is None:
+    raise RuntimeError("MemexAI tool not found")
+
+tool_args = ${formatPy(args)}
+result = await tool.acall(**tool_args)
+print(result)
+
+await memex.close()`
+}
+
+function buildPythonCrewAISnippet(url: string, toolName: string, args: unknown, userId: string): string {
+  return `import inspect
+
+from memexai import MemexAI
+from memexai.adapters.crewai import get_crewai_tools
+
+memex = MemexAI(
+    url=${pyString(url)},
+    api_key="YOUR_API_KEY",
+)
+
+memory = memex.for_user(${pyString(userId)}, actor="assistant")
+tools = get_crewai_tools(memory)
+tool = next((candidate for candidate in tools if candidate.name == ${pyString(toolName)}), None)
+if tool is None:
+    raise RuntimeError("MemexAI tool not found")
+
+tool_args = ${formatPy(args)}
+maybe_result = tool.run(**tool_args)
+result = await maybe_result if inspect.isawaitable(maybe_result) else maybe_result
 print(result)
 
 await memex.close()`
@@ -242,6 +347,23 @@ function toSnakeCase(value: string): string {
   return value.replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`)
 }
 
+function isSnippetLanguage(value: unknown): value is SnippetLanguage {
+  return value === "typescript" || value === "python"
+}
+
+function isTypeScriptHarness(value: unknown): value is TypeScriptSnippetHarness {
+  return value === "vercel-ai" || value === "openai" || value === "langchain" || value === "raw-sdk"
+}
+
+function isPythonHarness(value: unknown): value is PythonSnippetHarness {
+  return value === "raw-sdk" || value === "langchain" || value === "llamaindex" || value === "crewai"
+}
+
+function harnessLabel(language: SnippetLanguage, harness: SnippetHarness): string {
+  const options = language === "python" ? PYTHON_HARNESSES : TYPESCRIPT_HARNESSES
+  return options.find((option) => option.value === harness)?.label ?? "Raw SDK"
+}
+
 export function CopyCodeButton({
   toolName,
   args,
@@ -252,23 +374,43 @@ export function CopyCodeButton({
   userId: string
 }) {
   const prefs = loadPrefs()
+  const initialLanguage = isSnippetLanguage(prefs.snippetLanguage) ? prefs.snippetLanguage : "typescript"
+  const initialTypeScriptHarness = isTypeScriptHarness(prefs.typescriptSnippetHarness)
+    ? prefs.typescriptSnippetHarness
+    : isTypeScriptHarness(prefs.snippetHarness)
+      ? prefs.snippetHarness
+      : "vercel-ai"
+  const initialPythonHarness = isPythonHarness(prefs.pythonSnippetHarness) ? prefs.pythonSnippetHarness : "raw-sdk"
   const [opened, setOpened] = useState(false)
-  const [language, setLanguage] = useState<SnippetLanguage>(prefs.snippetLanguage ?? "typescript")
-  const [harness, setHarness] = useState<SnippetHarness>(prefs.snippetHarness ?? "vercel-ai")
+  const [language, setLanguage] = useState<SnippetLanguage>(initialLanguage)
+  const [typescriptHarness, setTypeScriptHarness] = useState<TypeScriptSnippetHarness>(initialTypeScriptHarness)
+  const [pythonHarness, setPythonHarness] = useState<PythonSnippetHarness>(initialPythonHarness)
   const [copied, setCopied] = useState(false)
+  const currentHarness = language === "python" ? pythonHarness : typescriptHarness
+  const harnessOptions = language === "python" ? PYTHON_HARNESSES : TYPESCRIPT_HARNESSES
+  const title = `${language === "python" ? "Python" : "TypeScript"} - ${harnessLabel(language, currentHarness)}`
 
-  const snippet = useMemo(() => buildSnippet(language, harness, toolName, args, userId), [args, harness, language, toolName, userId])
+  const snippet = useMemo(
+    () => buildSnippet(language, currentHarness, toolName, args, userId),
+    [args, currentHarness, language, toolName, userId],
+  )
 
   function handleLanguageChange(nextLanguage: string) {
-    const snippetLanguage = nextLanguage as SnippetLanguage
-    setLanguage(snippetLanguage)
-    savePrefs({ ...loadPrefs(), snippetLanguage })
+    if (!isSnippetLanguage(nextLanguage)) return
+    setLanguage(nextLanguage)
+    savePrefs({ ...loadPrefs(), snippetLanguage: nextLanguage })
   }
 
   function handleHarnessChange(nextHarness: string) {
-    const snippetHarness = nextHarness as SnippetHarness
-    setHarness(snippetHarness)
-    savePrefs({ ...loadPrefs(), snippetHarness })
+    if (language === "python") {
+      if (!isPythonHarness(nextHarness)) return
+      setPythonHarness(nextHarness)
+      savePrefs({ ...loadPrefs(), pythonSnippetHarness: nextHarness })
+    } else {
+      if (!isTypeScriptHarness(nextHarness)) return
+      setTypeScriptHarness(nextHarness)
+      savePrefs({ ...loadPrefs(), typescriptSnippetHarness: nextHarness })
+    }
   }
 
   function handleCopy() {
@@ -292,34 +434,64 @@ export function CopyCodeButton({
 
       {opened && (
         <Stack gap="xs" mt="xs">
-          <Group gap="xs" justify="space-between" align="center">
-            <SegmentedControl
-              size="xs"
-              value={language}
-              onChange={handleLanguageChange}
-              data={[
-                { label: "TypeScript", value: "typescript" },
-                { label: "Python", value: "python" },
-              ]}
-            />
-            <Button size="xs" variant="subtle" onClick={handleCopy}>
-              {copied ? "Copied" : "Copy"}
-            </Button>
+          <Group gap="xs" justify="space-between" align="flex-end" wrap="wrap">
+            <Box style={{ flex: "1 1 150px", minWidth: 0 }}>
+              <Text size="10px" c="dimmed" fw={700} mb={3} style={{ textTransform: "uppercase" }}>
+                Language
+              </Text>
+              <SegmentedControl
+                size="xs"
+                value={language}
+                onChange={handleLanguageChange}
+                data={LANGUAGE_OPTIONS}
+                fullWidth
+              />
+            </Box>
+            <Box style={{ flex: "1.4 1 210px", minWidth: 0 }}>
+              <Text size="10px" c="dimmed" fw={700} mb={3} style={{ textTransform: "uppercase" }}>
+                Harness
+              </Text>
+              <SegmentedControl
+                size="xs"
+                value={currentHarness}
+                onChange={handleHarnessChange}
+                data={harnessOptions}
+                fullWidth
+              />
+            </Box>
           </Group>
 
-          {language === "typescript" && (
-            <SegmentedControl
-              size="xs"
-              value={harness}
-              onChange={handleHarnessChange}
-              data={HARNESS_OPTIONS}
-              fullWidth
-            />
-          )}
-
-          <Code block style={{ fontSize: 11, whiteSpace: "pre", overflowX: "auto" }}>
-            {snippet}
-          </Code>
+          <Box
+            style={{
+              border: "1px solid var(--mantine-color-gray-3)",
+              borderRadius: 8,
+              background: "var(--mantine-color-gray-0)",
+              overflow: "hidden",
+            }}
+          >
+            <Group justify="space-between" px="sm" py={6} style={{ borderBottom: "1px solid var(--mantine-color-gray-2)" }}>
+              <Text size="xs" fw={700} c="gray.7">{title}</Text>
+              <Button size="compact-xs" variant="subtle" onClick={handleCopy}>
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </Group>
+            <Box
+              component="pre"
+              m={0}
+              p="sm"
+              style={{
+                maxHeight: 360,
+                minHeight: 220,
+                overflow: "auto",
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                fontSize: 12,
+                lineHeight: 1.55,
+                whiteSpace: "pre",
+              }}
+            >
+              {snippet}
+            </Box>
+          </Box>
         </Stack>
       )}
     </Box>
