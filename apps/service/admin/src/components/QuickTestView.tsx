@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useFileContentQuery, useRunToolMutation } from "../playground-api"
 import { ConfigureTab } from "./ConfigureTab"
+import { ResponseBody } from "./ResponseBody"
 import { UserSelector } from "./UserSelector"
 import type { RunResult } from "./tool-utils"
 
@@ -248,7 +249,7 @@ export function QuickTestView({ apiKey, secret, userId, onUserIdChange }: QuickT
           {/* Input bar */}
           <Box
             px="lg"
-            py="md"
+            py="sm"
             style={{
               borderTop: "1px solid var(--mantine-color-gray-2)",
               background: "white",
@@ -261,50 +262,39 @@ export function QuickTestView({ apiKey, secret, userId, onUserIdChange }: QuickT
                   value={mode}
                   onChange={(v) => {
                     setMode(v as "store" | "recall")
-                    setInputText("")
                   }}
                   data={[
                     { label: "Store", value: "store" },
                     { label: "Recall", value: "recall" },
                   ]}
                   size="xs"
-                  style={{ flexShrink: 0, alignSelf: mode === "store" ? "flex-start" : "center" }}
+                  style={{ flexShrink: 0, marginTop: 4 }}
                 />
                 <Box style={{ flex: 1, minWidth: 0 }}>
-                  {mode === "store" ? (
-                    <Textarea
-                      value={inputText}
-                      onChange={(e) => setInputText(e.currentTarget.value)}
-                      placeholder="Remember that I prefer quiet neighborhoods near parks."
-                      autosize
-                      minRows={2}
-                      maxRows={8}
-                      onKeyDown={(e) => {
-                        if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                          e.preventDefault()
-                          void handleSubmit()
-                        }
-                      }}
-                    />
-                  ) : (
-                    <TextInput
-                      value={inputText}
-                      onChange={(e) => setInputText(e.currentTarget.value)}
-                      placeholder="quiet neighborhoods"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault()
-                          void handleSubmit()
-                        }
-                      }}
-                    />
-                  )}
+                  <Textarea
+                    value={inputText}
+                    onChange={(e) => setInputText(e.currentTarget.value)}
+                    placeholder={mode === "store" ? "Remember that I prefer quiet neighborhoods near parks." : "quiet neighborhoods"}
+                    autosize
+                    minRows={2}
+                    maxRows={8}
+                    onKeyDown={(e) => {
+                      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                        e.preventDefault()
+                        void handleSubmit()
+                      } else if (mode === "recall" && e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault()
+                        void handleSubmit()
+                      }
+                    }}
+                  />
                 </Box>
                 <Button
                   onClick={() => void handleSubmit()}
                   disabled={!apiKey || !inputText.trim()}
                   loading={isPending}
-                  style={{ flexShrink: 0, alignSelf: mode === "store" ? "flex-end" : "center" }}
+                  size="sm"
+                  style={{ flexShrink: 0, marginTop: 4 }}
                 >
                   {mode === "store" ? "Store" : "Recall"}
                 </Button>
@@ -366,7 +356,7 @@ function EntryRow({
 
   return (
     <Box
-      py="lg"
+      py="md"
       style={{
         display: "grid",
         gridTemplateColumns: "1fr 300px",
@@ -433,7 +423,9 @@ function EntryRow({
           </Stack>
 
           {entry.status === "done" && entry.result && (
-            <ResultSummary entry={entry} />
+            <Box mt="xs">
+              <ResponseBody body={entry.result.body} />
+            </Box>
           )}
           {entry.status === "error" && (
             <Text size="xs" c="red.6">Request failed. Check your API key and service status.</Text>
@@ -446,43 +438,6 @@ function EntryRow({
         <FileRightPanel entry={entry} secret={secret} onNavigateToFile={onNavigateToFile} />
       </Box>
     </Box>
-  )
-}
-
-function ResultSummary({ entry }: { entry: TimelineEntry }) {
-  const body = entry.result?.body
-  if (!isObj(body)) return null
-
-  if (entry.kind === "store") {
-    const writes = Array.isArray(body.writes) ? body.writes : []
-    return (
-      <Text size="xs" c="dimmed">
-        {writes.length} write{writes.length === 1 ? "" : "s"}
-        {body.dryRun === true ? " — no changes committed" : ""}
-      </Text>
-    )
-  }
-
-  const answer = typeof body.answer === "string" ? body.answer : null
-  const results = Array.isArray(body.results) ? body.results : []
-  return (
-    <Stack gap="xs">
-      {answer && (
-        <Paper
-          p="sm"
-          radius="sm"
-          style={{
-            background: "var(--mantine-color-blue-0)",
-            border: "1px solid var(--mantine-color-blue-2)",
-          }}
-        >
-          <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>{answer}</Text>
-        </Paper>
-      )}
-      <Text size="xs" c="dimmed">
-        {results.length} result{results.length === 1 ? "" : "s"}
-      </Text>
-    </Stack>
   )
 }
 

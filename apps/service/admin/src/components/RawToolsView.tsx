@@ -332,12 +332,12 @@ export function RawToolsView({ apiKey, secret, tools, toolsError, userId, onUser
 
   return (
     <Box style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <Box px="sm" py={6} style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", flexShrink: 0 }}>
+      <Box px="lg" py="sm" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", flexShrink: 0 }}>
         <Group gap="sm" justify="space-between" align="center" wrap="nowrap">
           <Button size="xs" variant="subtle" onClick={goQuickTest}>
             Quick test
           </Button>
-          <Group gap="xs" align="center" wrap="nowrap" style={{ width: 420, maxWidth: "55%" }}>
+          <Group gap="xs" align="center" wrap="nowrap" style={{ width: 300, maxWidth: "55%" }}>
             <Box style={{ flex: 1, minWidth: 0 }}>
               <UserSelector secret={secret} value={userId} onChange={onUserIdChange} compact />
             </Box>
