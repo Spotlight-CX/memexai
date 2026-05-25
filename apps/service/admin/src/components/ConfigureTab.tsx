@@ -15,6 +15,7 @@ import {
 import { useEffect, useRef, useState } from "react"
 import { useAdminData } from "../hooks"
 import type { AdminFile } from "../types"
+import { ChatContainer, ChatInputWrapper } from "./ChatLayout"
 
 type ChatMessage = { role: "user" | "assistant"; content: string }
 type ProposedChange = {
@@ -159,7 +160,7 @@ function ChangeCard({
   )
 }
 
-export function ConfigureTab({ secret }: { secret: string }) {
+export function ConfigureTab({ secret, onBackToUser }: { secret: string; onBackToUser?: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [pendingChanges, setPendingChanges] = useState<Map<number, ProposedChange[]>>(new Map())
   const [skipped, setSkipped] = useState<Set<string>>(new Set())
@@ -167,7 +168,7 @@ export function ConfigureTab({ secret }: { secret: string }) {
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [filesRefreshKey, setFilesRefreshKey] = useState(0)
-  const [filesExpanded, setFilesExpanded] = useState(true)
+  const [filesExpanded, setFilesExpanded] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const { data: filesData } = useAdminData<{ files: AdminFile[] }>(
@@ -244,35 +245,16 @@ export function ConfigureTab({ secret }: { secret: string }) {
 
   return (
     <Box h="100%" display="flex" style={{ flexDirection: "column" }}>
-      {/* Shared files panel */}
-      <Box px="lg" pt="md" pb={0} style={{ borderBottom: "1px solid var(--mantine-color-gray-2)" }}>
-        <Group justify="space-between" mb="xs">
-          <Text size="sm" fw={500}>Shared files</Text>
-          <UnstyledButton onClick={() => setFilesExpanded((e) => !e)}>
-            <Text size="xs" c="gray.5">{filesExpanded ? "collapse" : "expand"}</Text>
-          </UnstyledButton>
-        </Group>
-        {filesExpanded && (
-          <Group gap="xs" pb="sm" wrap="wrap">
-            {sharedFiles.length === 0 && (
-              <Text size="xs" c="gray.5">No shared files yet.</Text>
-            )}
-            {sharedFiles.map((f) => (
-              <Badge key={f.physicalPath} size="sm" variant="outline" color="gray" ff="monospace">
-                {f.physicalPath}
-              </Badge>
-            ))}
-          </Group>
-        )}
-      </Box>
-
       {/* Chat area */}
       <ScrollArea style={{ flex: 1 }} p="lg">
-        <Stack gap="lg" maw={760} mx="auto">
+        <ChatContainer>
           {messages.length === 0 && !noModel && (
-            <Text size="sm" c="gray.5" ta="center" mt="xl">
-              Describe what you'd like to change or add to your memory configuration.
-            </Text>
+            <Box py={120} ta="center">
+              <Text size="lg" fw={500} c="gray.7">Memory Configuration</Text>
+              <Text size="sm" c="gray.5" mt={4}>
+                Describe what you'd like to change or add to your agent's shared context.
+              </Text>
+            </Box>
           )}
 
           {noModel && (
@@ -323,36 +305,84 @@ export function ConfigureTab({ secret }: { secret: string }) {
           {sendError && !noModel && <Text size="xs" c="red">{sendError}</Text>}
 
           <div ref={bottomRef} />
-        </Stack>
+        </ChatContainer>
       </ScrollArea>
 
-      {/* Input */}
+      {/* Input Island */}
       <Box
         px="lg"
-        py="md"
-        style={{ borderTop: "1px solid var(--mantine-color-gray-2)" }}
+        pb="lg"
+        pt="sm"
       >
-        <Group maw={760} mx="auto" gap="sm" align="flex-end">
-          <Textarea
-            style={{ flex: 1 }}
-            placeholder={noModel ? "Configure an LLM to use this feature" : "What would you like to change or add?"}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault()
-                send()
-              }
-            }}
-            minRows={1}
-            maxRows={5}
-            autosize
-            disabled={noModel || sending}
-          />
-          <Button onClick={send} loading={sending} disabled={!input.trim() || noModel}>
-            Send
-          </Button>
-        </Group>
+        <ChatInputWrapper>
+          <Stack gap="xs">
+            {/* Context Line */}
+            <Group justify="space-between" align="center" px={4}>
+              <Group gap="xs">
+                {onBackToUser && (
+                  <UnstyledButton onClick={onBackToUser}>
+                    <Badge size="xs" color="blue" variant="filled" style={{ cursor: "pointer" }}>System Scope</Badge>
+                  </UnstyledButton>
+                )}
+                <UnstyledButton onClick={() => setFilesExpanded(!filesExpanded)}>
+                  <Badge size="xs" color="gray" variant="outline" style={{ cursor: "pointer" }}>
+                    {sharedFiles.length} shared files {filesExpanded ? "↑" : "↓"}
+                  </Badge>
+                </UnstyledButton>
+              </Group>
+              {messages.length > 0 && (
+                <Button variant="subtle" color="gray" size="xs" onClick={() => setMessages([])}>
+                  Clear
+                </Button>
+              )}
+            </Group>
+
+            {/* Shared files expanded context */}
+            {filesExpanded && (
+              <Paper withBorder p="xs" radius="md" bg="gray.0">
+                <Group gap="xs" wrap="wrap">
+                  {sharedFiles.length === 0 && <Text size="xs" c="gray.5">No shared files.</Text>}
+                  {sharedFiles.map((f) => (
+                    <Badge key={f.physicalPath} size="xs" variant="subtle" color="gray" ff="monospace" style={{ textTransform: "none" }}>
+                      {f.physicalPath}
+                    </Badge>
+                  ))}
+                </Group>
+              </Paper>
+            )}
+
+            <Group gap="sm" align="flex-end">
+              <Textarea
+                style={{ flex: 1 }}
+                styles={{
+                  input: {
+                    background: "transparent",
+                    border: "none",
+                    fontSize: 14,
+                    paddingTop: 10,
+                    paddingBottom: 10,
+                  }
+                }}
+                placeholder={noModel ? "Configure an LLM to use this feature" : "Describe changes to shared context..."}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault()
+                    send()
+                  }
+                }}
+                minRows={2}
+                maxRows={12}
+                autosize
+                disabled={noModel || sending}
+              />
+              <Button onClick={send} loading={sending} disabled={!input.trim() || noModel} size="md" style={{ height: 42 }}>
+                Send
+              </Button>
+            </Group>
+          </Stack>
+        </ChatInputWrapper>
       </Box>
     </Box>
   )

@@ -331,8 +331,8 @@ export function RawToolsView({ apiKey, secret, tools, toolsError, userId, onUser
   }
 
   return (
-    <Box style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <Box px="lg" py="sm" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", flexShrink: 0 }}>
+    <Box style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", background: "transparent" }}>
+      <Box px="lg" py="sm" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", flexShrink: 0, background: "rgba(255, 255, 255, 0.6)", backdropFilter: "blur(4px)" }}>
         <Group gap="sm" justify="space-between" align="center" wrap="nowrap">
           <Button size="xs" variant="subtle" onClick={goQuickTest}>
             Quick test
@@ -346,7 +346,7 @@ export function RawToolsView({ apiKey, secret, tools, toolsError, userId, onUser
       </Box>
 
       <Box style={{ flex: 1, overflow: "hidden", display: "flex" }}>
-        <ScrollArea style={{ width: 220, flexShrink: 0, borderRight: "1px solid var(--mantine-color-gray-2)" }} py="xs">
+        <ScrollArea style={{ width: 220, flexShrink: 0, borderRight: "1px solid var(--mantine-color-gray-2)", background: "rgba(255, 255, 255, 0.3)", backdropFilter: "blur(4px)" }} py="xs">
           {!apiKey ? (
             <Text size="xs" c="dimmed" px="sm" py="xs">Enter your API key to load tools.</Text>
           ) : tools.length === 0 && !toolsError ? (
@@ -447,7 +447,7 @@ export function RawToolsView({ apiKey, secret, tools, toolsError, userId, onUser
               )}
             </ScrollArea>
 
-            <Box style={{ display: "flex", flexDirection: "column", overflow: "hidden", background: result ? undefined : "var(--mantine-color-gray-0)" }}>
+            <Box style={{ display: "flex", flexDirection: "column", overflow: "hidden", background: result ? "transparent" : "rgba(255, 255, 255, 0.2)", backdropFilter: "blur(4px)" }}>
               <Box px="lg" py="sm" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", flexShrink: 0 }}>
                 <Group gap="sm" align="center">
                   <Text size="sm" fw={600}>Response</Text>

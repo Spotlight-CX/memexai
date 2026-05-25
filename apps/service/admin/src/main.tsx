@@ -30,7 +30,7 @@ import {
   useNavigate,
 } from "react-router-dom"
 import { useAdminData } from "./hooks"
-import { DotsHorizontalIcon, ExternalLinkIcon } from "./icons"
+import { BrainIcon, ConnectionIcon, DotsHorizontalIcon, ExternalLinkIcon, MemoryNodeIcon } from "./icons"
 import { FilesView } from "./components/FilesView"
 import { SecretGate } from "./components/SecretGate"
 import { SetupWizard } from "./components/SetupWizard"
@@ -51,6 +51,62 @@ hljs.registerLanguage("typescript", typescript)
 
 const PAGES = ["files", "playground"] as const
 type Page = (typeof PAGES)[number]
+
+function Layout({ children }: { children: React.ReactNode }) {
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    setMousePos({ x: e.clientX, y: e.clientY })
+  }
+
+  return (
+    <Box
+      className="admin-layout-bg"
+      onMouseMove={handleMouseMove}
+      style={{ minHeight: "100vh", position: "relative", overflow: "hidden" }}
+    >
+      <style>{`
+        .admin-layout-bg {
+          background-color: var(--mantine-color-gray-0);
+          background-image:
+            radial-gradient(circle at 2px 2px, var(--mantine-color-gray-3) 0.8px, transparent 0);
+          background-size: 24px 24px;
+        }
+
+        .neural-glow {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          z-index: 0;
+          background: radial-gradient(
+            600px circle at var(--mouse-x) var(--mouse-y),
+            var(--mantine-color-blue-5),
+            transparent 80%
+          );
+          /* This mask ensures the glow only appears on the dots of the background grid */
+          mask-image: radial-gradient(circle at 2px 2px, black 0.8px, transparent 0);
+          mask-size: 24px 24px;
+          opacity: 0.15;
+        }
+      `}</style>
+
+      <Box
+        className="neural-glow"
+        style={{
+          "--mouse-x": `${mousePos.x}px`,
+          "--mouse-y": `${mousePos.y}px`,
+        } as any}
+      />
+
+      <Box style={{ position: "relative", zIndex: 1, height: "100%" }}>
+        {children}
+      </Box>
+    </Box>
+  )
+}
 
 function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gateError }: {
   secret: string
@@ -83,7 +139,7 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
   }, [filesData, files, location.pathname, navigate])
 
   return (
-    <MantineProvider defaultColorScheme="light">
+    <Layout>
       <AdminSpotlight
         files={files}
         onSelectFile={(path) => navigate("/files?path=" + encodeURIComponent(path))}
@@ -94,9 +150,9 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
         header={{ height: 56 }}
         padding={0}
         styles={{
-          root: { height: "100vh", background: "var(--mantine-color-gray-0)" },
-          header: { borderBottom: "1px solid var(--mantine-color-gray-2)" },
-          main: { height: "calc(100vh - 56px)", minHeight: 0, paddingTop: 56 },
+          root: { height: "100vh", background: "transparent" },
+          header: { borderBottom: "1px solid var(--mantine-color-gray-2)", background: "rgba(255, 255, 255, 0.9)", backdropFilter: "blur(8px)" },
+          main: { height: "calc(100vh - 56px)", minHeight: 0, paddingTop: 56, paddingBottom: 0 },
         }}
       >
         <AppShell.Header>
@@ -184,7 +240,7 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
       </Modal>
 
       <WelcomeModal />
-    </MantineProvider>
+    </Layout>
   )
 }
 
@@ -209,31 +265,33 @@ function App() {
     setGateError("API key rejected — check the MEMEX_API_KEY value in your container environment.")
   }
 
-  if (!secret) {
-    return (
-      <SecretGate
-        error={gateError}
-        onSubmit={({ secret: s, apiKey: k }) => {
-          localStorage.setItem(ADMIN_SECRET_KEY, s)
-          localStorage.setItem(API_KEY_KEY, k)
-          setGateError(null)
-          setSecret(s)
-          setApiKey(k)
-        }}
-      />
-    )
-  }
-
   return (
-    <BrowserRouter basename="/admin">
-      <AdminApp
-        secret={secret}
-        apiKey={apiKey}
-        onSignOut={signOut}
-        onApiKeyInvalid={handleApiKeyInvalid}
-        gateError={gateError}
-      />
-    </BrowserRouter>
+    <MantineProvider defaultColorScheme="light">
+      {!secret ? (
+        <Layout>
+          <SecretGate
+            error={gateError}
+            onSubmit={({ secret: s, apiKey: k }) => {
+              localStorage.setItem(ADMIN_SECRET_KEY, s)
+              localStorage.setItem(API_KEY_KEY, k)
+              setGateError(null)
+              setSecret(s)
+              setApiKey(k)
+            }}
+          />
+        </Layout>
+      ) : (
+        <BrowserRouter basename="/admin">
+          <AdminApp
+            secret={secret}
+            apiKey={apiKey}
+            onSignOut={signOut}
+            onApiKeyInvalid={handleApiKeyInvalid}
+            gateError={gateError}
+          />
+        </BrowserRouter>
+      )}
+    </MantineProvider>
   )
 }
 

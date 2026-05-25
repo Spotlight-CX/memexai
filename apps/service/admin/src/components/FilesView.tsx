@@ -147,11 +147,11 @@ export function FilesView({ secret }: { secret: string }) {
         display: "grid",
         gridTemplateColumns: "264px minmax(0, 1fr) 296px",
         minHeight: 0,
-        background: "var(--mantine-color-white)",
+        background: "transparent",
       }}
     >
       {/* Left: file tree */}
-      <Stack gap={0} h="100%" style={{ minHeight: 0, borderRight: "1px solid var(--mantine-color-gray-2)" }}>
+      <Stack gap={0} h="100%" style={{ minHeight: 0, borderRight: "1px solid var(--mantine-color-gray-2)", background: "rgba(255, 255, 255, 0.4)", backdropFilter: "blur(4px)" }}>
         <Box px={12} pt={12} pb={8}>
           <Group justify="space-between" align="center" mb={6}>
             <Text size="xs" fw={600} c="dimmed" tt="uppercase" style={{ letterSpacing: "0.04em" }}>
@@ -299,7 +299,7 @@ export function FilesView({ secret }: { secret: string }) {
       )}
 
       {/* Right: revision sidebar */}
-      <Stack gap={0} h="100%" style={{ minHeight: 0, borderLeft: "1px solid var(--mantine-color-gray-2)", background: "var(--mantine-color-gray-0)" }}>
+      <Stack gap={0} h="100%" style={{ minHeight: 0, borderLeft: "1px solid var(--mantine-color-gray-2)", background: "rgba(255, 255, 255, 0.4)", backdropFilter: "blur(4px)" }}>
         <Box px={12} py={10}>
           <Text size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.04em" }}>Revisions</Text>
           <Text size="xs" c="dimmed" mt={2}>{selectedPath ? "File history" : "Select a file to inspect."}</Text>
