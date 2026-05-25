@@ -34,7 +34,6 @@ import { DotsHorizontalIcon, ExternalLinkIcon } from "./icons"
 import { FilesView } from "./components/FilesView"
 import { SecretGate } from "./components/SecretGate"
 import { SetupWizard } from "./components/SetupWizard"
-import { ConfigureTab } from "./components/ConfigureTab"
 import { ToolPlayground } from "./components/ToolPlayground"
 import { WelcomeModal } from "./components/WelcomeModal"
 import { UsersView, RevisionsView, AccessLogsView } from "./components/TableViews"
@@ -50,7 +49,7 @@ hljs.registerLanguage("python", python)
 hljs.registerLanguage("tsx", typescript)
 hljs.registerLanguage("typescript", typescript)
 
-const PAGES = ["files", "configure", "playground"] as const
+const PAGES = ["files", "playground"] as const
 type Page = (typeof PAGES)[number]
 
 function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gateError }: {
@@ -161,7 +160,6 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
         <AppShell.Main>
           <Routes>
             <Route path="/files" element={<FilesView secret={secret} />} />
-            <Route path="/configure" element={<ConfigureTab secret={secret} />} />
             <Route path="/playground" element={<ToolPlayground apiKey={apiKey} secret={secret} onApiKeyInvalid={onApiKeyInvalid} />} />
             <Route path="/setup" element={<SetupWizard secret={secret} onComplete={() => { navigate("/files"); setFilesRefreshKey((k) => k + 1) }} />} />
             <Route path="*" element={<Navigate to="/files" replace />} />

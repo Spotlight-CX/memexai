@@ -1,23 +1,23 @@
 import {
+  Anchor,
   Badge,
   Box,
   Button,
-  Collapse,
-  Divider,
   Group,
   Paper,
-  SimpleGrid,
+  ScrollArea,
+  SegmentedControl,
+  Skeleton,
   Stack,
   Switch,
   Text,
   TextInput,
   Textarea,
 } from "@mantine/core"
-import { type ReactNode, useState } from "react"
-import { useSearchParams } from "react-router-dom"
-import { useRunToolMutation } from "../playground-api"
-import { CopyCodeButton } from "./CopyCodeButton"
-import { ResponseBody } from "./ResponseBody"
+import { useEffect, useRef, useState } from "react"
+import { useNavigate, useSearchParams } from "react-router-dom"
+import { useFileContentQuery, useRunToolMutation } from "../playground-api"
+import { ConfigureTab } from "./ConfigureTab"
 import { UserSelector } from "./UserSelector"
 import type { RunResult } from "./tool-utils"
 
@@ -28,9 +28,21 @@ type QuickTestViewProps = {
   onUserIdChange: (userId: string) => void
 }
 
+type TimelineEntry = {
+  id: string
+  kind: "store" | "recall"
+  input: string
+  dryRun: boolean
+  status: "pending" | "done" | "error"
+  startedAt: number
+  latency: number | null
+  result: RunResult | null
+  currentStep: number
+  userId: string
+}
+
 const MEMORIZE_STEPS = [
   "Loading file list",
-  "Reading index files",
   "Planning memory updates",
   "Writing memory",
   "Finalizing",
@@ -38,23 +50,46 @@ const MEMORIZE_STEPS = [
 
 const SEARCH_STEPS = [
   "Running keyword search",
-  "Reading index files",
-  "Resolving answer",
   "Reading memory files",
-  "Finalizing",
+  "Assembling answer",
 ]
+
+function toPhysicalPath(virtualPath: string, userId: string): string {
+  if (virtualPath.startsWith("user/")) return `users/${userId}/${virtualPath.slice(5)}`
+  return virtualPath
+}
+
+function basename(p: string): string {
+  return p.split("/").pop() ?? p
+}
+
+function isObj(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v)
+}
 
 export function QuickTestView({ apiKey, secret, userId, onUserIdChange }: QuickTestViewProps) {
   const [, setSearchParams] = useSearchParams()
-  const [memorizeText, setMemorizeText] = useState("")
-  const [dryRun, setDryRun] = useState(false)
-  const [query, setQuery] = useState("")
-  const memorizeMutation = useRunToolMutation({ apiKey })
-  const searchMutation = useRunToolMutation({ apiKey })
-
+  const navigate = useNavigate()
+  const [scope, setScope] = useState<"user" | "system">("user")
+  const [timeline, setTimeline] = useState<TimelineEntry[]>([])
+  const [mode, setMode] = useState<"store" | "recall">("store")
+  const [inputText, setInputText] = useState("")
+  const [dryRun, setDryRun] = useState(true)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const runMutation = useRunToolMutation({ apiKey })
   const effectiveUserId = userId.trim() || "demo_user"
-  const memorizeArgs = dryRun ? { text: memorizeText, dryRun } : { text: memorizeText }
-  const searchArgs = { query }
+
+  useEffect(() => {
+    setTimeline([])
+    setMode("store")
+    setInputText("")
+  }, [userId])
+
+  useEffect(() => {
+    if (viewportRef.current) {
+      viewportRef.current.scrollTo({ top: viewportRef.current.scrollHeight, behavior: "smooth" })
+    }
+  }, [timeline.length])
 
   function openAdvanced() {
     setSearchParams((prev) => {
@@ -65,251 +100,241 @@ export function QuickTestView({ apiKey, secret, userId, onUserIdChange }: QuickT
     })
   }
 
-  function handleMemorize() {
-    if (!apiKey || !memorizeText.trim()) return
-    memorizeMutation.reset()
-    memorizeMutation.mutate({
-      toolName: "memory_memorize",
-      userId: effectiveUserId,
-      args: memorizeArgs,
-    })
+  async function handleSubmit() {
+    if (!apiKey || !inputText.trim()) return
+
+    const entryId = String(Date.now())
+    const capturedDryRun = dryRun
+    const capturedUserId = effectiveUserId
+    const capturedInput = inputText
+    const steps = mode === "store" ? MEMORIZE_STEPS : SEARCH_STEPS
+
+    setTimeline((prev) => [
+      ...prev,
+      {
+        id: entryId,
+        kind: mode,
+        input: capturedInput,
+        dryRun: capturedDryRun,
+        status: "pending",
+        startedAt: Date.now(),
+        latency: null,
+        result: null,
+        currentStep: 0,
+        userId: capturedUserId,
+      },
+    ])
+    setInputText("")
+
+    const stepInterval = setInterval(() => {
+      setTimeline((prev) =>
+        prev.map((e) =>
+          e.id === entryId && e.status === "pending"
+            ? { ...e, currentStep: Math.min(e.currentStep + 1, steps.length - 2) }
+            : e
+        )
+      )
+    }, 700)
+
+    try {
+      const args =
+        mode === "store"
+          ? capturedDryRun
+            ? { text: capturedInput, dryRun: true }
+            : { text: capturedInput }
+          : { query: capturedInput }
+
+      const result = await runMutation.mutateAsync({
+        toolName: mode === "store" ? "memory_memorize" : "memory_search",
+        userId: capturedUserId,
+        args,
+      })
+
+      clearInterval(stepInterval)
+      setTimeline((prev) =>
+        prev.map((e) =>
+          e.id === entryId
+            ? { ...e, status: "done", result, latency: result.latency, currentStep: steps.length - 1 }
+            : e
+        )
+      )
+    } catch {
+      clearInterval(stepInterval)
+      setTimeline((prev) =>
+        prev.map((e) =>
+          e.id === entryId ? { ...e, status: "error", latency: Date.now() - e.startedAt } : e
+        )
+      )
+    }
   }
 
-  function handleSearch() {
-    if (!apiKey || !query.trim()) return
-    searchMutation.reset()
-    searchMutation.mutate({
-      toolName: "memory_search",
-      userId: effectiveUserId,
-      args: searchArgs,
-    })
-  }
+  const isPending = timeline.some((e) => e.status === "pending")
 
   return (
-    <Box style={{ height: "100%", overflow: "auto", background: "var(--mantine-color-gray-0)" }} p="lg">
-      <Stack gap="lg" maw={1220} mx="auto">
-        <Group justify="space-between" align="flex-end" gap="lg">
-          <Box>
-            <Text size="xl" fw={700}>Playground</Text>
-            <Text size="sm" c="dimmed" mt={2}>
-              Validate memory behavior for a user before wiring it into your app.
-            </Text>
-          </Box>
-          <Button size="sm" variant="light" onClick={openAdvanced}>
-            Advanced
-          </Button>
-        </Group>
-
-        <Box maw={620}>
-          <UserSelector secret={secret} value={userId} onChange={onUserIdChange} />
-        </Box>
-
-        {!apiKey && (
-          <Paper withBorder radius={8} p="sm" bg="white">
-            <Text size="sm" c="dimmed">Enter your API key to run playground requests.</Text>
-          </Paper>
-        )}
-
-        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="lg">
-          <QuickToolCard
-            title="Add memory"
-            description="Store durable facts for the selected user."
-            toolName="memory_memorize"
-            control={(
-              <Switch
-                label="Dry run"
-                checked={dryRun}
-                onChange={(e) => setDryRun(e.currentTarget.checked)}
-                size="sm"
-              />
+    <Stack gap={0} h="100%" style={{ overflow: "hidden" }}>
+      {/* Header */}
+      <Box px="lg" py="sm" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", flexShrink: 0, background: "white" }}>
+        <Group justify="space-between" align="center" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+            <SegmentedControl
+              value={scope}
+              onChange={(v) => setScope(v as "user" | "system")}
+              data={[
+                { label: "User", value: "user" },
+                { label: "System", value: "system" },
+              ]}
+              size="xs"
+              style={{ flexShrink: 0 }}
+            />
+            {scope === "user" ? (
+              <Box style={{ minWidth: 0, maxWidth: 300 }}>
+                <UserSelector secret={secret} value={userId} onChange={onUserIdChange} compact />
+              </Box>
+            ) : (
+              <Text size="xs" c="dimmed">reading / editing shared/ files</Text>
             )}
-            input={(
-              <Textarea
-                value={memorizeText}
-                onChange={(e) => setMemorizeText(e.currentTarget.value)}
-                placeholder="Remember that I prefer quiet neighborhoods near parks."
-                minRows={8}
-                autosize
-                maxRows={14}
-                onKeyDown={(e) => {
-                  if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                    e.preventDefault()
-                    handleMemorize()
-                  }
-                }}
-              />
+          </Group>
+          <Group gap="sm" wrap="nowrap">
+            {scope === "user" && timeline.length > 0 && (
+              <Button variant="subtle" color="gray" size="xs" onClick={() => setTimeline([])}>
+                Clear
+              </Button>
             )}
-            shortcut="Ctrl/Command + Enter"
-            actionLabel="Add memory"
-            onRun={handleMemorize}
-            disabled={!apiKey || !memorizeText.trim()}
-            loading={memorizeMutation.isPending}
-            result={memorizeMutation.data ?? null}
-            steps={MEMORIZE_STEPS}
-            responseEmpty="No response yet. Run this tool to inspect writes, matches, and metadata."
-            sdkArgs={memorizeArgs}
-            userId={effectiveUserId}
-          />
-
-          <QuickToolCard
-            title="Search memory"
-            description="Ask questions against that user's memory."
-            toolName="memory_search"
-            input={(
-              <TextInput
-                value={query}
-                onChange={(e) => setQuery(e.currentTarget.value)}
-                placeholder="quiet neighborhoods"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault()
-                    handleSearch()
-                  }
-                }}
-              />
-            )}
-            shortcut="Enter"
-            actionLabel="Search memory"
-            onRun={handleSearch}
-            disabled={!apiKey || !query.trim()}
-            loading={searchMutation.isPending}
-            result={searchMutation.data ?? null}
-            steps={SEARCH_STEPS}
-            responseEmpty="No response yet. Run this tool to inspect matches, context, and metadata."
-            sdkArgs={searchArgs}
-            userId={effectiveUserId}
-          />
-        </SimpleGrid>
-      </Stack>
-    </Box>
-  )
-}
-
-function QuickToolCard({
-  title,
-  description,
-  toolName,
-  control,
-  input,
-  shortcut,
-  actionLabel,
-  onRun,
-  disabled,
-  loading,
-  result,
-  steps,
-  responseEmpty,
-  sdkArgs,
-  userId,
-}: {
-  title: string
-  description: string
-  toolName: string
-  control?: ReactNode
-  input: ReactNode
-  shortcut: string
-  actionLabel: string
-  onRun: () => void
-  disabled: boolean
-  loading: boolean
-  result: RunResult | null
-  steps: string[]
-  responseEmpty: string
-  sdkArgs: Record<string, unknown>
-  userId: string
-}) {
-  return (
-    <Paper withBorder radius={8} p="lg" bg="white" style={{ minHeight: 620 }}>
-      <Stack gap="md" h="100%">
-        <Group justify="space-between" align="flex-start" gap="md" wrap="nowrap">
-          <Box style={{ minWidth: 0 }}>
-            <Text fw={700} size="lg">{title}</Text>
-            <Text size="sm" c="dimmed">{description}</Text>
-          </Box>
-          {control}
+            <Button variant="light" size="xs" onClick={openAdvanced}>
+              Advanced
+            </Button>
+          </Group>
         </Group>
+      </Box>
 
-        <Group justify="space-between" align="center">
-          <Badge variant="light" color="gray" ff="monospace">{toolName}</Badge>
-        </Group>
-
-        <Divider />
-
-        {input}
-
-        <Group justify="space-between" align="center">
-          <Text size="xs" c="dimmed">{shortcut}</Text>
-          <Button onClick={onRun} loading={loading} disabled={disabled}>
-            {actionLabel}
-          </Button>
-        </Group>
-
-        <ToolActivity steps={steps} active={loading} completed={Boolean(result) && !loading} />
-
-        <Box>
-          <Text size="xs" fw={700} c="dimmed" mb="xs" style={{ textTransform: "uppercase" }}>Response</Text>
-          <Paper withBorder radius={8} p="md" bg={result ? "white" : "gray.0"} mih={150}>
-            <ResultBlock result={result} loading={loading} empty={responseEmpty} />
-          </Paper>
+      {/* System scope: configure chat */}
+      {scope === "system" && (
+        <Box flex={1} style={{ minHeight: 0 }}>
+          <ConfigureTab secret={secret} />
         </Box>
+      )}
 
-        <Box mt="auto">
-          <SdkExampleSection toolName={toolName} args={sdkArgs} userId={userId} />
-        </Box>
-      </Stack>
-    </Paper>
-  )
-}
-
-function ResultBlock({ result, loading, empty }: { result: RunResult | null; loading: boolean; empty: string }) {
-  if (!result) {
-    return <Text size="sm" c="dimmed">{loading ? "Running..." : empty}</Text>
-  }
-
-  return (
-    <Stack gap="xs">
-      <Group gap="sm">
-        <Badge color={result.status >= 200 && result.status < 300 ? "green" : "red"} variant="light">
-          {result.status === 0 ? "ERR" : result.status}
-        </Badge>
-        <Text size="xs" c="dimmed">{result.latency}ms</Text>
-      </Group>
-      <ResponseBody body={result.body} />
-    </Stack>
-  )
-}
-
-function ToolActivity({ steps, active, completed }: { steps: string[]; active: boolean; completed: boolean }) {
-  const visible = active || completed
-  return (
-    <Box>
-      <Text size="xs" fw={700} c="dimmed" mb="xs" style={{ textTransform: "uppercase" }}>Activity</Text>
-      <Paper withBorder radius={8} p="sm" bg="gray.0">
-        {!visible ? (
-          <Text size="sm" c="dimmed">Activity appears here while the tool runs.</Text>
-        ) : (
-          <Stack gap={6}>
-            {steps.map((step, index) => {
-              const isCurrent = active && index === Math.min(2, steps.length - 1)
-              const isDone = completed || (active && index < 2)
-              return (
-                <Group key={step} gap="xs" wrap="nowrap">
-                  <Text size="xs" c={isDone ? "green.7" : isCurrent ? "blue.6" : "dimmed"} w={42}>
-                    {isDone ? "Done" : isCurrent ? "..." : "--"}
+      {/* User scope: timeline */}
+      {scope === "user" && (
+        <>
+          <ScrollArea flex={1} viewportRef={viewportRef} style={{ minHeight: 0 }}>
+            <Box p="lg">
+              {timeline.length === 0 ? (
+                <Box py={64} style={{ textAlign: "center" }}>
+                  <Text size="sm" c="dimmed">
+                    Run a store or recall below to simulate how your agent handles this user's memory.
                   </Text>
-                  <Text
-                    size="sm"
-                    c={isDone ? "gray.7" : isCurrent ? "blue.7" : "dimmed"}
-                    className={isCurrent ? "memexai-wave-text" : undefined}
-                  >
-                    {step}
-                  </Text>
+                  {!apiKey && (
+                    <Text size="xs" c="red.5" mt="xs">
+                      Enter your API key in settings to run playground requests.
+                    </Text>
+                  )}
+                </Box>
+              ) : (
+                <Stack gap={0}>
+                  {timeline.map((entry) => (
+                    <EntryRow
+                      key={entry.id}
+                      entry={entry}
+                      secret={secret}
+                      onNavigateToFile={(path) => navigate(`/files?path=${encodeURIComponent(path)}`)}
+                    />
+                  ))}
+                </Stack>
+              )}
+            </Box>
+          </ScrollArea>
+
+          {/* Input bar */}
+          <Box
+            px="lg"
+            py="md"
+            style={{
+              borderTop: "1px solid var(--mantine-color-gray-2)",
+              background: "white",
+              flexShrink: 0,
+            }}
+          >
+            <Stack gap="xs">
+              <Group align="flex-start" gap="md" wrap="nowrap">
+                <SegmentedControl
+                  value={mode}
+                  onChange={(v) => {
+                    setMode(v as "store" | "recall")
+                    setInputText("")
+                  }}
+                  data={[
+                    { label: "Store", value: "store" },
+                    { label: "Recall", value: "recall" },
+                  ]}
+                  size="xs"
+                  style={{ flexShrink: 0, alignSelf: mode === "store" ? "flex-start" : "center" }}
+                />
+                <Box style={{ flex: 1, minWidth: 0 }}>
+                  {mode === "store" ? (
+                    <Textarea
+                      value={inputText}
+                      onChange={(e) => setInputText(e.currentTarget.value)}
+                      placeholder="Remember that I prefer quiet neighborhoods near parks."
+                      autosize
+                      minRows={2}
+                      maxRows={8}
+                      onKeyDown={(e) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                          e.preventDefault()
+                          void handleSubmit()
+                        }
+                      }}
+                    />
+                  ) : (
+                    <TextInput
+                      value={inputText}
+                      onChange={(e) => setInputText(e.currentTarget.value)}
+                      placeholder="quiet neighborhoods"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          void handleSubmit()
+                        }
+                      }}
+                    />
+                  )}
+                </Box>
+                <Button
+                  onClick={() => void handleSubmit()}
+                  disabled={!apiKey || !inputText.trim()}
+                  loading={isPending}
+                  style={{ flexShrink: 0, alignSelf: mode === "store" ? "flex-end" : "center" }}
+                >
+                  {mode === "store" ? "Store" : "Recall"}
+                </Button>
+              </Group>
+
+              <Group justify="space-between" align="center">
+                <Group gap="md" align="center">
+                  {mode === "store" && (
+                    <Switch
+                      label="Dry run"
+                      checked={dryRun}
+                      onChange={(e) => setDryRun(e.currentTarget.checked)}
+                      size="xs"
+                    />
+                  )}
+                  {mode === "store" && !dryRun && (
+                    <Text size="xs" c="yellow.7" fw={500}>
+                      ⚠ Live mode — writes are real for {effectiveUserId}
+                    </Text>
+                  )}
                 </Group>
-              )
-            })}
-          </Stack>
-        )}
-      </Paper>
+                <Text size="xs" c="dimmed">
+                  {mode === "store" ? "⌘ + Enter" : "Enter"}
+                </Text>
+              </Group>
+            </Stack>
+          </Box>
+        </>
+      )}
+
       <style>{`
         .memexai-wave-text {
           animation: memexaiWave 1.25s ease-in-out infinite;
@@ -319,27 +344,372 @@ function ToolActivity({ steps, active, completed }: { steps: string[]; active: b
           50% { opacity: 1; transform: translateY(-1px); }
         }
       `}</style>
+    </Stack>
+  )
+}
+
+function EntryRow({
+  entry,
+  secret,
+  onNavigateToFile,
+}: {
+  entry: TimelineEntry
+  secret: string
+  onNavigateToFile: (path: string) => void
+}) {
+  const steps = entry.kind === "store" ? MEMORIZE_STEPS : SEARCH_STEPS
+  const time = new Date(entry.startedAt).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })
+
+  return (
+    <Box
+      py="lg"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 300px",
+        borderBottom: "1px solid var(--mantine-color-gray-2)",
+      }}
+    >
+      {/* Left: operation */}
+      <Box pr="lg" style={{ minWidth: 0 }}>
+        <Stack gap="sm">
+          <Group gap="xs" wrap="nowrap">
+            <Badge color={entry.kind === "store" ? "blue" : "violet"} variant="light" size="sm">
+              {entry.kind === "store" ? "STORE" : "RECALL"}
+            </Badge>
+            {entry.kind === "store" && entry.status !== "pending" && (
+              <Badge color={entry.dryRun ? "yellow" : "green"} variant="light" size="sm">
+                {entry.dryRun ? "◌ dry run" : "✓ committed"}
+              </Badge>
+            )}
+            <Text size="xs" c="dimmed">{time}</Text>
+            {entry.latency !== null && (
+              <Text size="xs" c="dimmed">{entry.latency}ms</Text>
+            )}
+          </Group>
+
+          <Paper
+            p="sm"
+            radius="sm"
+            style={{
+              background: "var(--mantine-color-gray-0)",
+              border: "1px solid var(--mantine-color-gray-2)",
+            }}
+          >
+            <Text size="sm" style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+              {entry.input}
+            </Text>
+          </Paper>
+
+          <Stack gap={4}>
+            {steps.map((step, index) => {
+              const isDone =
+                entry.status === "done" ||
+                entry.status === "error" ||
+                index < entry.currentStep
+              const isCurrent = entry.status === "pending" && index === entry.currentStep
+              return (
+                <Group key={step} gap="xs" wrap="nowrap">
+                  <Text
+                    size="xs"
+                    c={isDone ? "green.7" : isCurrent ? "blue.6" : "dimmed"}
+                    style={{ width: 14, flexShrink: 0 }}
+                  >
+                    {isDone ? "✓" : isCurrent ? "◌" : "–"}
+                  </Text>
+                  <Text
+                    size="xs"
+                    c={isDone ? "gray.7" : isCurrent ? "blue.7" : "dimmed"}
+                    className={isCurrent ? "memexai-wave-text" : undefined}
+                  >
+                    {step}
+                  </Text>
+                </Group>
+              )
+            })}
+          </Stack>
+
+          {entry.status === "done" && entry.result && (
+            <ResultSummary entry={entry} />
+          )}
+          {entry.status === "error" && (
+            <Text size="xs" c="red.6">Request failed. Check your API key and service status.</Text>
+          )}
+        </Stack>
+      </Box>
+
+      {/* Right: file context */}
+      <Box pl="lg" style={{ borderLeft: "1px solid var(--mantine-color-gray-2)", minWidth: 0 }}>
+        <FileRightPanel entry={entry} secret={secret} onNavigateToFile={onNavigateToFile} />
+      </Box>
     </Box>
   )
 }
 
-function SdkExampleSection({ toolName, args, userId }: { toolName: string; args: unknown; userId: string }) {
-  const [opened, setOpened] = useState(false)
+function ResultSummary({ entry }: { entry: TimelineEntry }) {
+  const body = entry.result?.body
+  if (!isObj(body)) return null
+
+  if (entry.kind === "store") {
+    const writes = Array.isArray(body.writes) ? body.writes : []
+    return (
+      <Text size="xs" c="dimmed">
+        {writes.length} write{writes.length === 1 ? "" : "s"}
+        {body.dryRun === true ? " — no changes committed" : ""}
+      </Text>
+    )
+  }
+
+  const answer = typeof body.answer === "string" ? body.answer : null
+  const results = Array.isArray(body.results) ? body.results : []
   return (
-    <Box pt="xs">
-      <Button
-        variant="transparent"
-        color="gray"
-        size="xs"
-        onClick={() => setOpened((next) => !next)}
-        px={0}
-        rightSection={<Text span size="sm" style={{ transform: opened ? "rotate(90deg)" : undefined }}>{">"}</Text>}
-      >
-        Usage example
-      </Button>
-      <Collapse in={opened}>
-        <CopyCodeButton toolName={toolName} args={args} userId={userId} />
-      </Collapse>
+    <Stack gap="xs">
+      {answer && (
+        <Paper
+          p="sm"
+          radius="sm"
+          style={{
+            background: "var(--mantine-color-blue-0)",
+            border: "1px solid var(--mantine-color-blue-2)",
+          }}
+        >
+          <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>{answer}</Text>
+        </Paper>
+      )}
+      <Text size="xs" c="dimmed">
+        {results.length} result{results.length === 1 ? "" : "s"}
+      </Text>
+    </Stack>
+  )
+}
+
+function FileRightPanel({
+  entry,
+  secret,
+  onNavigateToFile,
+}: {
+  entry: TimelineEntry
+  secret: string
+  onNavigateToFile: (path: string) => void
+}) {
+  const label = entry.kind === "store" ? "Files touched" : "Sources"
+
+  if (entry.status === "pending") {
+    return (
+      <Stack gap="xs">
+        <Text size="xs" fw={700} tt="uppercase" c="dimmed">{label}</Text>
+        <Skeleton height={10} width="55%" />
+        <Skeleton height={72} radius="sm" />
+      </Stack>
+    )
+  }
+
+  if (entry.status === "error" || !entry.result) return null
+
+  const body = entry.result.body
+
+  if (entry.kind === "store" && isObj(body)) {
+    const writes = Array.isArray(body.writes) ? body.writes.filter(isObj) : []
+    if (writes.length === 0) {
+      return (
+        <Stack gap="xs">
+          <Text size="xs" fw={700} tt="uppercase" c="dimmed">{label}</Text>
+          <Text size="xs" c="dimmed">No writes.</Text>
+        </Stack>
+      )
+    }
+    return (
+      <Stack gap="md">
+        <Text size="xs" fw={700} tt="uppercase" c="dimmed">{label}</Text>
+        {writes.map((write, i) => {
+          const path = typeof write.path === "string" ? write.path : null
+          if (!path) return null
+          return (
+            <WriteFileCell
+              key={`${path}-${i}`}
+              path={path}
+              physicalPath={toPhysicalPath(path, entry.userId)}
+              write={write}
+              isDryRun={entry.dryRun}
+              secret={secret}
+              onNavigate={() => onNavigateToFile(toPhysicalPath(path, entry.userId))}
+            />
+          )
+        })}
+      </Stack>
+    )
+  }
+
+  if (entry.kind === "recall" && isObj(body)) {
+    const results = Array.isArray(body.results) ? body.results.filter(isObj) : []
+    const sources = Array.isArray(body.sources)
+      ? body.sources.filter((s): s is string => typeof s === "string")
+      : []
+
+    const items =
+      results.length > 0
+        ? results
+        : sources.map((s) => ({ path: s, snippet: null as string | null }))
+
+    if (items.length === 0) {
+      return (
+        <Stack gap="xs">
+          <Text size="xs" fw={700} tt="uppercase" c="dimmed">{label}</Text>
+          <Text size="xs" c="dimmed">No memory files matched.</Text>
+        </Stack>
+      )
+    }
+
+    return (
+      <Stack gap="md">
+        <Text size="xs" fw={700} tt="uppercase" c="dimmed">{label}</Text>
+        {items.map((item, i) => {
+          const path = typeof item.path === "string" ? item.path : null
+          const snippet = typeof item.snippet === "string" ? item.snippet : null
+          if (!path) return null
+          return (
+            <RecallSourceCell
+              key={`${path}-${i}`}
+              path={path}
+              snippet={snippet}
+              onNavigate={() => onNavigateToFile(toPhysicalPath(path, entry.userId))}
+            />
+          )
+        })}
+      </Stack>
+    )
+  }
+
+  return null
+}
+
+function WriteFileCell({
+  path,
+  physicalPath,
+  write,
+  isDryRun,
+  secret,
+  onNavigate,
+}: {
+  path: string
+  physicalPath: string
+  write: Record<string, unknown>
+  isDryRun: boolean
+  secret: string
+  onNavigate: () => void
+}) {
+  const { data, isLoading } = useFileContentQuery({
+    secret,
+    path: physicalPath,
+    enabled: !isDryRun,
+  })
+
+  const args = isObj(write.args) ? write.args : {}
+  const addedContent = typeof args.content === "string" ? args.content : null
+  const addedLines = Array.isArray(args.lines)
+    ? args.lines.filter((l): l is string => typeof l === "string")
+    : []
+  const operation = typeof args.operation === "string" ? args.operation : null
+
+  return (
+    <Stack gap={4}>
+      <Group justify="space-between" gap="xs" wrap="nowrap">
+        <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+          <Text size="xs" ff="monospace" truncate fw={500}>{basename(path)}</Text>
+          <Badge size="xs" color={isDryRun ? "yellow" : "green"} variant="light">
+            {isDryRun ? "◌ dry run" : "✓ written"}
+          </Badge>
+        </Group>
+        <Anchor component="button" size="xs" c="dimmed" onClick={onNavigate} style={{ flexShrink: 0 }}>
+          ↗
+        </Anchor>
+      </Group>
+
+      {operation && (
+        <Text size="xs" c="dimmed" ff="monospace">{operation}</Text>
+      )}
+
+      <ContentBox>
+        {isDryRun ? (
+          addedContent ? (
+            addedContent.split("\n").slice(0, 24).map((line, i) => (
+              <Text key={i} size="xs" ff="monospace" c="green.7" style={{ whiteSpace: "pre" }}>
+                + {line || " "}
+              </Text>
+            ))
+          ) : addedLines.length > 0 ? (
+            addedLines.map((line, i) => (
+              <Text key={i} size="xs" ff="monospace" c="green.7" style={{ whiteSpace: "pre" }}>
+                + {line}
+              </Text>
+            ))
+          ) : (
+            <Text size="xs" c="dimmed">No content preview available.</Text>
+          )
+        ) : isLoading ? (
+          <Stack gap={4}>
+            <Skeleton height={9} width="90%" />
+            <Skeleton height={9} width="70%" />
+            <Skeleton height={9} width="80%" />
+          </Stack>
+        ) : data?.content ? (
+          data.content.split("\n").slice(0, 24).map((line, i) => (
+            <Text key={i} size="xs" ff="monospace" c="gray.7" style={{ whiteSpace: "pre" }}>
+              {line || " "}
+            </Text>
+          ))
+        ) : (
+          <Text size="xs" c="dimmed">Content unavailable.</Text>
+        )}
+      </ContentBox>
+    </Stack>
+  )
+}
+
+function RecallSourceCell({
+  path,
+  snippet,
+  onNavigate,
+}: {
+  path: string
+  snippet: string | null
+  onNavigate: () => void
+}) {
+  return (
+    <Stack gap={4}>
+      <Group justify="space-between" gap="xs" wrap="nowrap">
+        <Text size="xs" ff="monospace" truncate fw={500}>{basename(path)}</Text>
+        <Anchor component="button" size="xs" c="dimmed" onClick={onNavigate} style={{ flexShrink: 0 }}>
+          ↗
+        </Anchor>
+      </Group>
+      {snippet && (
+        <ContentBox>
+          <Text size="xs" ff="monospace" c="gray.7" style={{ whiteSpace: "pre-wrap" }}>
+            {snippet}
+          </Text>
+        </ContentBox>
+      )}
+    </Stack>
+  )
+}
+
+function ContentBox({ children }: { children: React.ReactNode }) {
+  return (
+    <Box
+      style={{
+        maxHeight: 160,
+        overflow: "auto",
+        background: "var(--mantine-color-gray-0)",
+        border: "1px solid var(--mantine-color-gray-2)",
+        borderRadius: 6,
+        padding: "6px 8px",
+      }}
+    >
+      {children}
     </Box>
   )
 }

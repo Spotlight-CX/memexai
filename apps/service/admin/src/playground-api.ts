@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { adminHeaders, apiHeaders, requestJson } from "./api"
-import type { AdminUser } from "./types"
+import type { AdminFile, AdminUser } from "./types"
 import type { RunResult, ToolDef } from "./components/tool-utils"
 
 type UsersResponse = { users: AdminUser[] }
@@ -59,6 +59,26 @@ export function useToolsQuery({
       if (!response.ok) throw new Error(body?.error?.message ?? `HTTP ${response.status}`)
       return body as ToolsResponse
     },
+  })
+}
+
+export function useFileContentQuery({
+  secret,
+  path,
+  enabled,
+}: {
+  secret: string
+  path: string
+  enabled: boolean
+}) {
+  return useQuery({
+    queryKey: ["admin-file", secret, path],
+    enabled: enabled && Boolean(secret) && Boolean(path),
+    staleTime: 10_000,
+    queryFn: () =>
+      requestJson<AdminFile>(`/v1/admin/files/${path}`, {
+        headers: adminHeaders(secret),
+      }),
   })
 }
 
