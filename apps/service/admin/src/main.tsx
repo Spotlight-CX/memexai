@@ -22,7 +22,7 @@ import {
   useNavigate,
 } from "react-router-dom"
 import { useAdminData } from "./hooks"
-import { DotsHorizontalIcon } from "./icons"
+import { DotsHorizontalIcon, ExternalLinkIcon } from "./icons"
 import { FilesView } from "./components/FilesView"
 import { SecretGate } from "./components/SecretGate"
 import { SetupWizard } from "./components/SetupWizard"
@@ -127,6 +127,15 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
                   <Menu.Item onClick={() => setOverlay("users")}>Users</Menu.Item>
                   <Menu.Item onClick={() => setOverlay("revisions")}>Revisions</Menu.Item>
                   <Menu.Item onClick={() => setOverlay("logs")}>Access Logs</Menu.Item>
+                  <Menu.Divider />
+                  <Menu.Item
+                    leftSection={<ExternalLinkIcon />}
+                    component="a"
+                    href="https://join.slack.com/t/memexaispace/shared_invite/zt-3yy24alf6-t1wRQsErf09JViHww_qlGw"
+                    target="_blank"
+                  >
+                    Community / Support
+                  </Menu.Item>
                   <Menu.Divider />
                   <Menu.Item color="red" onClick={onSignOut}>Sign out</Menu.Item>
                 </Menu.Dropdown>

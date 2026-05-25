@@ -1,4 +1,5 @@
 import {
+  Anchor,
   Box,
   Button,
   Group,
@@ -360,6 +361,17 @@ export function SetupWizard({ secret, onComplete }: { secret: string; onComplete
             Agents will now use your memory configuration. You can refine it anytime from the Configure tab.
           </Text>
         </Stack>
+        <Paper withBorder p="md" style={{ textAlign: "center", width: "100%" }}>
+          <Text size="sm" fw={500} mb={4}>Community / Support</Text>
+          <Text size="sm" c="dimmed" mb={8}>Have a question or want to share feedback?</Text>
+          <Anchor
+            href="https://join.slack.com/t/memexaispace/shared_invite/zt-3yy24alf6-t1wRQsErf09JViHww_qlGw"
+            target="_blank"
+            size="sm"
+          >
+            Join us on Slack →
+          </Anchor>
+        </Paper>
         <Button onClick={onComplete}>Go to admin →</Button>
       </Stack>
     </Box>
