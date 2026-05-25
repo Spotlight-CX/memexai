@@ -1,4 +1,4 @@
-import { Box, Button, Group, SegmentedControl, Stack, Text, UnstyledButton } from "@mantine/core"
+import { Box, Button, Group, Select, Stack, Text } from "@mantine/core"
 import { useMemo, useState } from "react"
 import {
   loadPrefs,
@@ -9,23 +9,36 @@ import {
 } from "./tool-utils"
 
 type SnippetHarness = TypeScriptSnippetHarness | PythonSnippetHarness
+type SnippetSelection = {
+  language: SnippetLanguage
+  harness: SnippetHarness
+}
 
 const AGENTIC_TOOLS = new Set(["memory_memorize", "memory_search"])
-const LANGUAGE_OPTIONS: { label: string; value: SnippetLanguage }[] = [
-  { label: "TypeScript", value: "typescript" },
-  { label: "Python", value: "python" },
-]
 const TYPESCRIPT_HARNESSES: { label: string; value: TypeScriptSnippetHarness }[] = [
-  { label: "Vercel AI", value: "vercel-ai" },
-  { label: "OpenAI", value: "openai" },
-  { label: "LangChain", value: "langchain" },
   { label: "Raw SDK", value: "raw-sdk" },
+  { label: "LangChain", value: "langchain" },
+  { label: "Vercel AI SDK", value: "vercel-ai" },
 ]
 const PYTHON_HARNESSES: { label: string; value: PythonSnippetHarness }[] = [
   { label: "Raw SDK", value: "raw-sdk" },
   { label: "LangChain", value: "langchain" },
-  { label: "LlamaIndex", value: "llamaindex" },
-  { label: "CrewAI", value: "crewai" },
+]
+const SDK_OPTIONS = [
+  {
+    group: "Python",
+    items: PYTHON_HARNESSES.map((option) => ({
+      label: option.label,
+      value: selectionValue("python", option.value),
+    })),
+  },
+  {
+    group: "JavaScript / TypeScript",
+    items: TYPESCRIPT_HARNESSES.map((option) => ({
+      label: option.label,
+      value: selectionValue("typescript", option.value),
+    })),
+  },
 ]
 
 function buildSnippet(
@@ -352,16 +365,55 @@ function isSnippetLanguage(value: unknown): value is SnippetLanguage {
 }
 
 function isTypeScriptHarness(value: unknown): value is TypeScriptSnippetHarness {
-  return value === "vercel-ai" || value === "openai" || value === "langchain" || value === "raw-sdk"
+  return value === "vercel-ai" || value === "langchain" || value === "raw-sdk"
 }
 
 function isPythonHarness(value: unknown): value is PythonSnippetHarness {
-  return value === "raw-sdk" || value === "langchain" || value === "llamaindex" || value === "crewai"
+  return value === "raw-sdk" || value === "langchain"
 }
 
 function harnessLabel(language: SnippetLanguage, harness: SnippetHarness): string {
   const options = language === "python" ? PYTHON_HARNESSES : TYPESCRIPT_HARNESSES
   return options.find((option) => option.value === harness)?.label ?? "Raw SDK"
+}
+
+function selectionValue(language: SnippetLanguage, harness: SnippetHarness): string {
+  return `${language}:${harness}`
+}
+
+function selectionFromPrefs(): SnippetSelection {
+  const prefs = loadPrefs()
+  const initialLanguage = isSnippetLanguage(prefs.snippetLanguage) ? prefs.snippetLanguage : "typescript"
+  const initialTypeScriptHarness = isTypeScriptHarness(prefs.typescriptSnippetHarness)
+    ? prefs.typescriptSnippetHarness
+    : isTypeScriptHarness(prefs.snippetHarness)
+      ? prefs.snippetHarness
+      : "vercel-ai"
+  const initialPythonHarness = isPythonHarness(prefs.pythonSnippetHarness) ? prefs.pythonSnippetHarness : "raw-sdk"
+
+  if (initialLanguage === "python") return { language: "python", harness: initialPythonHarness }
+  return { language: "typescript", harness: initialTypeScriptHarness }
+}
+
+function parseSelection(value: string | null): SnippetSelection | null {
+  if (!value) return null
+  const [language, harness] = value.split(":")
+  if (!isSnippetLanguage(language)) return null
+  if (language === "python") {
+    if (!isPythonHarness(harness)) return null
+    return { language, harness }
+  }
+  if (!isTypeScriptHarness(harness)) return null
+  return { language, harness }
+}
+
+function saveSelection(selection: SnippetSelection) {
+  const prefs = loadPrefs()
+  if (selection.language === "python") {
+    savePrefs({ ...prefs, snippetLanguage: selection.language, pythonSnippetHarness: selection.harness as PythonSnippetHarness })
+    return
+  }
+  savePrefs({ ...prefs, snippetLanguage: selection.language, typescriptSnippetHarness: selection.harness as TypeScriptSnippetHarness })
 }
 
 export function CopyCodeButton({
@@ -373,44 +425,21 @@ export function CopyCodeButton({
   args: unknown
   userId: string
 }) {
-  const prefs = loadPrefs()
-  const initialLanguage = isSnippetLanguage(prefs.snippetLanguage) ? prefs.snippetLanguage : "typescript"
-  const initialTypeScriptHarness = isTypeScriptHarness(prefs.typescriptSnippetHarness)
-    ? prefs.typescriptSnippetHarness
-    : isTypeScriptHarness(prefs.snippetHarness)
-      ? prefs.snippetHarness
-      : "vercel-ai"
-  const initialPythonHarness = isPythonHarness(prefs.pythonSnippetHarness) ? prefs.pythonSnippetHarness : "raw-sdk"
-  const [opened, setOpened] = useState(false)
-  const [language, setLanguage] = useState<SnippetLanguage>(initialLanguage)
-  const [typescriptHarness, setTypeScriptHarness] = useState<TypeScriptSnippetHarness>(initialTypeScriptHarness)
-  const [pythonHarness, setPythonHarness] = useState<PythonSnippetHarness>(initialPythonHarness)
+  const [selection, setSelection] = useState<SnippetSelection>(() => selectionFromPrefs())
   const [copied, setCopied] = useState(false)
-  const currentHarness = language === "python" ? pythonHarness : typescriptHarness
-  const harnessOptions = language === "python" ? PYTHON_HARNESSES : TYPESCRIPT_HARNESSES
-  const title = `${language === "python" ? "Python" : "TypeScript"} - ${harnessLabel(language, currentHarness)}`
+  const selectedValue = selectionValue(selection.language, selection.harness)
+  const title = `${selection.language === "python" ? "Python" : "JavaScript / TypeScript"} - ${harnessLabel(selection.language, selection.harness)}`
 
   const snippet = useMemo(
-    () => buildSnippet(language, currentHarness, toolName, args, userId),
-    [args, currentHarness, language, toolName, userId],
+    () => buildSnippet(selection.language, selection.harness, toolName, args, userId),
+    [args, selection.harness, selection.language, toolName, userId],
   )
 
-  function handleLanguageChange(nextLanguage: string) {
-    if (!isSnippetLanguage(nextLanguage)) return
-    setLanguage(nextLanguage)
-    savePrefs({ ...loadPrefs(), snippetLanguage: nextLanguage })
-  }
-
-  function handleHarnessChange(nextHarness: string) {
-    if (language === "python") {
-      if (!isPythonHarness(nextHarness)) return
-      setPythonHarness(nextHarness)
-      savePrefs({ ...loadPrefs(), pythonSnippetHarness: nextHarness })
-    } else {
-      if (!isTypeScriptHarness(nextHarness)) return
-      setTypeScriptHarness(nextHarness)
-      savePrefs({ ...loadPrefs(), typescriptSnippetHarness: nextHarness })
-    }
+  function handleSelectionChange(nextValue: string | null) {
+    const nextSelection = parseSelection(nextValue)
+    if (!nextSelection) return
+    setSelection(nextSelection)
+    saveSelection(nextSelection)
   }
 
   function handleCopy() {
@@ -421,79 +450,64 @@ export function CopyCodeButton({
   }
 
   return (
-    <Box mt="sm" style={{ minWidth: 0 }}>
-      <UnstyledButton
-        onClick={() => setOpened((value) => !value)}
-        style={{ width: "100%", borderTop: "1px solid var(--mantine-color-gray-2)", paddingTop: 8 }}
-      >
-        <Group gap="xs" justify="space-between">
-          <Text size="xs" c="dimmed" fw={600}>{opened ? "Code snippet" : "Get code snippet"}</Text>
-          <Text size="xs" c="dimmed">{opened ? "Hide" : title}</Text>
-        </Group>
-      </UnstyledButton>
-
-      {opened && (
-        <Stack gap="xs" mt="xs">
-          <Group gap="xs" justify="space-between" align="flex-end" wrap="wrap">
-            <Box style={{ flex: "1 1 150px", minWidth: 0 }}>
-              <Text size="10px" c="dimmed" fw={700} mb={3} style={{ textTransform: "uppercase" }}>
-                Language
-              </Text>
-              <SegmentedControl
-                size="xs"
-                value={language}
-                onChange={handleLanguageChange}
-                data={LANGUAGE_OPTIONS}
-                fullWidth
-              />
-            </Box>
-            <Box style={{ flex: "1.4 1 210px", minWidth: 0 }}>
-              <Text size="10px" c="dimmed" fw={700} mb={3} style={{ textTransform: "uppercase" }}>
-                Harness
-              </Text>
-              <SegmentedControl
-                size="xs"
-                value={currentHarness}
-                onChange={handleHarnessChange}
-                data={harnessOptions}
-                fullWidth
-              />
-            </Box>
-          </Group>
-
-          <Box
-            style={{
-              border: "1px solid var(--mantine-color-gray-3)",
-              borderRadius: 8,
-              background: "var(--mantine-color-gray-0)",
-              overflow: "hidden",
-            }}
-          >
-            <Group justify="space-between" px="sm" py={6} style={{ borderBottom: "1px solid var(--mantine-color-gray-2)" }}>
-              <Text size="xs" fw={700} c="gray.7">{title}</Text>
-              <Button size="compact-xs" variant="subtle" onClick={handleCopy}>
-                {copied ? "Copied" : "Copy"}
-              </Button>
-            </Group>
-            <Box
-              component="pre"
-              m={0}
-              p="sm"
-              style={{
-                maxHeight: 360,
-                minHeight: 220,
-                overflow: "auto",
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                fontSize: 12,
-                lineHeight: 1.55,
-                whiteSpace: "pre",
+    <Box mt="sm" pt="sm" style={{ minWidth: 0, borderTop: "1px solid var(--mantine-color-gray-2)" }}>
+      <Stack gap="xs">
+        <Group gap="xs" justify="space-between" align="center" wrap="nowrap">
+          <Text size="xs" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>SDK Example</Text>
+          <Group gap={6} wrap="nowrap">
+            <Select
+              aria-label="SDK example"
+              size="xs"
+              variant="unstyled"
+              value={selectedValue}
+              onChange={handleSelectionChange}
+              data={SDK_OPTIONS}
+              allowDeselect={false}
+              comboboxProps={{ width: 240, position: "bottom-end" }}
+              styles={{
+                input: {
+                  width: 164,
+                  minHeight: 28,
+                  height: 28,
+                  paddingInlineStart: 0,
+                  paddingInlineEnd: 24,
+                  border: 0,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "var(--mantine-color-gray-7)",
+                  background: "transparent",
+                  textAlign: "right",
+                },
+                section: { color: "var(--mantine-color-gray-5)" },
               }}
-            >
-              {snippet}
-            </Box>
-          </Box>
-        </Stack>
-      )}
+            />
+            <Button size="compact-xs" variant="subtle" onClick={handleCopy}>
+              {copied ? "Copied" : "Copy"}
+            </Button>
+          </Group>
+        </Group>
+        <Box
+          component="pre"
+          aria-label={title}
+          m={0}
+          p="sm"
+          style={{
+            maxHeight: 280,
+            minHeight: 88,
+            overflow: "auto",
+            border: "1px solid var(--mantine-color-gray-3)",
+            borderRadius: 8,
+            background: "linear-gradient(180deg, #17202d 0%, #111827 100%)",
+            color: "var(--mantine-color-gray-1)",
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+            fontSize: 12,
+            lineHeight: 1.55,
+            whiteSpace: "pre",
+          }}
+        >
+          {snippet}
+        </Box>
+      </Stack>
     </Box>
   )
 }
