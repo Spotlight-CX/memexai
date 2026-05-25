@@ -427,8 +427,8 @@ export function CopyCodeButton({
         style={{ width: "100%", borderTop: "1px solid var(--mantine-color-gray-2)", paddingTop: 8 }}
       >
         <Group gap="xs" justify="space-between">
-          <Text size="xs" c="dimmed" fw={600}>SDK example</Text>
-          <Text size="xs" c="dimmed">{opened ? "Hide" : "Show"} copy snippet</Text>
+          <Text size="xs" c="dimmed" fw={600}>{opened ? "Code snippet" : "Get code snippet"}</Text>
+          <Text size="xs" c="dimmed">{opened ? "Hide" : title}</Text>
         </Group>
       </UnstyledButton>
 
