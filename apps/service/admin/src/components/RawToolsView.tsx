@@ -21,6 +21,7 @@ import { useSearchParams } from "react-router-dom"
 import remarkGfm from "remark-gfm"
 import { CopyCodeButton } from "./CopyCodeButton"
 import { ResponseBody } from "./ResponseBody"
+import { UserSelector } from "./UserSelector"
 import {
   type ArgMode,
   type PropSchema,
@@ -37,10 +38,10 @@ import {
 
 type RawToolsViewProps = {
   apiKey: string
+  secret: string
   tools: ToolDef[]
   toolsError: string | null
   userId: string
-  userOptions: string[]
   onUserIdChange: (userId: string) => void
 }
 
@@ -225,7 +226,7 @@ const mdComponents: React.ComponentProps<typeof ReactMarkdown>["components"] = {
   ),
 }
 
-export function RawToolsView({ apiKey, tools, toolsError, userId, userOptions, onUserIdChange }: RawToolsViewProps) {
+export function RawToolsView({ apiKey, secret, tools, toolsError, userId, onUserIdChange }: RawToolsViewProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedTool = searchParams.get("tool") ?? ""
   const [argMode, setArgMode] = useState<ArgMode>(() => loadPrefs().argMode ?? "form")
@@ -334,22 +335,12 @@ export function RawToolsView({ apiKey, tools, toolsError, userId, userOptions, o
       <Box px="sm" py={6} style={{ borderBottom: "1px solid var(--mantine-color-gray-2)", flexShrink: 0 }}>
         <Group gap="sm" justify="space-between" align="center" wrap="nowrap">
           <Button size="xs" variant="subtle" onClick={goQuickTest}>
-            * Memorize · Search ↑ Quick Test
+            Quick test
           </Button>
           <Group gap="xs" align="center" wrap="nowrap" style={{ width: 420, maxWidth: "55%" }}>
-            <Text size="xs" fw={600} c="dimmed" style={{ whiteSpace: "nowrap" }}>User</Text>
-            <TextInput
-              size="xs"
-              value={userId}
-              onChange={(e) => onUserIdChange(e.currentTarget.value)}
-              placeholder="Enter or select a userId..."
-              style={{ flex: 1, minWidth: 0 }}
-              styles={{ input: { fontFamily: "monospace", fontSize: 11 } }}
-              list="playground-user-options"
-            />
-            <datalist id="playground-user-options">
-              {userOptions.map((u) => <option key={u} value={u} />)}
-            </datalist>
+            <Box style={{ flex: 1, minWidth: 0 }}>
+              <UserSelector secret={secret} value={userId} onChange={onUserIdChange} compact />
+            </Box>
           </Group>
         </Group>
       </Box>

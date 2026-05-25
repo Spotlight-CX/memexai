@@ -118,7 +118,11 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
   })
 
   app.get("/v1/admin/health", { preHandler: adminAuth }, async () => ({ ok: true, admin: true }))
-  app.get("/v1/admin/users", { preHandler: adminAuth }, async () => listAdminUsers(db))
+  app.get("/v1/admin/users", { preHandler: adminAuth }, async (request) => {
+    const query = request.query as { q?: string; limit?: string }
+    const limit = query.limit ? Number(query.limit) : undefined
+    return listAdminUsers(db, { q: query.q, limit })
+  })
   app.get("/v1/admin/files", { preHandler: adminAuth }, async (request) => {
     const query = request.query as { prefix?: string }
     return listAdminFiles(db, { prefix: query.prefix })

@@ -16,6 +16,16 @@ function createAdminDb() {
     query: async (sql: string, values?: unknown[]) => {
       if (sql.includes("WITH user_files AS")) {
         expect(sql).not.toContain("split_part(mx_file.physical_path")
+        if (values?.[0] === "%user_4%" && values?.[1] === 50) {
+          return {
+            rows: [{
+              user_id: "user_456",
+              file_count: "1",
+              last_write_at: new Date("2026-05-10T08:00:00Z"),
+              last_read_at: null,
+            }],
+          }
+        }
         return { rows: [{ user_id: "user_123", file_count: "2", last_write_at: new Date("2026-05-09T08:00:00Z"), last_read_at: null }] }
       }
 
@@ -88,6 +98,15 @@ describe("admin routes", () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.json().users[0]).toMatchObject({ userId: "user_123", fileCount: 2 })
+  })
+
+  test("searches and limits derived users", async () => {
+    const app = buildServer({ db: createAdminDb() as never, config })
+    const response = await app.inject({ method: "GET", url: "/v1/admin/users?q=user_4&limit=50", headers: adminHeaders })
+    await app.close()
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().users[0]).toMatchObject({ userId: "user_456", fileCount: 1 })
   })
 
   test("returns file details by physical path", async () => {

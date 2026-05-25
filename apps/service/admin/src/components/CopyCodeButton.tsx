@@ -1,3 +1,4 @@
+import { CodeHighlight } from "@mantine/code-highlight"
 import { Box, Button, Group, Select, Stack, Text } from "@mantine/core"
 import { useMemo, useState } from "react"
 import {
@@ -429,6 +430,7 @@ export function CopyCodeButton({
   const [copied, setCopied] = useState(false)
   const selectedValue = selectionValue(selection.language, selection.harness)
   const title = `${selection.language === "python" ? "Python" : "JavaScript / TypeScript"} - ${harnessLabel(selection.language, selection.harness)}`
+  const language = selection.language === "python" ? "python" : "tsx"
 
   const snippet = useMemo(
     () => buildSnippet(selection.language, selection.harness, toolName, args, userId),
@@ -450,7 +452,7 @@ export function CopyCodeButton({
   }
 
   return (
-    <Box mt="sm" pt="sm" style={{ minWidth: 0, borderTop: "1px solid var(--mantine-color-gray-2)" }}>
+    <Box mt="sm" pt="sm" style={{ minWidth: 0 }}>
       <Stack gap="xs">
         <Group gap="xs" justify="space-between" align="center" wrap="nowrap">
           <Text size="xs" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>SDK Example</Text>
@@ -487,25 +489,15 @@ export function CopyCodeButton({
           </Group>
         </Group>
         <Box
-          component="pre"
           aria-label={title}
-          m={0}
-          p="sm"
           style={{
-            maxHeight: 280,
-            minHeight: 88,
+            maxHeight: 320,
             overflow: "auto",
             border: "1px solid var(--mantine-color-gray-3)",
             borderRadius: 8,
-            background: "linear-gradient(180deg, #17202d 0%, #111827 100%)",
-            color: "var(--mantine-color-gray-1)",
-            fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-            fontSize: 12,
-            lineHeight: 1.55,
-            whiteSpace: "pre",
           }}
         >
-          {snippet}
+          <CodeHighlight code={snippet} language={language} withCopyButton={false} />
         </Box>
       </Stack>
     </Box>

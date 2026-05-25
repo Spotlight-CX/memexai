@@ -1,4 +1,12 @@
 import "@mantine/core/styles.css"
+import "@mantine/code-highlight/styles.css"
+import { CodeHighlightAdapterProvider, createHighlightJsAdapter } from "@mantine/code-highlight"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import hljs from "highlight.js/lib/core"
+import bash from "highlight.js/lib/languages/bash"
+import json from "highlight.js/lib/languages/json"
+import python from "highlight.js/lib/languages/python"
+import typescript from "highlight.js/lib/languages/typescript"
 import {
   ActionIcon,
   AppShell,
@@ -35,6 +43,12 @@ import type { AdminFile, Overlay } from "./types"
 
 const ADMIN_SECRET_KEY = "memexai.adminSecret"
 const API_KEY_KEY = "memexai.apiKey"
+const queryClient = new QueryClient()
+hljs.registerLanguage("bash", bash)
+hljs.registerLanguage("json", json)
+hljs.registerLanguage("python", python)
+hljs.registerLanguage("tsx", typescript)
+hljs.registerLanguage("typescript", typescript)
 
 const PAGES = ["files", "configure", "playground"] as const
 type Page = (typeof PAGES)[number]
@@ -225,4 +239,10 @@ function App() {
   )
 }
 
-createRoot(document.getElementById("root")!).render(<App />)
+createRoot(document.getElementById("root")!).render(
+  <QueryClientProvider client={queryClient}>
+    <CodeHighlightAdapterProvider adapter={createHighlightJsAdapter(hljs)}>
+      <App />
+    </CodeHighlightAdapterProvider>
+  </QueryClientProvider>,
+)
