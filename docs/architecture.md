@@ -98,7 +98,7 @@ These are the default tools injected into the model's system prompt via `getProm
 | `memory_read` | Read a single file by virtual path |
 | `memory_write` | Create or overwrite a file |
 | `memory_patch` | Append or replace lines within a file |
-| `memory_smart_read` | Build one bounded markdown context block from visible memory files |
+| `memory_smart_read` | Build one bounded markdown context block from visible memory files; query reads can include deterministic one-hop linked context |
 
 These give the model (or your code) precise control over individual files. Use them when you need deterministic writes, custom extraction logic, or when you're building tooling on top of MemexAI. Every write through raw tools still creates a revision snapshot and an access log entry.
 

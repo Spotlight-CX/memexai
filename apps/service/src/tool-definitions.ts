@@ -89,13 +89,15 @@ export const toolDefinitions = [
   },
   {
     name: "memory_smart_read",
-    description: "Read all or the most relevant memory files in one merged context block under a character budget.",
+    description: "Read all or the most relevant memory files in one merged context block under a character budget. With a query, deterministic linked recall includes visible one-hop [[user/...]] or [[shared/...]] links if budget remains.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
       properties: {
         maxChars: { type: "number", description: "Maximum characters to return. Default: 24000." },
         query: { type: "string", description: "Optional query to rank files by keyword relevance." },
+        includeRelated: { type: "boolean", description: "Include visible linked memory files. Defaults to true when query is provided." },
+        relatedDepth: { type: "number", description: "Maximum link expansion depth. 0 disables linked retrieval. Default: 1, max: 2." },
       },
     },
   },

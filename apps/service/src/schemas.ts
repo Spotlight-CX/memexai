@@ -47,6 +47,8 @@ export const patchArgsSchema = z.discriminatedUnion("operation", [
 export const smartReadArgsSchema = z.object({
   maxChars: z.number().int().positive().max(200_000).default(24_000).optional(),
   query: z.string().min(1).optional(),
+  includeRelated: z.boolean().optional(),
+  relatedDepth: z.number().int().min(0).max(2).default(1).optional(),
 })
 
 export const searchArgsSchema = z.object({

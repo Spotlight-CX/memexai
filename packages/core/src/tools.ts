@@ -187,6 +187,26 @@ type SmartReadRow = FileRow & {
   rank?: number
 }
 
+type MemoryContextReason = "query_match" | "recency" | "linked"
+
+type MemoryContextFile = {
+  path: string
+  content: string
+  updatedAt: Date
+  score: number
+  reason: MemoryContextReason
+  linkedFrom?: string
+  depth: number
+  order: number
+}
+
+type MemoryContextMeta = {
+  path: string
+  reason: MemoryContextReason
+  linkedFrom?: string
+  depth: number
+}
+
 function buildMemoryBlock(input: {
   included: { path: string; content: string; updatedAt: Date }[]
   omitted: string[]
@@ -213,8 +233,74 @@ function buildMemoryBlock(input: {
   ].filter(Boolean).join("\n\n")
 }
 
-export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolContext) {
-  const { maxChars = 24_000, query } = smartReadArgsSchema.parse(args ?? {})
+export function extractWikiLinks(content: string): string[] {
+  const links = new Set<string>()
+  const regex = /\[\[([^\]\n]+)\]\]/g
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(content)) !== null) {
+    const path = match[1]?.trim()
+    if (path) links.add(path)
+  }
+  return [...links]
+}
+
+function rowToMemoryContextFile(row: SmartReadRow, ctx: ToolContext, index: number, reason: MemoryContextReason): MemoryContextFile | null {
+  const path = physicalToVirtual(row.physical_path, ctx)
+  if (!path) return null
+  return {
+    path,
+    content: row.content_text,
+    updatedAt: row.updated_at,
+    score: typeof row.rank === "number" ? Number(row.rank) : 0,
+    reason,
+    depth: 0,
+    order: index,
+  }
+}
+
+async function fetchVisibleFilesByVirtualPath(db: Db, paths: string[], ctx: ToolContext): Promise<MemoryContextFile[]> {
+  const physicalPaths = paths.flatMap((path) => {
+    try {
+      return [virtualToPhysical(path, ctx)]
+    } catch {
+      return []
+    }
+  })
+  if (physicalPaths.length === 0) return []
+
+  const { rows } = await db.query<SmartReadRow>(
+    `SELECT id, physical_path, content_text, created_at, updated_at
+     FROM mx_file
+     WHERE physical_path = ANY($1)`,
+    [physicalPaths],
+  )
+
+  return rows.flatMap((row, index) => {
+    const file = rowToMemoryContextFile(row, ctx, index, "linked")
+    return file ? [file] : []
+  })
+}
+
+export async function resolveVisibleLinkedPaths(db: Db, paths: string[], ctx: ToolContext): Promise<MemoryContextFile[]> {
+  return fetchVisibleFilesByVirtualPath(db, paths, ctx)
+}
+
+function rankMemoryContextFiles(files: MemoryContextFile[]): MemoryContextFile[] {
+  return [...files].sort((a, b) => {
+    const reasonDelta = reasonPriority(a.reason) - reasonPriority(b.reason)
+    if (reasonDelta !== 0) return reasonDelta
+    if (b.score !== a.score) return b.score - a.score
+    const recencyDelta = b.updatedAt.getTime() - a.updatedAt.getTime()
+    if (recencyDelta !== 0) return recencyDelta
+    return a.order - b.order
+  })
+}
+
+function reasonPriority(reason: MemoryContextReason): number {
+  return reason === "linked" ? 1 : 0
+}
+
+async function fetchSmartReadSeeds(db: Db, input: { query?: string }, ctx: ToolContext): Promise<MemoryContextFile[]> {
   const values: unknown[] = [`users/${ctx.userId}/%`]
   let sql = `
     SELECT id, physical_path, content_text, created_at, updated_at
@@ -223,8 +309,8 @@ export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolCon
     ORDER BY updated_at DESC
   `
 
-  if (query) {
-    values.unshift(query)
+  if (input.query) {
+    values.unshift(input.query)
     sql = `
       WITH q AS (SELECT plainto_tsquery('english', $1) AS query)
       SELECT id, physical_path, content_text, created_at, updated_at, ts_rank_cd(search_vector, q.query) AS rank
@@ -236,19 +322,76 @@ export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolCon
   }
 
   const { rows } = await db.query<SmartReadRow>(sql, values)
-  const visibleFiles = rows.flatMap((row) => {
-    const path = physicalToVirtual(row.physical_path, ctx)
-    return path ? [{ path, content: row.content_text, updatedAt: row.updated_at }] : []
+  return rows.flatMap((row, index) => {
+    const file = rowToMemoryContextFile(row, ctx, index, input.query ? "query_match" : "recency")
+    return file ? [file] : []
   })
+}
 
-  const included: { path: string; content: string; updatedAt: Date }[] = []
+export async function retrieveMemoryContext(db: Db, ctx: ToolContext, options: {
+  maxChars: number
+  query?: string
+  includeRelated?: boolean
+  relatedDepth?: number
+  linkedScoreMultiplier?: number
+}) {
+  const relatedDepth = options.relatedDepth ?? 1
+  const includeRelated = options.includeRelated ?? Boolean(options.query)
+  const linkedScoreMultiplier = options.linkedScoreMultiplier ?? 0.35
+  const seeds = await fetchSmartReadSeeds(db, { query: options.query }, ctx)
+  const candidatesByPath = new Map<string, MemoryContextFile>()
+  const visited = new Set<string>()
+
+  for (const seed of seeds) {
+    candidatesByPath.set(seed.path, seed)
+    visited.add(seed.path)
+  }
+
+  let frontier = seeds
+  for (let depth = 1; includeRelated && depth <= relatedDepth && frontier.length > 0; depth += 1) {
+    const linkSources = new Map<string, MemoryContextFile>()
+    for (const source of frontier) {
+      for (const linkedPath of extractWikiLinks(source.content)) {
+        if (visited.has(linkedPath) || linkSources.has(linkedPath)) continue
+        try {
+          virtualToPhysical(linkedPath, ctx)
+        } catch {
+          continue
+        }
+        linkSources.set(linkedPath, source)
+      }
+    }
+
+    const linkOrder = new Map([...linkSources.keys()].map((path, index) => [path, index]))
+    const linkedFiles = (await resolveVisibleLinkedPaths(db, [...linkSources.keys()], ctx))
+      .sort((a, b) => (linkOrder.get(a.path) ?? 0) - (linkOrder.get(b.path) ?? 0))
+    frontier = []
+    for (const linkedFile of linkedFiles) {
+      if (visited.has(linkedFile.path)) continue
+      const source = linkSources.get(linkedFile.path)
+      if (!source) continue
+      const candidate = {
+        ...linkedFile,
+        reason: "linked" as const,
+        linkedFrom: source.path,
+        depth,
+        score: source.score * linkedScoreMultiplier,
+        order: seeds.length + candidatesByPath.size,
+      }
+      candidatesByPath.set(candidate.path, candidate)
+      visited.add(candidate.path)
+      frontier.push(candidate)
+    }
+  }
+
+  const included: MemoryContextFile[] = []
   const omitted: string[] = []
   let usedChars = 0
 
-  for (const file of visibleFiles) {
+  for (const file of rankMemoryContextFiles([...candidatesByPath.values()])) {
     const sectionChars = file.path.length + file.content.length + 64
-    if (usedChars + sectionChars <= maxChars || included.length === 0) {
-      if (sectionChars <= maxChars || included.length === 0) {
+    if (usedChars + sectionChars <= options.maxChars || included.length === 0) {
+      if (sectionChars <= options.maxChars || included.length === 0) {
         included.push(file)
         usedChars += sectionChars
         continue
@@ -257,13 +400,30 @@ export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolCon
     omitted.push(file.path)
   }
 
+  return {
+    included,
+    omitted,
+    filesIncludedMeta: included.map((file): MemoryContextMeta => ({
+      path: file.path,
+      reason: file.reason,
+      linkedFrom: file.linkedFrom,
+      depth: file.depth,
+    })),
+  }
+}
+
+export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolContext) {
+  const { maxChars = 24_000, query, includeRelated, relatedDepth = 1 } = smartReadArgsSchema.parse(args ?? {})
+  const context = await retrieveMemoryContext(db, ctx, { maxChars, query, includeRelated, relatedDepth })
+
   await logAccess(db, { physicalPath: "*", operation: "smart_read", ctx })
 
   return {
-    content: buildMemoryBlock({ included, omitted }),
-    filesIncluded: included.map((file) => file.path),
-    filesOmitted: omitted,
-    truncated: omitted.length > 0,
+    content: buildMemoryBlock({ included: context.included, omitted: context.omitted }),
+    filesIncluded: context.included.map((file) => file.path),
+    filesOmitted: context.omitted,
+    filesIncludedMeta: context.filesIncludedMeta,
+    truncated: context.omitted.length > 0,
   }
 }
 
@@ -524,6 +684,8 @@ async function executeAgenticMemorySearch(
           properties: {
             maxChars: { type: "number" },
             query: { type: "string" },
+            includeRelated: { type: "boolean" },
+            relatedDepth: { type: "number" },
           },
         }),
         execute: async (args: unknown) => {

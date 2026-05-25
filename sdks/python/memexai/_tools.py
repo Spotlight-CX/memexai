@@ -86,6 +86,14 @@ def bool_arg(args: Dict[str, Any], name: str, default: bool) -> bool:
         raise MemexError("INVALID_ARGS", f"{name} must be a boolean")
     return value
 
+def bounded_int_arg(args: Dict[str, Any], name: str, default: int, min_value: int, max_value: int) -> int:
+    value = args.get(name)
+    if value is None:
+        return default
+    if not isinstance(value, int) or isinstance(value, bool) or value < min_value or value > max_value:
+        raise MemexError("INVALID_ARGS", f"{name} must be an integer between {min_value} and {max_value}")
+    return value
+
 def datetime_to_iso(value: Any) -> str:
     if not isinstance(value, datetime):
         return str(value)
@@ -272,12 +280,58 @@ async def execute_memory_patch(db: DbPool, args: Dict[str, Any], ctx: RequestCon
         "noOp": not changed,
     }
 
-async def execute_memory_smart_read(db: DbPool, args: Dict[str, Any], ctx: RequestContext) -> Dict[str, Any]:
-    max_chars = positive_int_arg(args, "maxChars", 24000, 200000)
-    query_str = args.get("query")
-    if query_str is not None and (not isinstance(query_str, str) or not query_str):
-        raise MemexError("INVALID_ARGS", "query must be a non-empty string")
+def extract_wiki_links(content: str) -> List[str]:
+    links = []
+    seen = set()
+    for match in re.finditer(r"\[\[([^\]\n]+)\]\]", content):
+        path = match.group(1).strip()
+        if path and path not in seen:
+            links.append(path)
+            seen.add(path)
+    return links
 
+def row_to_memory_context_file(row: Dict[str, Any], ctx: RequestContext, index: int, reason: str) -> Optional[Dict[str, Any]]:
+    path = physical_to_virtual(row["physical_path"], ctx)
+    if not path:
+        return None
+    return {
+        "path": path,
+        "content": row["content_text"],
+        "updatedAt": row["updated_at"],
+        "score": float(row.get("rank") or 0),
+        "reason": reason,
+        "depth": 0,
+        "order": index,
+    }
+
+async def resolve_visible_linked_paths(db: DbPool, paths: List[str], ctx: RequestContext) -> List[Dict[str, Any]]:
+    physical_paths = []
+    for path in paths:
+        try:
+            physical_paths.append(virtual_to_physical(path, ctx))
+        except MemexError:
+            pass
+
+    if not physical_paths:
+        return []
+
+    rows = await db.query(
+        """
+          SELECT id, physical_path, content_text, created_at, updated_at
+          FROM mx_file
+          WHERE physical_path = ANY($1)
+        """,
+        physical_paths,
+    )
+
+    files = []
+    for index, row in enumerate(rows):
+        file = row_to_memory_context_file(row, ctx, index, "linked")
+        if file:
+            files.append(file)
+    return files
+
+async def fetch_smart_read_seeds(db: DbPool, query_str: Optional[str], ctx: RequestContext) -> List[Dict[str, Any]]:
     values = [f"users/{ctx.user_id}/%"]
     if query_str:
         values.insert(0, query_str)
@@ -298,22 +352,85 @@ async def execute_memory_smart_read(db: DbPool, args: Dict[str, Any], ctx: Reque
         """
 
     rows = await db.query(sql, *values)
+    files = []
+    reason = "query_match" if query_str else "recency"
+    for index, row in enumerate(rows):
+        file = row_to_memory_context_file(row, ctx, index, reason)
+        if file:
+            files.append(file)
+    return files
 
-    visible_files = []
-    for row in rows:
-        path = physical_to_virtual(row["physical_path"], ctx)
-        if path:
-            visible_files.append({
-                "path": path,
-                "content": row["content_text"],
-                "updatedAt": row["updated_at"],
-            })
+def rank_memory_context_files(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def reason_priority(file: Dict[str, Any]) -> int:
+        return 1 if file["reason"] == "linked" else 0
+
+    return sorted(
+        files,
+        key=lambda file: (
+            reason_priority(file),
+            -file["score"],
+            -file["updatedAt"].timestamp() if isinstance(file["updatedAt"], datetime) else 0,
+            file["order"],
+        ),
+    )
+
+async def retrieve_memory_context(db: DbPool, ctx: RequestContext, options: Dict[str, Any]) -> Dict[str, Any]:
+    max_chars = options["maxChars"]
+    query_str = options.get("query")
+    include_related = options.get("includeRelated")
+    if include_related is None:
+        include_related = bool(query_str)
+    related_depth = options.get("relatedDepth", 1)
+    linked_score_multiplier = options.get("linkedScoreMultiplier", 0.35)
+
+    seeds = await fetch_smart_read_seeds(db, query_str, ctx)
+    candidates_by_path = {}
+    visited = set()
+    for seed in seeds:
+        candidates_by_path[seed["path"]] = seed
+        visited.add(seed["path"])
+
+    frontier = seeds
+    for depth in range(1, related_depth + 1):
+        if not include_related or not frontier:
+            break
+        link_sources = {}
+        for source in frontier:
+            for linked_path in extract_wiki_links(source["content"]):
+                if linked_path in visited or linked_path in link_sources:
+                    continue
+                try:
+                    virtual_to_physical(linked_path, ctx)
+                except MemexError:
+                    continue
+                link_sources[linked_path] = source
+
+        linked_paths = list(link_sources.keys())
+        link_order = {path: index for index, path in enumerate(linked_paths)}
+        linked_files = await resolve_visible_linked_paths(db, linked_paths, ctx)
+        linked_files = sorted(linked_files, key=lambda file: link_order.get(file["path"], 0))
+        frontier = []
+        for linked_file in linked_files:
+            if linked_file["path"] in visited:
+                continue
+            source = link_sources.get(linked_file["path"])
+            if not source:
+                continue
+            candidate = dict(linked_file)
+            candidate["reason"] = "linked"
+            candidate["linkedFrom"] = source["path"]
+            candidate["depth"] = depth
+            candidate["score"] = source["score"] * linked_score_multiplier
+            candidate["order"] = len(seeds) + len(candidates_by_path)
+            candidates_by_path[candidate["path"]] = candidate
+            visited.add(candidate["path"])
+            frontier.append(candidate)
 
     included = []
     omitted = []
     used_chars = 0
 
-    for file in visible_files:
+    for file in rank_memory_context_files(list(candidates_by_path.values())):
         section_chars = len(file["path"]) + len(file["content"]) + 64
         if used_chars + section_chars <= max_chars or len(included) == 0:
             if section_chars <= max_chars or len(included) == 0:
@@ -322,13 +439,45 @@ async def execute_memory_smart_read(db: DbPool, args: Dict[str, Any], ctx: Reque
                 continue
         omitted.append(file["path"])
 
+    files_included_meta = []
+    for file in included:
+        meta = {
+            "path": file["path"],
+            "reason": file["reason"],
+            "depth": file["depth"],
+        }
+        if file.get("linkedFrom"):
+            meta["linkedFrom"] = file["linkedFrom"]
+        files_included_meta.append(meta)
+
+    return {
+        "included": included,
+        "omitted": omitted,
+        "filesIncludedMeta": files_included_meta,
+    }
+
+async def execute_memory_smart_read(db: DbPool, args: Dict[str, Any], ctx: RequestContext) -> Dict[str, Any]:
+    max_chars = positive_int_arg(args, "maxChars", 24000, 200000)
+    query_str = args.get("query")
+    if query_str is not None and (not isinstance(query_str, str) or not query_str):
+        raise MemexError("INVALID_ARGS", "query must be a non-empty string")
+    include_related = bool_arg(args, "includeRelated", bool(query_str)) if "includeRelated" in args else None
+    related_depth = bounded_int_arg(args, "relatedDepth", 1, 0, 2)
+
+    context = await retrieve_memory_context(db, ctx, {
+        "maxChars": max_chars,
+        "query": query_str,
+        "includeRelated": include_related,
+        "relatedDepth": related_depth,
+    })
+
     # Build memory block
     sections = []
-    for file in included:
+    for file in context["included"]:
         updated_iso = datetime_to_iso(file["updatedAt"])
         sections.append(f"## {file['path']}\n(updated {updated_iso})\n\n{file['content']}")
 
-    note = f"---\nNote: {len(omitted)} file(s) omitted (budget limit). Use memory_search to find specific content." if omitted else None
+    note = f"---\nNote: {len(context['omitted'])} file(s) omitted (budget limit). Use memory_search to find specific content." if context["omitted"] else None
 
     content_parts = ["<memexai_memory>"] + sections
     if note:
@@ -341,9 +490,10 @@ async def execute_memory_smart_read(db: DbPool, args: Dict[str, Any], ctx: Reque
 
     return {
         "content": content,
-        "filesIncluded": [file["path"] for file in included],
-        "filesOmitted": omitted,
-        "truncated": len(omitted) > 0,
+        "filesIncluded": [file["path"] for file in context["included"]],
+        "filesOmitted": context["omitted"],
+        "filesIncludedMeta": context["filesIncludedMeta"],
+        "truncated": len(context["omitted"]) > 0,
     }
 
 async def execute_memory_search_bm25(db: DbPool, input_args: Dict[str, Any], ctx: RequestContext) -> Dict[str, Any]:
