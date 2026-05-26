@@ -103,6 +103,7 @@ services:
       MEMEX_API_KEY: dev-agent-key
       MEMEX_ADMIN_SECRET: dev-admin-secret
       GEMINI_API_KEY: ...     # RECOMMENDED — enables LLM-backed memory_memorize / memory_search
+      MEMEX_DREAM_ENABLED: "false"
       # OPENAI_API_KEY: ...
     ports:
       - "8080:8080"
@@ -181,6 +182,12 @@ OPENAI_MODEL=gpt-4.1-mini
 Without a service model, `memory_search` still works through Postgres full-text search. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.
 
 Open the admin UI at `http://localhost:8080/admin`.
+
+### Background dreaming
+
+Dreaming is optional background memory consolidation in the service process. When enabled, MemexAI periodically finds users with changed `user/` memory files, waits for a quiet grace period, then runs a consolidation pass to merge duplicates, clarify fragmented notes, and resolve direct contradictions. It writes through the normal revision path as `actor='dream-agent'` and appends a terse line to `user/dream-log.md`.
+
+Enable the scheduler with `MEMEX_DREAM_ENABLED=true`. Runtime settings live in `mx_config` as `dream_*` keys, and admins can manage them through `/v1/admin/dream/*` endpoints. There is no end-user surface and no dedicated admin UI panel yet; inspect results through the existing admin file and revision views.
 
 ### MCP Clients
 

@@ -23,15 +23,21 @@ function createDreamDb() {
           ],
         }
       }
-      if (sql.includes("FROM mx_dream_run")) {
+      if (sql.includes("COUNT(*) AS total") && sql.includes("FROM mx_dream_run")) {
+        return { rows: [{ total: "2" }] }
+      }
+      if (sql.includes("COUNT(*) FILTER") && sql.includes("FROM mx_dream_run")) {
+        return { rows: [{ running: "1", failed: "1", completed: "0", paused: "1" }] }
+      }
+      if (sql.includes("SELECT user_id, status, paused")) {
         return {
           rows: [{
             user_id: "u1",
-            status: "completed",
+            status: "running",
             paused: false,
             last_dreamed_at: new Date("2026-05-26T08:00:00Z"),
             last_started_at: new Date("2026-05-26T07:59:00Z"),
-            files_touched: 2,
+            files_touched: null,
             error: null,
             dream_count: 1,
             updated_at: new Date("2026-05-26T08:00:00Z"),
@@ -81,11 +87,13 @@ describe("dream admin routes", () => {
 
   test("lists dream users", async () => {
     const app = buildServer({ db: createDreamDb() as never, config })
-    const response = await app.inject({ method: "GET", url: "/v1/admin/dream/users", headers: adminHeaders })
+    const response = await app.inject({ method: "GET", url: "/v1/admin/dream/users?status=running&q=u&from=2026-05-26T00%3A00%3A00.000Z&limit=500&offset=25", headers: adminHeaders })
     await app.close()
 
     expect(response.statusCode).toBe(200)
-    expect(response.json().users[0]).toMatchObject({ userId: "u1", status: "completed", dreamCount: 1 })
+    expect(response.json().users[0]).toMatchObject({ userId: "u1", status: "running", dreamCount: 1 })
+    expect(response.json().summary).toMatchObject({ running: 1, failed: 1, completed: 0, paused: 1 })
+    expect(response.json().pagination).toMatchObject({ limit: 200, offset: 25, total: 2, hasMore: false })
   })
 
   test("toggles user paused flag", async () => {

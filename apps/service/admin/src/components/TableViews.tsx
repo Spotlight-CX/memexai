@@ -33,10 +33,22 @@ export function UsersView({ secret }: { secret: string }) {
   )
 }
 
-export function RevisionsView({ secret, physicalPath }: { secret: string; physicalPath: string | null }) {
-  const query = physicalPath
-    ? `/v1/admin/revisions?physicalPath=${encodeURIComponent(physicalPath)}`
-    : "/v1/admin/revisions"
+export function RevisionsView({
+  secret,
+  physicalPath,
+  actor,
+  userId,
+}: {
+  secret: string
+  physicalPath: string | null
+  actor?: string
+  userId?: string
+}) {
+  const params = new URLSearchParams()
+  if (physicalPath) params.set("physicalPath", physicalPath)
+  if (actor) params.set("actor", actor)
+  if (userId) params.set("userId", userId)
+  const query = `/v1/admin/revisions${params.size ? `?${params.toString()}` : ""}`
   const { data, error } = useAdminData<{ revisions: AdminRevision[] }>(query, secret)
   if (error) return <ErrorText error={error} />
 

@@ -33,6 +33,7 @@ services:
       MEMEX_API_KEY: dev-agent-key
       MEMEX_ADMIN_SECRET: dev-admin-secret
       GEMINI_API_KEY: ...
+      MEMEX_DREAM_ENABLED: "false"
     ports:
       - "8080:8080"
 
@@ -133,3 +134,15 @@ OPENAI_MODEL=gpt-4.1-mini
 ```
 
 Without a service model, `memory_search` still works through Postgres full-text search. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.
+
+## Background dreaming
+
+Dreaming is optional background memory consolidation. When enabled, the service periodically finds users whose memory files have changed, waits for a quiet grace period, then runs a consolidation pass that merges duplicates, clarifies fragmented notes, and records revisions with `actor='dream-agent'`.
+
+Turn on the scheduler with:
+
+```bash
+MEMEX_DREAM_ENABLED=true
+```
+
+The database `dream_enabled` config key is the runtime master switch. Admin endpoints under `/v1/admin/dream/*` let operators read and update the dream config, list user dream status, and pause a user. There is no separate admin UI panel yet; use the existing file and revision views to inspect the results.

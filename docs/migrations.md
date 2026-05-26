@@ -19,7 +19,7 @@ await memex.migrate()  // safe to call on every startup
 4. If not applied: runs the SQL in a transaction (`BEGIN` / `COMMIT`), then inserts the migration ID.
 5. If already applied: skips it.
 
-On first run, this creates all four tables. On subsequent runs, it's a fast no-op — a short `SELECT` per migration ID, all of which return a row.
+On first run, this creates all current MemexAI tables. On subsequent runs, it's a fast no-op — a short `SELECT` per migration ID, all of which return a row.
 
 ---
 
@@ -43,6 +43,11 @@ Each row records a migration ID (`"001_init.sql"`) and when it was applied. This
 - `mx_file` — one row per memory file
 - `mx_revision` — one row per write, with full content snapshot
 - `mx_access_log` — one row per tool call (reads and writes)
+
+**Migration `005_dream_tables.sql`** creates:
+
+- `mx_dream_run` — one row per user's latest background consolidation state
+- `mx_config` — runtime config keys, including `dream_enabled`, `dream_interval_minutes`, `dream_grace_period_minutes`, `dream_max_writes`, and `dream_concurrency`
 
 See [architecture.md](architecture.md) for what each table stores.
 

@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify"
 import { ZodError } from "zod"
-import { getAdminFile, listAdminAccessLogs, listAdminFiles, listAdminRevisions, listAdminUsers, writeAdminFile } from "./admin"
+import { getAdminFile, listAdminAccessLogs, listAdminDreamUsers, listAdminFiles, listAdminRevisions, listAdminUsers, writeAdminFile } from "./admin"
 import { handleConfigureChat } from "./admin-configure"
 import { handleSetupGenerate } from "./admin-setup"
 import { requireAdminSecret, requireApiKey } from "./auth"
@@ -137,8 +137,24 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
     return writeAdminFile(db, decodeURIComponent(params["*"]), content, reason)
   })
   app.get("/v1/admin/revisions", { preHandler: adminAuth }, async (request) => {
-    const query = request.query as { physicalPath?: string }
-    return listAdminRevisions(db, { physicalPath: query.physicalPath })
+    const query = request.query as {
+      physicalPath?: string
+      actor?: string
+      userId?: string
+      from?: string
+      to?: string
+      limit?: string
+      offset?: string
+    }
+    return listAdminRevisions(db, {
+      physicalPath: query.physicalPath,
+      actor: query.actor,
+      userId: query.userId,
+      from: query.from,
+      to: query.to,
+      limit: query.limit ? Number(query.limit) : undefined,
+      offset: query.offset ? Number(query.offset) : undefined,
+    })
   })
   app.get("/v1/admin/access-logs", { preHandler: adminAuth }, async (request) => {
     const query = request.query as { physicalPath?: string }
@@ -178,37 +194,23 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
 
     return { updated: entries.map(([key]) => key) }
   })
-  app.get("/v1/admin/dream/users", { preHandler: adminAuth }, async () => {
-    const { rows } = await db.query<{
-      user_id: string
-      status: string
-      paused: boolean
-      last_dreamed_at: Date | null
-      last_started_at: Date | null
-      files_touched: number | null
-      error: string | null
-      dream_count: number
-      updated_at: Date
-    }>(
-      `
-        SELECT user_id, status, paused, last_dreamed_at, last_started_at, files_touched, error, dream_count, updated_at
-        FROM mx_dream_run
-        ORDER BY updated_at DESC, user_id ASC
-      `,
-    )
-    return {
-      users: rows.map((row) => ({
-        userId: row.user_id,
-        status: row.status,
-        paused: row.paused,
-        lastDreamedAt: row.last_dreamed_at,
-        lastStartedAt: row.last_started_at,
-        filesTouched: row.files_touched,
-        error: row.error,
-        dreamCount: Number(row.dream_count),
-        updatedAt: row.updated_at,
-      })),
+  app.get("/v1/admin/dream/users", { preHandler: adminAuth }, async (request) => {
+    const query = request.query as {
+      status?: string
+      q?: string
+      from?: string
+      to?: string
+      limit?: string
+      offset?: string
     }
+    return listAdminDreamUsers(db, {
+      status: query.status,
+      q: query.q,
+      from: query.from,
+      to: query.to,
+      limit: query.limit ? Number(query.limit) : undefined,
+      offset: query.offset ? Number(query.offset) : undefined,
+    })
   })
   app.put("/v1/admin/dream/users/:userId/paused", { preHandler: adminAuth }, async (request) => {
     const params = request.params as { userId?: string }
