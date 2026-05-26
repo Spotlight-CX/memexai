@@ -1,6 +1,6 @@
 {
   "name": "@memexai/core",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Agent memory on Postgres. No vector store needed.",
   "type": "module",
   "sideEffects": false,
