@@ -18,11 +18,13 @@ export function UserSelector({
   value,
   onChange,
   compact = false,
+  dropdownWidth,
 }: {
   secret: string
   value: string
   onChange: (userId: string) => void
   compact?: boolean
+  dropdownWidth?: number | string
 }) {
   const [search, setSearch] = useState(value)
   const [debouncedSearch] = useDebouncedValue(search, 180)
@@ -51,6 +53,7 @@ export function UserSelector({
     <Combobox
       store={combobox}
       withinPortal
+      width={dropdownWidth}
       onOptionSubmit={(nextValue) => {
         onChange(nextValue)
         setSearch(nextValue)
