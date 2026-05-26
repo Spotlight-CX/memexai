@@ -3,6 +3,7 @@ import { createPool } from "./db"
 import { runMigrations } from "./migrations"
 import { createServiceModel } from "./model"
 import { buildServer } from "./server"
+import { readDreamConfig, resetStaleDreamRuns, runDreamCycle } from "@memexai/core"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createConnectionScopedMcpServer } from "./mcp"
 
@@ -11,6 +12,29 @@ async function main() {
   const modelConfig = await createServiceModel(config)
   const db = createPool(config.DATABASE_URL)
   await runMigrations(db)
+  let dreamTimer: ReturnType<typeof setInterval> | undefined
+
+  if (config.MEMEX_DREAM_ENABLED) {
+    await resetStaleDreamRuns(db)
+    const dreamConfig = await readDreamConfig(db)
+    const runDreamTick = async () => {
+      const latestDreamConfig = await readDreamConfig(db)
+      if (!latestDreamConfig.enabled) return
+      if (!modelConfig?.model) {
+        console.warn("MemexAI dream loop skipped: no model configured")
+        return
+      }
+      await runDreamCycle(db, latestDreamConfig, { model: modelConfig.model })
+    }
+
+    dreamTimer = setInterval(() => {
+      runDreamTick().catch((error) => {
+        console.error("MemexAI dream loop failed", error)
+      })
+    }, dreamConfig.intervalMinutes * 60_000)
+    dreamTimer.unref?.()
+    console.error(`MemexAI dream loop enabled (${dreamConfig.intervalMinutes} min interval)`)
+  }
 
   if (process.argv.includes("--stdio") || process.argv.includes("--mcp")) {
     const getArgValue = (flag: string, fallback: string): string => {
@@ -30,6 +54,7 @@ async function main() {
     console.error(`MemexAI MCP server running on stdio (user: ${userId})`)
 
     const close = async () => {
+      if (dreamTimer) clearInterval(dreamTimer)
       await db.end()
       process.exit(0)
     }
@@ -43,6 +68,7 @@ async function main() {
   await app.listen({ port: config.PORT, host: "0.0.0.0" })
 
   const close = async () => {
+    if (dreamTimer) clearInterval(dreamTimer)
     await app.close()
     await db.end()
   }

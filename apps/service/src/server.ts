@@ -144,6 +144,107 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
     const query = request.query as { physicalPath?: string }
     return listAdminAccessLogs(db, { physicalPath: query.physicalPath })
   })
+  app.get("/v1/admin/dream/config", { preHandler: adminAuth }, async () => {
+    const { rows } = await db.query<{ key: string; value: string; description: string | null; updated_at: Date }>(
+      "SELECT key, value, description, updated_at FROM mx_config WHERE key LIKE 'dream_%' ORDER BY key ASC",
+    )
+    return {
+      config: Object.fromEntries(rows.map((row) => [row.key, row.value])),
+      rows: rows.map((row) => ({
+        key: row.key,
+        value: row.value,
+        description: row.description,
+        updatedAt: row.updated_at,
+      })),
+    }
+  })
+  app.put("/v1/admin/dream/config", { preHandler: adminAuth }, async (request) => {
+    const body = request.body as { config?: Record<string, unknown> }
+    const entries = Object.entries(body.config ?? {})
+      .filter(([key]) => key.startsWith("dream_"))
+      .map(([key, value]) => [key, String(value)] as const)
+
+    for (const [key, value] of entries) {
+      await db.query(
+        `
+          INSERT INTO mx_config (key, value, updated_at)
+          VALUES ($1, $2, now())
+          ON CONFLICT (key)
+          DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+        `,
+        [key, value],
+      )
+    }
+
+    return { updated: entries.map(([key]) => key) }
+  })
+  app.get("/v1/admin/dream/users", { preHandler: adminAuth }, async () => {
+    const { rows } = await db.query<{
+      user_id: string
+      status: string
+      paused: boolean
+      last_dreamed_at: Date | null
+      last_started_at: Date | null
+      files_touched: number | null
+      error: string | null
+      dream_count: number
+      updated_at: Date
+    }>(
+      `
+        SELECT user_id, status, paused, last_dreamed_at, last_started_at, files_touched, error, dream_count, updated_at
+        FROM mx_dream_run
+        ORDER BY updated_at DESC, user_id ASC
+      `,
+    )
+    return {
+      users: rows.map((row) => ({
+        userId: row.user_id,
+        status: row.status,
+        paused: row.paused,
+        lastDreamedAt: row.last_dreamed_at,
+        lastStartedAt: row.last_started_at,
+        filesTouched: row.files_touched,
+        error: row.error,
+        dreamCount: Number(row.dream_count),
+        updatedAt: row.updated_at,
+      })),
+    }
+  })
+  app.put("/v1/admin/dream/users/:userId/paused", { preHandler: adminAuth }, async (request) => {
+    const params = request.params as { userId?: string }
+    const body = request.body as { paused?: boolean }
+    if (!params.userId) {
+      throw new HttpError(400, "USER_ID_REQUIRED", "userId is required")
+    }
+    if (typeof body.paused !== "boolean") {
+      throw new HttpError(400, "VALIDATION_ERROR", "paused must be a boolean")
+    }
+
+    const { rows } = await db.query<{
+      user_id: string
+      status: string
+      paused: boolean
+      updated_at: Date
+    }>(
+      `
+        INSERT INTO mx_dream_run (id, user_id, paused, status)
+        VALUES ($1, $2, $3, 'idle')
+        ON CONFLICT (user_id)
+        DO UPDATE SET paused = EXCLUDED.paused, updated_at = now()
+        RETURNING user_id, status, paused, updated_at
+      `,
+      [newId("dream"), params.userId, body.paused],
+    )
+    const row = rows[0]
+    return {
+      user: {
+        userId: row.user_id,
+        status: row.status,
+        paused: row.paused,
+        updatedAt: row.updated_at,
+      },
+    }
+  })
 
   app.post("/v1/admin/setup-generate", { preHandler: adminAuth }, async (request) => {
     const { productDescription, domain, userInfoCategories, extra } = request.body as {

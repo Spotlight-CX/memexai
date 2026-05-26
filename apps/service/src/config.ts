@@ -1,6 +1,15 @@
 import { z } from "zod"
 
 const optionalNonEmptyString = z.preprocess((value) => value === "" ? undefined : value, z.string().optional())
+const optionalBoolean = z.preprocess((value) => {
+  if (value === "" || value === undefined) return undefined
+  if (value === true || value === false) return value
+  if (typeof value === "string") {
+    if (["1", "true", "yes", "on"].includes(value.toLowerCase())) return true
+    if (["0", "false", "no", "off"].includes(value.toLowerCase())) return false
+  }
+  return value
+}, z.boolean().default(false))
 
 const envSchema = z.object({
   NODE_ENV: optionalNonEmptyString,
@@ -17,6 +26,7 @@ const envSchema = z.object({
   OPENAI_MODEL: optionalNonEmptyString,
   OLLAMA_BASE_URL: optionalNonEmptyString,
   OLLAMA_MODEL: optionalNonEmptyString,
+  MEMEX_DREAM_ENABLED: optionalBoolean,
 })
 
 export type Config = z.infer<typeof envSchema> & {

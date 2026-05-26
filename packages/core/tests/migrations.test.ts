@@ -63,10 +63,29 @@ describe("runMigrations", () => {
   })
 
   test("skips already-applied migrations", async () => {
-    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql"])
+    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql"])
 
     await runMigrations(db)
 
     expect(client.query).not.toHaveBeenCalled()
+  })
+
+  test("includes dream table and config migration", async () => {
+    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql"])
+
+    await runMigrations(db)
+
+    const migrationSql = client.query.mock.calls
+      .map(([sql]) => sql)
+      .filter((sql): sql is string => typeof sql === "string")
+      .join("\n")
+
+    expect(migrationSql).toContain("CREATE TABLE IF NOT EXISTS mx_dream_run")
+    expect(migrationSql).toContain("CREATE TABLE IF NOT EXISTS mx_config")
+    expect(migrationSql).toContain("'dream_enabled', 'false'")
+    expect(client.query.mock.calls).toContainEqual([
+      "INSERT INTO mx_migration (id) VALUES ($1)",
+      ["005_dream_tables.sql"],
+    ])
   })
 })
