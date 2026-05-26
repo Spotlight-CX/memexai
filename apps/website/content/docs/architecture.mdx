@@ -56,7 +56,7 @@ There is no HTTP layer, no service auth, and no separate MemexAI container. Your
 
 ## Background dreaming
 
-Service mode can run an opt-in background memory consolidation loop. It is invisible to end users during chat: after a user's memory has been quiet for a configured grace period, the service reads that user's `user/` files and asks a consolidation agent to merge duplicate facts, clean up fragmented notes, and resolve direct contradictions.
+Service mode can run an opt-in background memory consolidation loop. It is invisible to end users during chat: after a user's memory has been quiet for a configured grace period, the service reads that user's `user/` files and asks a consolidation agent to merge duplicate facts, clean up fragmented notes, resolve direct contradictions, and keep long-running memory files readable for the next agent trajectory.
 
 Dream writes use the same `memory_write` and `memory_patch` path as normal tools, so revisions and access logs still work. The actor is `dream-agent`. Dream reads exclude `user/log.md`, `user/dream-log.md`, files ending in `-log.md`, and files ending in `.log`.
 
@@ -72,6 +72,8 @@ The operator UX is available both via API and the admin Dreams panel:
 | `PUT /v1/admin/dream/users/:userId/paused` | Pause or resume dreaming for one user. |
 
 Enable the scheduler with `MEMEX_DREAM_ENABLED=true`. The database `dream_enabled` key remains the runtime master switch.
+
+See [Background Dreaming](/docs/operations/dreaming) for skip behavior, no-op runs, pause controls, and deployment guidance.
 
 ## Tool call flow
 

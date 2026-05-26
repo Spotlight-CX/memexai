@@ -8,6 +8,7 @@ const footerGroups = [
     links: [
       { label: 'Docs', href: '/docs' },
       { label: 'Blog', href: '/blog' },
+      { label: 'Dreaming', href: '/dreaming' },
       { label: 'Roadmap', href: '/roadmap' },
       { label: 'Docker quickstart', href: '/docs/quickstart/docker-service' },
     ],
@@ -28,6 +29,7 @@ const footerGroups = [
       { label: 'Python SDK', href: '/docs/sdks/python' },
       { label: 'MCP server', href: '/docs/mcp' },
       { label: 'Shared memory', href: '/docs/concepts/shared-memory' },
+      { label: 'Dreaming ops', href: '/docs/operations/dreaming' },
     ],
   },
   {

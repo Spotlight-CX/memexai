@@ -185,9 +185,9 @@ Open the admin UI at `http://localhost:8080/admin`.
 
 ### Background dreaming
 
-Dreaming is optional background memory consolidation in the service process. When enabled, MemexAI periodically finds users with changed `user/` memory files, waits for a quiet grace period, then runs a consolidation pass to merge duplicates, clarify fragmented notes, and resolve direct contradictions. It writes through the normal revision path as `actor='dream-agent'` and appends a terse line to `user/dream-log.md`.
+Dreaming is optional background memory consolidation in the service process. When enabled, MemexAI periodically finds users with changed `user/` memory files, waits for a quiet grace period, then runs a consolidation pass to merge duplicates, compact fragmented notes, resolve direct contradictions, and keep long-running memory readable for the next agent session. It writes through the normal revision path as `actor='dream-agent'` and appends to `user/dream-log.md` only when something changed.
 
-Enable the scheduler with `MEMEX_DREAM_ENABLED=true`. Runtime settings live in `mx_config` as `dream_*` keys, and admins can manage them through `/v1/admin/dream/*` endpoints. There is no end-user surface and no dedicated admin UI panel yet; inspect results through the existing admin file and revision views.
+Enable the scheduler with `MEMEX_DREAM_ENABLED=true`. Runtime settings live in `mx_config` as `dream_*` keys, and admins can manage them through the Dreams panel or `/v1/admin/dream/*` endpoints. Operators can update cadence and write budgets, inspect per-user dream status, pause dreaming globally, or pause specific users.
 
 ### MCP Clients
 

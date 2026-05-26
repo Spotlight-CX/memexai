@@ -137,7 +137,7 @@ Without a service model, `memory_search` still works through Postgres full-text 
 
 ## Background dreaming
 
-Dreaming is optional background memory consolidation. When enabled, the service periodically finds users whose memory files have changed, waits for a quiet grace period, then runs a consolidation pass that merges duplicates, clarifies fragmented notes, and records revisions with `actor='dream-agent'`.
+Dreaming is optional background memory consolidation for long-horizon agents. Use it when user memory keeps growing across sessions and you want MemexAI to clean the durable record between conversations: merge duplicate facts, compact fragmented notes, resolve direct corrections, refresh stale indexes, and keep files readable for the next agent trajectory.
 
 Turn on the scheduler with:
 
@@ -145,4 +145,8 @@ Turn on the scheduler with:
 MEMEX_DREAM_ENABLED=true
 ```
 
-The database `dream_enabled` config key is the runtime master switch. Admin endpoints under `/v1/admin/dream/*` let operators read and update the dream config, list user dream status, and pause a user. There is no separate admin UI panel yet; use the existing file and revision views to inspect the results.
+The database `dream_enabled` config key is the runtime master switch. The admin Dreams panel and endpoints under `/v1/admin/dream/*` let operators read and update dream config, list user dream status, pause all dreaming, and pause or resume specific users.
+
+Dreaming skips users with no qualifying memory changes, waits for the configured grace period after the latest write, excludes log files from consolidation, and avoids writing `user/dream-log.md` when there was nothing to update.
+
+See [Background Dreaming](/docs/operations/dreaming) for the full operating model.
