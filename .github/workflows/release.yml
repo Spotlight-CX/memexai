@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Determine bump type
         id: bump
@@ -69,3 +69,11 @@ jobs:
           git commit -m "chore: release v${{ steps.version.outputs.new }}"
           git tag "v${{ steps.version.outputs.new }}"
           git push origin HEAD:main --tags
+
+  publish:
+    name: Publish
+    needs: bump-and-tag
+    uses: ./.github/workflows/publish.yml
+    permissions:
+      contents: write
+      id-token: write
