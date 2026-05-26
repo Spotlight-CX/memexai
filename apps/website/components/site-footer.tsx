@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { GitPullRequest, MessageCircle } from 'lucide-react';
 import { slackUrl } from '@/lib/links';
+import { BrandMark } from '@/components/brand-mark';
 
 const footerGroups = [
   {
@@ -60,17 +61,8 @@ export function SiteFooter() {
     <footer className="site-footer">
       <div className="site-footer-inner">
         <div className="site-footer-brand">
-          <Link href="/" className="footer-logo" aria-label="MemexAI home">
-            <span className="footer-logo-mark">mx</span>
-            <span>MemexAI</span>
-          </Link>
+          <BrandMark size="footer" />
           <p>Persistent user memory for AI products.</p>
-          <div className="created-by">
-            <span>Created by</span>
-            <a href="https://github.com/Spotlight-CX" target="_blank" rel="noopener noreferrer">
-              Spotlight CX
-            </a>
-          </div>
         </div>
 
         <nav className="site-footer-grid" aria-label="Footer navigation">
