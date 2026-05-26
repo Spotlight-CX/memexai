@@ -74,6 +74,7 @@ jobs:
     name: Publish
     needs: bump-and-tag
     uses: ./.github/workflows/publish.yml
+    secrets: inherit
     permissions:
       contents: write
       id-token: write
