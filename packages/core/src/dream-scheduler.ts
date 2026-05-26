@@ -51,6 +51,10 @@ export async function selectUsersToDream(db: Db, options: { gracePeriodMinutes?:
           max(updated_at) AS last_write_at
         FROM mx_file
         WHERE physical_path LIKE 'users/%/%'
+          AND physical_path NOT LIKE 'users/%/dream-log.md'
+          AND physical_path NOT LIKE 'users/%/log.md'
+          AND physical_path NOT LIKE 'users/%/%-log.md'
+          AND physical_path NOT LIKE 'users/%/%.log'
         GROUP BY user_id
       )
       SELECT user_writes.user_id
@@ -87,6 +91,10 @@ export async function runDreamCycle(
   if (!config.enabled) return
   await resetStaleDreamRuns(db)
   const userIds = await selectUsersToDream(db, { gracePeriodMinutes: config.gracePeriodMinutes })
+  if (userIds.length === 0) {
+    console.log("MemexAI dream cycle: no users with pending writes, skipping")
+    return
+  }
   const concurrency = Math.max(1, config.concurrency)
 
   for (let index = 0; index < userIds.length; index += concurrency) {

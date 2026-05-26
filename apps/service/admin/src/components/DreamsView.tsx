@@ -118,6 +118,9 @@ export function DreamsView({ secret }: { secret: string }) {
           <Text size="sm" c={configError ? "red.6" : "dimmed"}>
             {configError ? configError : formatConfig(configData?.config)}
           </Text>
+          <Text size="xs" c="dimmed" mt={4}>
+            Each tick only processes users with new memory writes since their last dream. <Code>files_touched = 0</Code> means the agent ran but found nothing to consolidate.
+          </Text>
         </Paper>
 
         <Group gap="sm" wrap="nowrap">

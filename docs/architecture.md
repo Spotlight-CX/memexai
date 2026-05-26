@@ -98,19 +98,19 @@ In service mode, MemexAI can run an opt-in background consolidation loop. This d
 - merges duplicate facts,
 - rewrites fragmented notes for clarity,
 - resolves direct contradictions inside existing memory,
-- writes a terse audit line to `user/dream-log.md`.
+- writes a terse audit line to `user/dream-log.md` **only when something was actually changed**.
 
 The dream agent uses the same `memory_write` and `memory_patch` execution path as `memory_memorize`, so writes still create `mx_revision` rows with `actor='dream-agent'`. Dream reads exclude `user/log.md`, `user/dream-log.md`, files ending in `-log.md`, and files ending in `.log` so the audit trail does not feed back into future consolidation.
 
-The admin UX for v1 is API-level:
+Each scheduler tick only selects users who have **non-excluded file writes newer than their last dream**. If no users qualify, the tick logs a skip message to stdout and returns without making any LLM calls. When the agent runs but finds nothing to consolidate, `files_touched` in `mx_dream_run` is `0` and no `dream-log.md` entry is written.
+
+The admin UX is available via the Dreams panel in the admin UI and the API:
 
 - `MEMEX_DREAM_ENABLED=true` starts the scheduler in the service process.
 - `GET /v1/admin/dream/config` reads `dream_*` config from `mx_config`.
 - `PUT /v1/admin/dream/config` updates cadence, grace period, write budget, and concurrency.
 - `GET /v1/admin/dream/users` lists per-user dream status, errors, and counts.
 - `PUT /v1/admin/dream/users/:userId/paused` pauses or resumes dreaming for one user.
-
-There is no end-user notification and no dedicated admin UI panel yet. Operators inspect resulting file changes through the existing admin file/revision views, plus the dream admin API.
 
 ### Raw tools (5 tools)
 

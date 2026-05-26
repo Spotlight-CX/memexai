@@ -636,7 +636,8 @@ export async function executeMemoryConsolidate(
       "- Do NOT add new facts that are not already present.",
       "- Do NOT touch user/log.md, user/dream-log.md, or any file ending in -log.md.",
       "- Prefer memory_patch over memory_write to minimize blast radius.",
-      `- After consolidating, write one line to user/dream-log.md: [${today}] dream-consolidation: touched <N> files - <brief summary>`,
+      "- If you made changes: write one line to user/dream-log.md: [" + today + "] dream-consolidation: touched <N> files - <brief summary>",
+      "- If you made no changes: do NOT write to user/dream-log.md or any log file.",
       dryRun ? "Dry run is enabled; plan writes but do not commit them." : "Commit useful writes.",
     ].join("\n"),
     inputPrompt: [

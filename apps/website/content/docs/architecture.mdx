@@ -60,7 +60,9 @@ Service mode can run an opt-in background memory consolidation loop. It is invis
 
 Dream writes use the same `memory_write` and `memory_patch` path as normal tools, so revisions and access logs still work. The actor is `dream-agent`. Dream reads exclude `user/log.md`, `user/dream-log.md`, files ending in `-log.md`, and files ending in `.log`.
 
-The v1 operator UX is API-level:
+Each scheduler tick only selects users who have **non-excluded file writes newer than their last dream**. If a tick finds no qualifying users it logs a skip message to stdout and returns immediately — no LLM calls are made. When the agent runs but determines nothing needs merging, `files_touched` in `mx_dream_run` is `0` and no `dream-log.md` entry is written. The agent only writes to `dream-log.md` when it actually consolidates something, keeping user memory free of no-op noise.
+
+The operator UX is available both via API and the admin Dreams panel:
 
 | Endpoint | Purpose |
 | --- | --- |
@@ -69,7 +71,7 @@ The v1 operator UX is API-level:
 | `GET /v1/admin/dream/users` | List dream status, pause flags, errors, and run counts. |
 | `PUT /v1/admin/dream/users/:userId/paused` | Pause or resume dreaming for one user. |
 
-Enable the scheduler with `MEMEX_DREAM_ENABLED=true`. The database `dream_enabled` key remains the runtime master switch. There is no dedicated admin UI panel yet; operators inspect changed files through the existing file and revision views.
+Enable the scheduler with `MEMEX_DREAM_ENABLED=true`. The database `dream_enabled` key remains the runtime master switch.
 
 ## Tool call flow
 
