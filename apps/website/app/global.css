@@ -873,6 +873,33 @@ body {
   max-width: 520px;
 }
 
+.nav-logo {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  color: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-decoration: none;
+}
+
+.nav-logo-mark {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(8, 127, 91, 0.2);
+  border-radius: 6px;
+  color: #101614;
+  background: #d8f6e7;
+  font-size: 11px;
+  font-weight: 850;
+  flex-shrink: 0;
+}
+
 .footer-logo {
   display: inline-flex;
   width: fit-content;
