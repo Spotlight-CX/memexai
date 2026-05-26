@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { ArrowRight, CheckCircle2, Database, FileClock, Network, Search, XCircle } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle2, Database, FileClock, Network, Search, XCircle } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'MemexAI vs Mem0, Zep, and Vector Memory',
@@ -18,11 +18,20 @@ export const metadata: Metadata = {
 };
 
 const rows = [
-  ['Primary model', 'Inspectable memory files', 'Embedded facts / retrieval', 'Temporal graph memory', 'Raw chat chunks'],
-  ['Default storage', 'Postgres', 'Vector/KV infra', 'Graph-oriented service', 'Vector database'],
-  ['Human editing', 'Direct file inspection and edits', 'Indirect', 'Indirect', 'Indirect'],
-  ['Revision history', 'Built in', 'Not the core abstraction', 'Not the core abstraction', 'Usually custom'],
-  ['Best fit', 'B2C AI products that must remember users', 'Fact recall across sessions', 'Conversation intelligence', 'Semantic search over logs'],
+  ['Primary abstraction', 'Scoped memory files', 'Extracted and retrieved memories', 'Temporal knowledge graph', 'Embedded text chunks'],
+  ['Default storage', 'Postgres tables', 'Managed or self-hosted memory stack', 'Graph-oriented memory service', 'Vector index plus source store'],
+  ['Human editing', 'Open and edit the record directly', 'Usually mediated by API or extraction flow', 'Usually mediated by graph/API flow', 'Edit source text, then re-index'],
+  ['Audit/debug surface', 'Revisions and access logs are core tables', 'Depends on deployment and product tier', 'Graph provenance and service logs', 'Usually custom app logging'],
+  ['Best fit', 'Memory as product data and behavior context', 'Personalized recall from conversations', 'Entity/relation-heavy temporal memory', 'Semantic search over archives'],
+  ['Common failure mode', 'Needs memory hygiene and concise files', 'Opaque or over-eager extraction', 'Operational complexity and graph drift', 'Retrieves similar text, not maintained truth'],
+];
+
+const researchLinks = [
+  ['Claude Managed Agents memory', 'https://claude.com/blog/claude-managed-agents-memory'],
+  ['LongMemEval benchmark', 'https://arxiv.org/abs/2410.10813'],
+  ['Mem0 paper', 'https://arxiv.org/abs/2504.19413'],
+  ['Zep paper', 'https://arxiv.org/abs/2501.13956'],
+  ['MemGPT paper', 'https://arxiv.org/abs/2310.08560'],
 ];
 
 const fitCards = [
@@ -71,11 +80,11 @@ export default function ComparePage() {
 
       <section className="section">
         <div className="section-kicker">Short version</div>
-        <h2>If users need to feel remembered, memory has to be legible.</h2>
+        <h2>If memory changes behavior, memory has to be legible.</h2>
         <p className="section-lede">
-          Mem0, Zep, and vector databases can be good retrieval systems. MemexAI is different: it gives the agent a
-          scoped filesystem in Postgres, then records revisions and reads so your team can operate memory like product
-          data.
+          Mem0, Zep, and vector databases can be good retrieval systems. MemexAI is different: it gives the agent
+          scoped memory files in Postgres, then records revisions and reads so your team can operate memory like product
+          data and behavioral context.
         </p>
 
         <div className="compare-table" role="table" aria-label="AI memory comparison table">
@@ -95,6 +104,30 @@ export default function ComparePage() {
               ))}
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-kicker">Technical frame</div>
+        <h2>The real choice is not memory vs no memory. It is which memory abstraction owns truth.</h2>
+        <div className="split">
+          <div className="path-panel">
+            <BookOpen size={24} aria-hidden />
+            <h3>Research is converging on durable external state</h3>
+            <p>
+              LongMemEval separates memory into extraction, multi-session reasoning, temporal reasoning, knowledge
+              updates, and abstention. Anthropic&apos;s Managed Agents memory validates file-backed stores with scopes,
+              audit logs, and API control for agents that learn across sessions.
+            </p>
+          </div>
+          <div className="path-panel">
+            <FileClock size={24} aria-hidden />
+            <h3>MemexAI optimizes for operability</h3>
+            <p>
+              MemexAI is not trying to be the highest-recall transcript search layer. It is for the smaller working set
+              that should govern behavior: preferences, policies, corrections, project state, and tool guidance.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -135,6 +168,22 @@ export default function ComparePage() {
               your app should own database credentials.
             </p>
           </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-kicker">Research notes</div>
+        <h2>Sources behind this comparison.</h2>
+        <p className="section-lede">
+          These are not used as proof that one vendor is universally better. They define the technical vocabulary:
+          file-backed memory, long-term memory abilities, extraction/retrieval memory, temporal graphs, and memory tiers.
+        </p>
+        <div className="source-list">
+          {researchLinks.map(([label, href]) => (
+            <a href={href} target="_blank" rel="noopener noreferrer" key={href}>
+              {label}
+            </a>
+          ))}
         </div>
       </section>
 

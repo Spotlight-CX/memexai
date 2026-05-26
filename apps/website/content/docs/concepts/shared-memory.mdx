@@ -1,0 +1,85 @@
+---
+title: Shared Memory as Behavior Guide
+description: Use shared memory files as durable tool guidance, policies, and behavior instructions for agents.
+---
+
+MemexAI has two virtual memory scopes:
+
+- `user/` is private to a user and writable by the agent.
+- `shared/` is global, read-only for agents, and useful for guidance your product wants every agent to see.
+
+Most teams start by using shared memory for reusable facts. You can also use it as a behavioral guide.
+
+## Why shared memory affects behavior
+
+The prompt is not the only source of instructions once an agent has memory. If your prompt block includes `shared/AGENTS.md`, `shared/index.md`, or other shared files, those files become durable context the model can use when it decides how to act.
+
+That makes shared memory useful for:
+
+- Tool usage rules
+- Product policies
+- Escalation criteria
+- Domain vocabulary
+- Preferred file organization
+- Known anti-patterns
+- Evaluation rubrics
+
+Shared memory should be treated like a versioned operations surface. Keep it concise, source-backed, and reviewed.
+
+## Example
+
+```md
+# shared/AGENTS.md
+
+## Memory write policy
+
+- Write user preferences only when the user states them directly.
+- Do not infer budget, health, legal, or financial constraints without confirmation.
+- When a new statement conflicts with old memory, update the memory and note the correction.
+
+## Tool guide
+
+- Use memory_search before making personalized recommendations.
+- Use memory_patch for small changes to an existing file.
+- Use memory_write only when creating or replacing a whole file intentionally.
+```
+
+## Pair shared and user memory
+
+Shared memory should describe how the agent behaves. User memory should describe what is true for a specific user.
+
+```txt
+shared/AGENTS.md        durable behavior and tool rules
+shared/policy.md        product or workspace policy
+shared/index.md         catalog of shared guidance
+user/profile.md         stable user preferences
+user/projects.md        active work and constraints
+user/index.md           catalog of user memory
+```
+
+## Evaluate memory, not only prompts
+
+When shared memory guides behavior, include it in eval fixtures. A prompt-only eval can pass while production fails because the real agent also reads shared policy, user preferences, and past corrections.
+
+For each eval case, capture:
+
+| Surface | What to check |
+| --- | --- |
+| Prompt | The system and developer instructions sent to the model |
+| Shared memory | Tool rules, policies, and behavioral guidance included in the prompt block |
+| User memory | Preferences, constraints, and project facts read for the task |
+| Access logs | Which memory files were read during the run |
+| Revisions | What changed after the run and why |
+
+The best regression tests check both the response and the memory transition. A correct answer with an incorrect memory write should fail, because it will make a later session worse.
+
+## Operational guidance
+
+- Keep shared memory small enough to remain high-signal.
+- Use headings that make retrieval and scanning easy.
+- Prefer explicit rules over vague style advice.
+- Keep sensitive, per-user facts out of `shared/`.
+- Review revisions after changing shared guidance.
+- Link shared guidance changes to product or eval failures when possible.
+
+Shared memory is powerful because it persists. Treat it with the same care as prompt templates, policy code, and product configuration.
