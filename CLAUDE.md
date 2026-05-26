@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Facts
+
+- Public website hostname: `memexai.space`. Use this for canonical URLs, OpenGraph URLs, sitemap, robots, GTM notes, docs links, and public copy. Do not use `memexai.dev`.
+
 ## Commands
 
 ```bash

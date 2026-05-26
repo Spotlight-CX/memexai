@@ -64,6 +64,9 @@ export default function HomePage() {
                 <GitPullRequest size={17} aria-hidden />
                 GitHub
               </a>
+              <Link className="site-button site-button-secondary" href="/compare">
+                Compare
+              </Link>
             </div>
           </div>
 
@@ -172,6 +175,24 @@ export default function HomePage() {
             <p>Let the agent write only durable facts into files that humans can inspect, edit, and audit.</p>
             <pre>{`observe a session\n→ write durable memory\n→ maintain files\n→ recall targeted records`}</pre>
           </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-kicker">Evaluate</div>
+        <h2>Choosing between MemexAI, Mem0, Zep, or a vector database?</h2>
+        <p className="section-lede">
+          The important question is whether you need search over old text or an inspectable user memory record your
+          team can operate. The comparison page lays out the tradeoff directly.
+        </p>
+        <div className="hero-actions">
+          <Link className="site-button site-button-primary" href="/compare">
+            Compare memory approaches
+            <ArrowRight size={17} aria-hidden />
+          </Link>
+          <Link className="site-button site-button-secondary" href="/walkthroughs">
+            Walkthrough queue
+          </Link>
         </div>
       </section>
 
