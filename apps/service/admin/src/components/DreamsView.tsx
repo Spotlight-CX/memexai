@@ -18,7 +18,7 @@ import {
   TextInput,
 } from "@mantine/core"
 import { useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
+import { useMemo, useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { adminHeaders } from "../api"
 import { adminQueryKey, useAdminData } from "../hooks"
@@ -72,6 +72,20 @@ export function DreamsView({ secret }: { secret: string }) {
   const [triggeringAll, setTriggeringAll] = useState(false)
   const [triggeringUser, setTriggeringUser] = useState<string | null>(null)
   const [triggerError, setTriggerError] = useState<string | null>(null)
+  const [runStartedAt, setRunStartedAt] = useState<number | null>(null)
+  const [showRunModal, setShowRunModal] = useState(false)
+  // Ticks every second to drive countdown + elapsed display while a run is active
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (!runStartedAt) return
+    const id = setInterval(() => {
+      setTick((t) => t + 1)
+      if (Date.now() - runStartedAt >= 60_000) setRunStartedAt(null)
+    }, 1000)
+    return () => clearInterval(id)
+  }, [runStartedAt])
+  const elapsedSeconds = runStartedAt ? Math.floor((Date.now() - runStartedAt) / 1000) : 0
+  const cooldownSeconds = Math.max(0, 60 - elapsedSeconds)
 
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -153,6 +167,8 @@ export function DreamsView({ secret }: { secret: string }) {
         const body = await res.json().catch(() => ({}))
         throw new Error((body as any)?.error?.message ?? "Trigger failed")
       }
+      setRunStartedAt(Date.now())
+      setShowRunModal(true)
       await queryClient.invalidateQueries({ queryKey: adminQueryKey(usersPath) })
     } catch (err) {
       setTriggerError(err instanceof Error ? err.message : "Trigger failed")
@@ -194,8 +210,14 @@ export function DreamsView({ secret }: { secret: string }) {
           </Box>
           <Group gap="xs" align="center">
             {triggerError && <Text size="xs" c="red.6">{triggerError}</Text>}
-            <Button size="xs" variant="light" loading={triggeringAll} onClick={() => void triggerAll()}>
-              Run All Now
+            <Button
+              size="xs"
+              variant="light"
+              loading={triggeringAll}
+              disabled={cooldownSeconds > 0}
+              onClick={() => void triggerAll()}
+            >
+              {cooldownSeconds > 0 ? `Run All Now (${cooldownSeconds}s)` : "Run All Now"}
             </Button>
             <Text size="xs" c="dimmed">{data?.serverTime ? `Updated ${relativeTime(data.serverTime)}` : ""}</Text>
           </Group>
@@ -386,6 +408,52 @@ export function DreamsView({ secret }: { secret: string }) {
           <RevisionsView secret={secret} physicalPath={null} actor="dream-agent" userId={revisionUser ?? undefined} />
         </Box>
       </Modal>
+
+      <Modal
+        opened={showRunModal}
+        onClose={() => setShowRunModal(false)}
+        title="Dream cycle running"
+        size="sm"
+        centered
+      >
+        <Stack gap="md">
+          <RunModalStatus elapsed={elapsedSeconds} summary={data?.summary} />
+          <SimpleGrid cols={3} spacing="sm">
+            <SummaryCard label="Running" value={data?.summary.running ?? 0} color="blue" />
+            <SummaryCard label="Completed" value={data?.summary.completed ?? 0} color="green" />
+            <SummaryCard label="Failed" value={data?.summary.failed ?? 0} color="red" />
+          </SimpleGrid>
+          <Text size="xs" c="dimmed">
+            Statuses refresh every 3s. Close this to return to the full table.
+            {cooldownSeconds > 0 && ` Re-run available in ${cooldownSeconds}s.`}
+          </Text>
+          <Button variant="light" onClick={() => setShowRunModal(false)}>Close</Button>
+        </Stack>
+      </Modal>
+    </Box>
+  )
+}
+
+function RunModalStatus({ elapsed, summary }: { elapsed: number; summary?: { running: number; completed: number; failed: number } | null }) {
+  const running = summary?.running ?? 0
+  const failed = summary?.failed ?? 0
+  const elapsedLabel = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`
+
+  let message: string
+  if (elapsed < 5) {
+    message = "Picking up eligible users..."
+  } else if (running > 0) {
+    message = `${running} user${running !== 1 ? "s" : ""} dreaming right now`
+  } else if (failed > 0) {
+    message = `Cycle finished — ${failed} user${failed !== 1 ? "s" : ""} failed`
+  } else {
+    message = "Cycle finished — check the table for updated results"
+  }
+
+  return (
+    <Box>
+      <Text size="sm" fw={500}>{message}</Text>
+      <Text size="xs" c="dimmed" mt={2}>Started {elapsedLabel} ago</Text>
     </Box>
   )
 }
