@@ -7,6 +7,7 @@ import {
   Group,
   Menu,
   Modal,
+  NumberInput,
   Paper,
   Select,
   SimpleGrid,
@@ -60,6 +61,18 @@ export function DreamsView({ secret }: { secret: string }) {
   const [limit, setLimit] = useState("50")
   const [offset, setOffset] = useState(0)
   const [revisionUser, setRevisionUser] = useState<string | null>(null)
+
+  // Config editor state
+  const [editing, setEditing] = useState(false)
+  const [draftConfig, setDraftConfig] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+  const [configSaveError, setConfigSaveError] = useState<string | null>(null)
+
+  // Trigger state
+  const [triggeringAll, setTriggeringAll] = useState(false)
+  const [triggeringUser, setTriggeringUser] = useState<string | null>(null)
+  const [triggerError, setTriggerError] = useState<string | null>(null)
+
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -94,6 +107,81 @@ export function DreamsView({ secret }: { secret: string }) {
     await queryClient.invalidateQueries({ queryKey: adminQueryKey(usersPath) })
   }
 
+  const startEditing = () => {
+    setDraftConfig({ ...(configData?.config ?? {}) })
+    setEditing(true)
+    setConfigSaveError(null)
+  }
+
+  const cancelEditing = () => {
+    setEditing(false)
+    setConfigSaveError(null)
+  }
+
+  const saveConfig = async () => {
+    setSaving(true)
+    setConfigSaveError(null)
+    try {
+      const res = await fetch("/v1/admin/dream/config", {
+        method: "PUT",
+        headers: { ...adminHeaders(secret), "content-type": "application/json" },
+        body: JSON.stringify({ config: draftConfig }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as any)?.error?.message ?? "Save failed")
+      }
+      setEditing(false)
+      await queryClient.invalidateQueries({ queryKey: adminQueryKey("/v1/admin/dream/config") })
+    } catch (err) {
+      setConfigSaveError(err instanceof Error ? err.message : "Save failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const triggerAll = async () => {
+    setTriggeringAll(true)
+    setTriggerError(null)
+    try {
+      const res = await fetch("/v1/admin/dream/run", {
+        method: "POST",
+        headers: { ...adminHeaders(secret), "content-type": "application/json" },
+        body: JSON.stringify({}),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as any)?.error?.message ?? "Trigger failed")
+      }
+      await queryClient.invalidateQueries({ queryKey: adminQueryKey(usersPath) })
+    } catch (err) {
+      setTriggerError(err instanceof Error ? err.message : "Trigger failed")
+    } finally {
+      setTriggeringAll(false)
+    }
+  }
+
+  const triggerUser = async (userId: string) => {
+    setTriggeringUser(userId)
+    setTriggerError(null)
+    try {
+      const res = await fetch("/v1/admin/dream/run", {
+        method: "POST",
+        headers: { ...adminHeaders(secret), "content-type": "application/json" },
+        body: JSON.stringify({ userId }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as any)?.error?.message ?? "Trigger failed")
+      }
+      await queryClient.invalidateQueries({ queryKey: adminQueryKey(usersPath) })
+    } catch (err) {
+      setTriggerError(err instanceof Error ? err.message : "Trigger failed")
+    } finally {
+      setTriggeringUser(null)
+    }
+  }
+
   if (error) return <ErrorText error={error} />
 
   return (
@@ -104,7 +192,13 @@ export function DreamsView({ secret }: { secret: string }) {
             <Text fw={650} size="xl">Dreams</Text>
             <Text size="sm" c="dimmed">Background memory consolidation</Text>
           </Box>
-          <Text size="xs" c="dimmed">{data?.serverTime ? `Updated ${relativeTime(data.serverTime)}` : ""}</Text>
+          <Group gap="xs" align="center">
+            {triggerError && <Text size="xs" c="red.6">{triggerError}</Text>}
+            <Button size="xs" variant="light" loading={triggeringAll} onClick={() => void triggerAll()}>
+              Run All Now
+            </Button>
+            <Text size="xs" c="dimmed">{data?.serverTime ? `Updated ${relativeTime(data.serverTime)}` : ""}</Text>
+          </Group>
         </Group>
 
         <SimpleGrid cols={{ base: 2, md: 4 }} spacing="sm">
@@ -115,12 +209,81 @@ export function DreamsView({ secret }: { secret: string }) {
         </SimpleGrid>
 
         <Paper withBorder p="sm" radius="sm">
-          <Text size="sm" c={configError ? "red.6" : "dimmed"}>
-            {configError ? configError : formatConfig(configData?.config)}
-          </Text>
-          <Text size="xs" c="dimmed" mt={4}>
-            Each tick only processes users with new memory writes since their last dream. <Code>files_touched = 0</Code> means the agent ran but found nothing to consolidate.
-          </Text>
+          <Group justify="space-between" align="flex-start" mb={editing ? "sm" : 0}>
+            <Text size="sm" fw={600}>Dream Configuration</Text>
+            <Group gap="xs">
+              {!editing ? (
+                <Button size="xs" variant="subtle" onClick={startEditing}>Edit</Button>
+              ) : (
+                <>
+                  <Button size="xs" variant="subtle" onClick={cancelEditing} disabled={saving}>Cancel</Button>
+                  <Button size="xs" loading={saving} onClick={() => void saveConfig()}>Save</Button>
+                </>
+              )}
+            </Group>
+          </Group>
+
+          {!editing ? (
+            <>
+              <Text size="sm" c={configError ? "red.6" : "dimmed"}>
+                {configError ? configError : formatConfig(configData?.config)}
+              </Text>
+              <Text size="xs" c="dimmed" mt={4}>
+                Each tick only processes users with new memory writes since their last dream. <Code>files_touched = 0</Code> means the agent ran but found nothing to consolidate.
+              </Text>
+            </>
+          ) : (
+            <Stack gap="sm">
+              <Switch
+                label="Enable dreaming"
+                size="sm"
+                checked={draftConfig.dream_enabled === "true"}
+                onChange={(e) =>
+                  setDraftConfig((d) => ({ ...d, dream_enabled: String(e.currentTarget.checked) }))
+                }
+              />
+              <Group gap="sm" grow>
+                <NumberInput
+                  label="Interval (min)"
+                  size="sm"
+                  min={1}
+                  value={Number(draftConfig.dream_interval_minutes) || ""}
+                  onChange={(v) =>
+                    setDraftConfig((d) => ({ ...d, dream_interval_minutes: String(v) }))
+                  }
+                />
+                <NumberInput
+                  label="Grace period (min)"
+                  size="sm"
+                  min={0}
+                  value={Number(draftConfig.dream_grace_period_minutes) || ""}
+                  onChange={(v) =>
+                    setDraftConfig((d) => ({ ...d, dream_grace_period_minutes: String(v) }))
+                  }
+                />
+                <NumberInput
+                  label="Max writes"
+                  size="sm"
+                  min={1}
+                  value={Number(draftConfig.dream_max_writes) || ""}
+                  onChange={(v) =>
+                    setDraftConfig((d) => ({ ...d, dream_max_writes: String(v) }))
+                  }
+                />
+                <NumberInput
+                  label="Concurrency"
+                  size="sm"
+                  min={1}
+                  max={20}
+                  value={Number(draftConfig.dream_concurrency) || ""}
+                  onChange={(v) =>
+                    setDraftConfig((d) => ({ ...d, dream_concurrency: String(v) }))
+                  }
+                />
+              </Group>
+              {configSaveError && <Text size="xs" c="red.6">{configSaveError}</Text>}
+            </Stack>
+          )}
         </Paper>
 
         <Group gap="sm" wrap="nowrap">
@@ -183,6 +346,12 @@ export function DreamsView({ secret }: { secret: string }) {
                         <Menu.Dropdown>
                           <Menu.Item onClick={() => navigate(`/files?path=${encodeURIComponent(`users/${user.userId}/dream-log.md`)}`)}>
                             Open dream log
+                          </Menu.Item>
+                          <Menu.Item
+                            onClick={() => void triggerUser(user.userId)}
+                            disabled={triggeringUser === user.userId}
+                          >
+                            {triggeringUser === user.userId ? "Starting..." : "Run dream now"}
                           </Menu.Item>
                           <Menu.Item onClick={() => setRevisionUser(user.userId)}>
                             View dream revisions

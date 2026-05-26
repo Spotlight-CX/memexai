@@ -137,6 +137,19 @@ async function runUserDream(db: Db, userId: string, config: DreamConfig, model: 
   }
 }
 
+/**
+ * Admin-triggered single-user dream run. Bypasses grace period and eligibility checks.
+ * Called from the admin API, not the scheduler loop.
+ */
+export async function triggerUserDream(
+  db: Db,
+  userId: string,
+  config: DreamConfig,
+  options: { model: unknown },
+): Promise<void> {
+  await runUserDream(db, userId, config, options.model)
+}
+
 async function markDreamRunning(db: Db, userId: string): Promise<void> {
   await db.query(
     `

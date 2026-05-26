@@ -14,6 +14,7 @@ import { registerAdminStaticRoutes } from "./static-admin"
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js"
 import { newId } from "./ids"
 import { activeMcpSessions, createConnectionScopedMcpServer } from "./mcp"
+import { readDreamConfig, runDreamCycle, triggerUserDream } from "@memexai/core"
 
 export function buildServer(input: { db: Db; config: Config; model?: unknown }): FastifyInstance {
   const app = Fastify({ logger: true })
@@ -246,6 +247,28 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
         updatedAt: row.updated_at,
       },
     }
+  })
+
+  app.post("/v1/admin/dream/run", { preHandler: adminAuth }, async (request, reply) => {
+    if (!input.model) {
+      throw new HttpError(503, "MODEL_NOT_CONFIGURED", "No LLM model configured — set GEMINI_API_KEY or equivalent")
+    }
+    const body = request.body as { userId?: string }
+    const dreamConfig = await readDreamConfig(db)
+
+    if (body.userId) {
+      void triggerUserDream(db, body.userId, dreamConfig, { model: input.model }).catch((err: unknown) => {
+        console.error("Admin dream trigger failed for user", body.userId, err)
+      })
+      reply.code(202)
+      return { started: true, userId: body.userId }
+    }
+
+    void runDreamCycle(db, { ...dreamConfig, enabled: true }, { model: input.model }).catch((err: unknown) => {
+      console.error("Admin dream trigger failed (global)", err)
+    })
+    reply.code(202)
+    return { started: true }
   })
 
   app.post("/v1/admin/setup-generate", { preHandler: adminAuth }, async (request) => {
