@@ -22,6 +22,7 @@ The service handles:
 - SQL reads and writes to `mx_file`, `mx_revision`, and `mx_access_log`.
 - The admin UI at `/admin`.
 - MCP transport over SSE and stdio.
+- Optional background memory consolidation.
 
 ## Advanced: direct Postgres runtime mode
 
@@ -52,6 +53,27 @@ There is no HTTP layer, no service auth, and no separate MemexAI container. Your
 | `memory_write` | Creates or overwrites a user file. |
 | `memory_patch` | Appends under a heading or replaces exact text. |
 | `memory_smart_read` | Builds one bounded context block from visible files. |
+
+## Background dreaming
+
+Service mode can run an opt-in background memory consolidation loop. It is invisible to end users during chat: after a user's memory has been quiet for a configured grace period, the service reads that user's `user/` files and asks a consolidation agent to merge duplicate facts, clean up fragmented notes, resolve direct contradictions, and keep long-running memory files readable for the next agent trajectory.
+
+Dream writes use the same `memory_write` and `memory_patch` path as normal tools, so revisions and access logs still work. The actor is `dream-agent`. Dream reads exclude `user/log.md`, `user/dream-log.md`, files ending in `-log.md`, and files ending in `.log`.
+
+Each scheduler tick only selects users who have **non-excluded file writes newer than their last dream**. If a tick finds no qualifying users it logs a skip message to stdout and returns immediately — no LLM calls are made. When the agent runs but determines nothing needs merging, `files_touched` in `mx_dream_run` is `0` and no `dream-log.md` entry is written. The agent only writes to `dream-log.md` when it actually consolidates something, keeping user memory free of no-op noise.
+
+The operator UX is available both via API and the admin Dreams panel:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /v1/admin/dream/config` | Read `dream_*` settings. |
+| `PUT /v1/admin/dream/config` | Update cadence, grace period, write budget, and concurrency. |
+| `GET /v1/admin/dream/users` | List dream status, pause flags, errors, and run counts. |
+| `PUT /v1/admin/dream/users/:userId/paused` | Pause or resume dreaming for one user. |
+
+Enable the scheduler with `MEMEX_DREAM_ENABLED=true`. The database `dream_enabled` key remains the runtime master switch.
+
+See [Background Dreaming](/docs/operations/dreaming) for skip behavior, no-op runs, pause controls, and deployment guidance.
 
 ## Tool call flow
 

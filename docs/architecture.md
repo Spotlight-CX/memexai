@@ -31,6 +31,7 @@ Your application never touches Postgres directly. It calls the memory service ov
 - SQL reads/writes to `mx_file`, `mx_revision`, `mx_access_log`
 - Serving the admin UI
 - Model Context Protocol transport over SSE and stdio
+- Optional background memory consolidation ("dreaming")
 
 **Start:**
 ```bash
@@ -90,6 +91,27 @@ These are the default tools injected into the model's system prompt via `getProm
 
 `memory_memorize` runs an inner agentic loop: it lists existing files, reads the current index, and calls an inner model that has access only to `memory_write` and `memory_patch`. This prevents runaway reads while still producing structured, auditable writes. After every write the inner model also patches `user/index.md` (content catalog), appends to `user/log.md` (dated ingest timeline), and adds `## See also` cross-reference links between related files.
 
+### Background dreaming
+
+In service mode, MemexAI can run an opt-in background consolidation loop. This does not add a user-facing tool and does not change the agent UX during a conversation. After memory writes have been quiet for a configured grace period, the service can read a user's `user/` files and run a consolidation pass that:
+
+- merges duplicate facts,
+- rewrites fragmented notes for clarity,
+- resolves direct contradictions inside existing memory,
+- writes a terse audit line to `user/dream-log.md` **only when something was actually changed**.
+
+The dream agent uses the same `memory_write` and `memory_patch` execution path as `memory_memorize`, so writes still create `mx_revision` rows with `actor='dream-agent'`. Dream reads exclude `user/log.md`, `user/dream-log.md`, files ending in `-log.md`, and files ending in `.log` so the audit trail does not feed back into future consolidation.
+
+Each scheduler tick only selects users who have **non-excluded file writes newer than their last dream**. If no users qualify, the tick logs a skip message to stdout and returns without making any LLM calls. When the agent runs but finds nothing to consolidate, `files_touched` in `mx_dream_run` is `0` and no `dream-log.md` entry is written.
+
+The admin UX is available via the Dreams panel in the admin UI and the API:
+
+- `MEMEX_DREAM_ENABLED=true` starts the scheduler in the service process.
+- `GET /v1/admin/dream/config` reads `dream_*` config from `mx_config`.
+- `PUT /v1/admin/dream/config` updates cadence, grace period, write budget, and concurrency.
+- `GET /v1/admin/dream/users` lists per-user dream status, errors, and counts.
+- `PUT /v1/admin/dream/users/:userId/paused` pauses or resumes dreaming for one user.
+
 ### Raw tools (5 tools)
 
 | Tool | What it does |
@@ -143,7 +165,7 @@ Every step from 3 onward is identical whether you're using the HTTP service, MCP
 
 ## Database tables
 
-Four tables, all prefixed `mx_` to avoid collisions with your existing schema:
+Six tables, all prefixed `mx_` to avoid collisions with your existing schema:
 
 | Table | Purpose |
 |---|---|
@@ -151,6 +173,8 @@ Four tables, all prefixed `mx_` to avoid collisions with your existing schema:
 | `mx_file` | One row per memory file: `physical_path`, `content_text`, timestamps |
 | `mx_revision` | One row per write: full content snapshot, actor, reason, tool call ID |
 | `mx_access_log` | One row per read or write: lightweight operation log |
+| `mx_dream_run` | One row per user's latest dream state: status, pause flag, timestamps, errors |
+| `mx_config` | Runtime config keys, including `dream_*` scheduler settings |
 
 All tables are created by `migrate()` / `memex.migrate()` on first run. See [migrations.md](migrations.md).
 
@@ -168,6 +192,7 @@ bun run build:service
 DATABASE_URL=postgresql://...
 MEMEX_API_KEY=your-api-key           # comma-separated list of valid API keys
 MEMEX_ADMIN_SECRET=your-admin-secret  # for admin endpoints (separate from agent keys)
+MEMEX_DREAM_ENABLED=false             # opt-in background memory consolidation
 ```
 
 The Docker image bundles the compiled service + admin UI static files. The admin UI is served from `/admin/*` and queries the same `/v1/admin/*` API.

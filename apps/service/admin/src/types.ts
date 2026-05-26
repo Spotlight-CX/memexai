@@ -45,6 +45,32 @@ export type AdminAccessLog = {
   createdAt: string
 }
 
+export type AdminDreamUser = {
+  userId: string
+  status: "idle" | "running" | "completed" | "failed" | string
+  paused: boolean
+  lastDreamedAt: string | null
+  lastStartedAt: string | null
+  filesTouched: number | null
+  error: string | null
+  dreamCount: number
+  updatedAt: string
+}
+
+export type AdminDreamConfigRow = {
+  key: string
+  value: string
+  description: string | null
+  updatedAt: string
+}
+
+export type Pagination = {
+  limit: number
+  offset: number
+  total: number
+  hasMore: boolean
+}
+
 export type FileTreeNode = TreeNodeData & {
   kind: "folder" | "file"
   children?: FileTreeNode[]

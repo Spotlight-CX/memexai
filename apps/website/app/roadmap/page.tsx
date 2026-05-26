@@ -7,7 +7,7 @@ import { RoadmapInterestCard, type RoadmapInterestFeature } from './roadmap-inte
 export const metadata: Metadata = {
   title: 'Roadmap',
   description:
-    'MemexAI roadmap for persistent user memory: memory health, compaction, PII hooks, source scopes, vector search, reranking, and background synthesis.',
+    'MemexAI roadmap for persistent user memory: dreaming, PII hooks, source scopes, vector search, reranking, and production memory workflows.',
   alternates: {
     canonical: '/roadmap',
   },
@@ -30,18 +30,6 @@ const shipped = [
 
 const nextFeatures: RoadmapInterestFeature[] = [
   {
-    id: 'memory-health',
-    title: 'Memory health',
-    stage: 'Next',
-    text: 'Find stale facts, missing index entries, duplicate notes, orphan files, and low-signal memory before trust decays.',
-  },
-  {
-    id: 'memory-compaction',
-    title: 'Memory compaction',
-    stage: 'Next',
-    text: 'Keep long-running memory files readable by summarizing, deduplicating, and preserving the original trail.',
-  },
-  {
     id: 'pii-hooks',
     title: 'PII hooks',
     stage: 'Next',
@@ -62,12 +50,6 @@ const nextFeatures: RoadmapInterestFeature[] = [
 ];
 
 const exploringFeatures: RoadmapInterestFeature[] = [
-  {
-    id: 'dreaming-background-synthesis',
-    title: 'Dreaming and background synthesis',
-    stage: 'Exploring',
-    text: 'Let memory improve between sessions with background reflection, consolidation, and suggested next writes.',
-  },
   {
     id: 'source-scoped-isolation',
     title: 'Isolation beyond user scope',
@@ -97,6 +79,32 @@ const exploringFeatures: RoadmapInterestFeature[] = [
     title: 'Link-aware memory',
     stage: 'Exploring',
     text: 'Treat explicit links between memory files as useful navigation signals for humans and agents.',
+  },
+];
+
+const doneFeatures = [
+  {
+    title: 'Dreaming and background synthesis',
+    text: 'Shipped as opt-in service-mode consolidation. Dreaming waits for quiet memory, merges duplicates, clarifies fragmented notes, resolves direct contradictions, and writes normal revisions as dream-agent.',
+  },
+  {
+    title: 'Admin Dreams panel',
+    text: 'Operators can read dream config, update cadence and write budgets, inspect per-user dream status, and pause or resume dreaming for specific users.',
+  },
+  {
+    title: 'Dream-safe audit trail',
+    text: 'Dream runs skip log files, avoid no-op dream-log entries, record files_touched, and preserve the same revision/access-log trail as normal memory writes.',
+  },
+];
+
+const deprioritizedFeatures = [
+  {
+    title: 'Memory health',
+    text: 'De-prioritized as a standalone roadmap item because dreaming now covers the highest-value health work: duplicates, stale contradictions, fragmented notes, and low-signal cleanup between sessions.',
+  },
+  {
+    title: 'Memory compaction',
+    text: 'De-prioritized as a separate feature because dreaming already summarizes, deduplicates, and keeps long-running memory files readable while preserving revisions as the original trail.',
   },
 ];
 
@@ -166,6 +174,41 @@ export default function RoadmapPage() {
         <div className="roadmap-grid">
           {exploringFeatures.map((feature) => (
             <RoadmapInterestCard feature={feature} key={feature.id} />
+          ))}
+        </div>
+      </section>
+
+      <section className="section contrast-section">
+        <div className="section-kicker">Done / absorbed</div>
+        <h2>Dreaming moved from roadmap bet to shipped memory infrastructure.</h2>
+        <p className="section-lede">
+          Background dreaming now handles the cleanup work that used to sit behind separate memory health and compaction
+          roadmap items. We may still add sharper diagnostics later, but the default product direction is to solve these
+          through automatic consolidation.
+        </p>
+        <div className="roadmap-done-grid">
+          {doneFeatures.map((feature) => (
+            <div className="roadmap-done" key={feature.title}>
+              <CheckCircle2 size={20} aria-hidden />
+              <div>
+                <h3>{feature.title}</h3>
+                <p>{feature.text}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="roadmap-grid roadmap-deprioritized-grid">
+          {deprioritizedFeatures.map((feature) => (
+            <div className="roadmap-card roadmap-deprioritized" key={feature.title}>
+              <div>
+                <span className="roadmap-pill">De-prioritized</span>
+                <h3>{feature.title}</h3>
+                <p>{feature.text}</p>
+              </div>
+              <Link className="site-button site-button-secondary" href="/dreaming">
+                See how dreaming covers this
+              </Link>
+            </div>
           ))}
         </div>
       </section>

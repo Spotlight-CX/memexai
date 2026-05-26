@@ -32,4 +32,14 @@ describe("config", () => {
     expect(config.OPENAI_API_KEY).toBe("openai-key")
     expect(config.OPENAI_MODEL).toBe("gpt-test")
   })
+
+  test("parses dream loop env flag", () => {
+    const config = loadConfig({
+      DATABASE_URL: "postgresql://localhost/memexai",
+      MEMEX_API_KEY: "dev-key",
+      MEMEX_DREAM_ENABLED: "true",
+    })
+
+    expect(config.MEMEX_DREAM_ENABLED).toBe(true)
+  })
 })

@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify"
 import { ZodError } from "zod"
-import { getAdminFile, listAdminAccessLogs, listAdminFiles, listAdminRevisions, listAdminUsers, writeAdminFile } from "./admin"
+import { getAdminFile, listAdminAccessLogs, listAdminDreamUsers, listAdminFiles, listAdminRevisions, listAdminUsers, writeAdminFile } from "./admin"
 import { handleConfigureChat } from "./admin-configure"
 import { handleSetupGenerate } from "./admin-setup"
 import { requireAdminSecret, requireApiKey } from "./auth"
@@ -14,6 +14,7 @@ import { registerAdminStaticRoutes } from "./static-admin"
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js"
 import { newId } from "./ids"
 import { activeMcpSessions, createConnectionScopedMcpServer } from "./mcp"
+import { readDreamConfig, runDreamCycle, triggerUserDream } from "@memexai/core"
 
 export function buildServer(input: { db: Db; config: Config; model?: unknown }): FastifyInstance {
   const app = Fastify({ logger: true })
@@ -137,12 +138,137 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
     return writeAdminFile(db, decodeURIComponent(params["*"]), content, reason)
   })
   app.get("/v1/admin/revisions", { preHandler: adminAuth }, async (request) => {
-    const query = request.query as { physicalPath?: string }
-    return listAdminRevisions(db, { physicalPath: query.physicalPath })
+    const query = request.query as {
+      physicalPath?: string
+      actor?: string
+      userId?: string
+      from?: string
+      to?: string
+      limit?: string
+      offset?: string
+    }
+    return listAdminRevisions(db, {
+      physicalPath: query.physicalPath,
+      actor: query.actor,
+      userId: query.userId,
+      from: query.from,
+      to: query.to,
+      limit: query.limit ? Number(query.limit) : undefined,
+      offset: query.offset ? Number(query.offset) : undefined,
+    })
   })
   app.get("/v1/admin/access-logs", { preHandler: adminAuth }, async (request) => {
     const query = request.query as { physicalPath?: string }
     return listAdminAccessLogs(db, { physicalPath: query.physicalPath })
+  })
+  app.get("/v1/admin/dream/config", { preHandler: adminAuth }, async () => {
+    const { rows } = await db.query<{ key: string; value: string; description: string | null; updated_at: Date }>(
+      "SELECT key, value, description, updated_at FROM mx_config WHERE key LIKE 'dream_%' ORDER BY key ASC",
+    )
+    return {
+      config: Object.fromEntries(rows.map((row) => [row.key, row.value])),
+      rows: rows.map((row) => ({
+        key: row.key,
+        value: row.value,
+        description: row.description,
+        updatedAt: row.updated_at,
+      })),
+    }
+  })
+  app.put("/v1/admin/dream/config", { preHandler: adminAuth }, async (request) => {
+    const body = request.body as { config?: Record<string, unknown> }
+    const entries = Object.entries(body.config ?? {})
+      .filter(([key]) => key.startsWith("dream_"))
+      .map(([key, value]) => [key, String(value)] as const)
+
+    for (const [key, value] of entries) {
+      await db.query(
+        `
+          INSERT INTO mx_config (key, value, updated_at)
+          VALUES ($1, $2, now())
+          ON CONFLICT (key)
+          DO UPDATE SET value = EXCLUDED.value, updated_at = now()
+        `,
+        [key, value],
+      )
+    }
+
+    return { updated: entries.map(([key]) => key) }
+  })
+  app.get("/v1/admin/dream/users", { preHandler: adminAuth }, async (request) => {
+    const query = request.query as {
+      status?: string
+      q?: string
+      from?: string
+      to?: string
+      limit?: string
+      offset?: string
+    }
+    return listAdminDreamUsers(db, {
+      status: query.status,
+      q: query.q,
+      from: query.from,
+      to: query.to,
+      limit: query.limit ? Number(query.limit) : undefined,
+      offset: query.offset ? Number(query.offset) : undefined,
+    })
+  })
+  app.put("/v1/admin/dream/users/:userId/paused", { preHandler: adminAuth }, async (request) => {
+    const params = request.params as { userId?: string }
+    const body = request.body as { paused?: boolean }
+    if (!params.userId) {
+      throw new HttpError(400, "USER_ID_REQUIRED", "userId is required")
+    }
+    if (typeof body.paused !== "boolean") {
+      throw new HttpError(400, "VALIDATION_ERROR", "paused must be a boolean")
+    }
+
+    const { rows } = await db.query<{
+      user_id: string
+      status: string
+      paused: boolean
+      updated_at: Date
+    }>(
+      `
+        INSERT INTO mx_dream_run (id, user_id, paused, status)
+        VALUES ($1, $2, $3, 'idle')
+        ON CONFLICT (user_id)
+        DO UPDATE SET paused = EXCLUDED.paused, updated_at = now()
+        RETURNING user_id, status, paused, updated_at
+      `,
+      [newId("dream"), params.userId, body.paused],
+    )
+    const row = rows[0]
+    return {
+      user: {
+        userId: row.user_id,
+        status: row.status,
+        paused: row.paused,
+        updatedAt: row.updated_at,
+      },
+    }
+  })
+
+  app.post("/v1/admin/dream/run", { preHandler: adminAuth }, async (request, reply) => {
+    if (!input.model) {
+      throw new HttpError(503, "MODEL_NOT_CONFIGURED", "No LLM model configured — set GEMINI_API_KEY or equivalent")
+    }
+    const body = request.body as { userId?: string }
+    const dreamConfig = await readDreamConfig(db)
+
+    if (body.userId) {
+      void triggerUserDream(db, body.userId, dreamConfig, { model: input.model }).catch((err: unknown) => {
+        console.error("Admin dream trigger failed for user", body.userId, err)
+      })
+      reply.code(202)
+      return { started: true, userId: body.userId }
+    }
+
+    void runDreamCycle(db, { ...dreamConfig, enabled: true }, { model: input.model }).catch((err: unknown) => {
+      console.error("Admin dream trigger failed (global)", err)
+    })
+    reply.code(202)
+    return { started: true }
   })
 
   app.post("/v1/admin/setup-generate", { preHandler: adminAuth }, async (request) => {

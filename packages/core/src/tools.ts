@@ -6,6 +6,7 @@ import { appendLinesAfterHeading, replaceExactText } from "./text-patch"
 import { listArgsSchema, memorizeArgsSchema, patchArgsSchema, readArgsSchema, searchArgsSchema, smartReadArgsSchema, writeArgsSchema } from "./schemas"
 import { type ToolName } from "./tool-definitions"
 import { generateText, jsonSchema, stepCountIs } from "ai"
+import { isDreamExcludedPath } from "./dream-paths"
 
 type FileRow = {
   id: string
@@ -451,51 +452,37 @@ type MemorizeWrite = {
   result?: unknown
 }
 
-export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolContext, options: { model?: unknown } = {}) {
-  const { text, maxWrites = 5, dryRun = false } = memorizeArgsSchema.parse(args)
-  if (!options.model) {
-    throw new MemexError("MODEL_NOT_CONFIGURED", "memory_memorize requires a configured model")
-  }
+type MemoryLlmPassResult = {
+  text: string
+  dryRun: boolean
+  writes: MemorizeWrite[]
+}
 
-  const list = await executeMemoryList(db, {}, ctx)
-  const indexReads = await Promise.allSettled([
-    executeMemoryRead(db, { path: "user/index.md" }, ctx),
-    executeMemoryRead(db, { path: "shared/index.md" }, ctx),
-  ])
-  const indexes = indexReads.flatMap((result) => result.status === "fulfilled" ? [result.value] : [])
+async function runMemoryLlmPass(
+  db: Db,
+  ctx: ToolContext,
+  options: {
+    systemPrompt: string
+    inputPrompt: string
+    model: unknown
+    maxWrites: number
+    dryRun?: boolean
+    budgetErrorMessage: string
+  },
+): Promise<MemoryLlmPassResult> {
+  const dryRun = options.dryRun ?? false
   const writes: MemorizeWrite[] = []
 
   const ensureWriteBudget = () => {
-    if (writes.length >= maxWrites) {
-      throw new MemexError("MAX_WRITES_EXCEEDED", "memory_memorize write budget exceeded")
+    if (writes.length >= options.maxWrites) {
+      throw new MemexError("MAX_WRITES_EXCEEDED", options.budgetErrorMessage)
     }
   }
 
   const result = await generateText({
     model: options.model as never,
-    system: [
-      "You are a memory ingestion agent.",
-      "Extract only durable facts worth remembering.",
-      "Use virtual paths only, such as user/profile.md.",
-      "Never use physical paths such as users/{userId}/...",
-      "Prefer memory_patch when a relevant user file already exists.",
-      "Use memory_write only for new user files.",
-      "Always include a concise reason.",
-      "After writing or patching any user file, also update user/index.md: patch it if it exists, write it if not. Add or update a one-line entry per file in the format: `- user/filename.md — <short purpose>`.",
-      "After all writes, append one line per written file to user/log.md (patch with append_lines and no after_heading if exists, write if not): `- [YYYY-MM-DD] <wrote|patched> user/filename.md — <reason>`. Use today's date.",
-      "When writing a new file, if related files already exist, add a `## See also` section with `[[user/related.md]]` links. When patching, add links if newly relevant.",
-      dryRun ? "Dry run is enabled; plan writes but do not commit them." : "Commit useful writes.",
-    ].join("\n"),
-    prompt: [
-      "Text to memorize:",
-      text,
-      "",
-      "Existing files:",
-      JSON.stringify(list.files, null, 2),
-      "",
-      "Index files:",
-      JSON.stringify(indexes.map((file) => ({ path: file.path, content: file.content })), null, 2),
-    ].join("\n"),
+    system: options.systemPrompt,
+    prompt: options.inputPrompt,
     tools: {
       memory_write: {
         description: "Create or overwrite a writable user/** memory file.",
@@ -556,13 +543,113 @@ export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolCont
         },
       },
     },
-    stopWhen: stepCountIs(Math.max(1, maxWrites + 1)),
+    stopWhen: stepCountIs(Math.max(1, options.maxWrites + 1)),
   })
 
   return {
     text: result.text,
     dryRun,
     writes,
+  }
+}
+
+export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolContext, options: { model?: unknown } = {}) {
+  const { text, maxWrites = 5, dryRun = false } = memorizeArgsSchema.parse(args)
+  if (!options.model) {
+    throw new MemexError("MODEL_NOT_CONFIGURED", "memory_memorize requires a configured model")
+  }
+
+  const list = await executeMemoryList(db, {}, ctx)
+  const indexReads = await Promise.allSettled([
+    executeMemoryRead(db, { path: "user/index.md" }, ctx),
+    executeMemoryRead(db, { path: "shared/index.md" }, ctx),
+  ])
+  const indexes = indexReads.flatMap((result) => result.status === "fulfilled" ? [result.value] : [])
+
+  return runMemoryLlmPass(db, ctx, {
+    model: options.model,
+    maxWrites,
+    dryRun,
+    budgetErrorMessage: "memory_memorize write budget exceeded",
+    systemPrompt: [
+      "You are a memory ingestion agent.",
+      "Extract only durable facts worth remembering.",
+      "Use virtual paths only, such as user/profile.md.",
+      "Never use physical paths such as users/{userId}/...",
+      "Prefer memory_patch when a relevant user file already exists.",
+      "Use memory_write only for new user files.",
+      "Always include a concise reason.",
+      "After writing or patching any user file, also update user/index.md: patch it if it exists, write it if not. Add or update a one-line entry per file in the format: `- user/filename.md - <short purpose>`.",
+      "After all writes, append one line per written file to user/log.md (patch with append_lines and no after_heading if exists, write if not): `- [YYYY-MM-DD] <wrote|patched> user/filename.md - <reason>`. Use today's date.",
+      "When writing a new file, if related files already exist, add a `## See also` section with `[[user/related.md]]` links. When patching, add links if newly relevant.",
+      dryRun ? "Dry run is enabled; plan writes but do not commit them." : "Commit useful writes.",
+    ].join("\n"),
+    inputPrompt: [
+      "Text to memorize:",
+      text,
+      "",
+      "Existing files:",
+      JSON.stringify(list.files, null, 2),
+      "",
+      "Index files:",
+      JSON.stringify(indexes.map((file) => ({ path: file.path, content: file.content })), null, 2),
+    ].join("\n"),
+  })
+}
+
+type ConsolidateResult = MemoryLlmPassResult & {
+  filesRead: string[]
+  filesTouched: string[]
+}
+
+export async function executeMemoryConsolidate(
+  db: Db,
+  ctx: ToolContext,
+  options: { model?: unknown; maxWrites?: number; dryRun?: boolean } = {},
+): Promise<ConsolidateResult> {
+  if (!options.model) {
+    throw new MemexError("MODEL_NOT_CONFIGURED", "memory_consolidate requires a configured model")
+  }
+
+  const maxWrites = options.maxWrites ?? 10
+  const dryRun = options.dryRun ?? false
+  const list = await executeMemoryList(db, { prefix: "user" }, ctx)
+  const files = list.files.filter((file) => !isDreamExcludedPath(file.path))
+  if (files.length === 0) {
+    return { text: "No user memory files to consolidate.", dryRun, writes: [], filesRead: [], filesTouched: [] }
+  }
+
+  const reads = await Promise.all(files.map((file) => executeMemoryRead(db, { path: file.path }, ctx)))
+  const today = new Date().toISOString().slice(0, 10)
+  const result = await runMemoryLlmPass(db, { ...ctx, actor: ctx.actor ?? "dream-agent" }, {
+    model: options.model,
+    maxWrites,
+    dryRun,
+    budgetErrorMessage: "memory_consolidate write budget exceeded",
+    systemPrompt: [
+      "You are a memory consolidation agent. Your job is to improve the quality of existing memory files, not to add new facts.",
+      "Rules:",
+      "- Merge duplicate facts: if the same thing is stated multiple ways, keep the clearest.",
+      "- Rewrite fragmented bullet points for clarity.",
+      "- Resolve direct contradictions: if two lines disagree, keep the more specific/recent-sounding one.",
+      "- Do NOT delete any fact unless it directly contradicts another in the same file.",
+      "- Do NOT add new facts that are not already present.",
+      "- Do NOT touch user/log.md, user/dream-log.md, or any file ending in -log.md.",
+      "- Prefer memory_patch over memory_write to minimize blast radius.",
+      "- If you made changes: write one line to user/dream-log.md: [" + today + "] dream-consolidation: touched <N> files - <brief summary>",
+      "- If you made no changes: do NOT write to user/dream-log.md or any log file.",
+      dryRun ? "Dry run is enabled; plan writes but do not commit them." : "Commit useful writes.",
+    ].join("\n"),
+    inputPrompt: [
+      "Existing user memory files to consolidate:",
+      JSON.stringify(reads.map((file) => ({ path: file.path, updatedAt: file.updatedAt, content: file.content })), null, 2),
+    ].join("\n"),
+  })
+
+  return {
+    ...result,
+    filesRead: reads.map((file) => file.path),
+    filesTouched: Array.from(new Set(result.writes.map((write) => write.path))),
   }
 }
 

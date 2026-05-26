@@ -1,0 +1,141 @@
+---
+title: Background Dreaming
+description: Configure and operate background memory consolidation for long-horizon agent memory.
+---
+
+Dreaming is optional background memory consolidation for service-mode deployments. Use it when your agents write durable memory during user sessions and you want MemexAI to clean that memory after the session has gone quiet.
+
+In practice, dreaming solves the first wave of memory health and compaction problems:
+
+- Duplicate facts spread across multiple user files
+- Fragmented notes that should become one stable record
+- Direct contradictions after a user corrects earlier memory
+- Long-running memory files that are becoming hard for humans and agents to scan
+- Low-signal notes that make future memory search noisy
+- Trajectory continuity for agents that return to a user or project later
+
+Dreaming is not a transcript summarizer. Keep raw logs in your app or warehouse. Dreaming works on the durable `user/` memory files that MemexAI already owns.
+
+## How the loop works
+
+When `MEMEX_DREAM_ENABLED=true`, the service starts a background scheduler. On each tick it:
+
+1. Reads dream config from `mx_config`.
+2. Checks whether the database `dream_enabled` key is enabled.
+3. Finds users with non-excluded `user/` memory writes newer than their last dream run.
+4. Skips users whose memory has not been quiet for the configured grace period.
+5. Runs a bounded consolidation agent for eligible users.
+6. Writes changes through normal memory tools.
+7. Updates `mx_dream_run` with status, timestamps, counts, and errors.
+
+Dream writes use the same `memory_write` and `memory_patch` path as normal tool calls. They create `mx_revision` rows and access logs. The actor is `dream-agent`.
+
+## What gets skipped
+
+Dreaming is designed to avoid unnecessary model calls and audit noise.
+
+| Situation | What happens |
+| --- | --- |
+| Global dreaming is off | The scheduler does not run dream jobs. |
+| A specific user is paused | That user is skipped until resumed. |
+| No qualifying users changed memory | The tick logs a skip message and makes no LLM calls. |
+| A user only changed excluded log files | The user is not selected for dreaming. |
+| A user's memory changed too recently | The user waits until the grace period passes. |
+| The consolidation agent finds nothing to update | `files_touched` is `0` and no `dream-log.md` entry is written. |
+
+Dream reads exclude `user/log.md`, `user/dream-log.md`, files ending in `-log.md`, and files ending in `.log`. This keeps audit trails from feeding back into future consolidation.
+
+## What the agent can change
+
+The dream agent is meant to make memory more readable, not invent new facts.
+
+Good dream updates:
+
+- Merge repeated preferences into one cleaner note
+- Move scattered project decisions under a clearer heading
+- Replace an old fact when the user explicitly corrected it later
+- Preserve important context while reducing low-signal wording
+- Update `user/index.md` when the file catalog is stale
+
+Bad dream updates:
+
+- Inferring sensitive facts the user did not state
+- Treating raw conversation logs as durable memory
+- Rewriting shared memory
+- Creating a fake source trail
+- Making broad behavioral changes without a concrete memory conflict
+
+## No-op runs
+
+A dream run can complete without touching files. That is intentional.
+
+When the agent reviews memory and decides there is nothing worth consolidating:
+
+- `mx_dream_run.files_touched` is set to `0`
+- no `user/dream-log.md` entry is written
+- no memory file revision is created
+
+This keeps user memory free of "I looked and did nothing" clutter. Operators can still see the latest status in the Dreams panel or through the admin API.
+
+## Pausing dreaming
+
+You can pause dreaming globally or for a specific user.
+
+Global pause:
+
+```bash
+MEMEX_DREAM_ENABLED=false
+```
+
+Runtime global pause:
+
+```http
+PUT /v1/admin/dream/config
+```
+
+Set `dream_enabled` to `false`.
+
+Per-user pause:
+
+```http
+PUT /v1/admin/dream/users/:userId/paused
+```
+
+Use per-user pause when a user's memory needs manual review, when you are debugging a specific account, or when your product wants a user-level opt-out for background consolidation.
+
+## Configuration
+
+The service reads runtime settings from `mx_config` using `dream_*` keys.
+
+| Setting | Purpose |
+| --- | --- |
+| `dream_enabled` | Runtime master switch. |
+| `dream_interval_minutes` | How often the scheduler checks for eligible users. |
+| `dream_grace_period_minutes` | Quiet period after the latest qualifying write before dreaming can run. |
+| `dream_max_writes` | Maximum writes a single dream run may perform. |
+| `dream_concurrency` | How many users may be processed concurrently. |
+
+The environment variable `MEMEX_DREAM_ENABLED=true` starts the scheduler in the service process. The database `dream_enabled` key remains the runtime switch once the service is running.
+
+## Admin API
+
+All admin dream endpoints require `x-admin-secret: <MEMEX_ADMIN_SECRET>`.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /v1/admin/dream/config` | Read dream config. |
+| `PUT /v1/admin/dream/config` | Update cadence, grace period, write budget, concurrency, and enabled state. |
+| `GET /v1/admin/dream/users` | List per-user dream status, pause flags, error messages, counts, and timestamps. |
+| `PUT /v1/admin/dream/users/:userId/paused` | Pause or resume dreaming for one user. |
+
+The admin UI includes a Dreams panel for the same operator workflow.
+
+## Deployment notes
+
+- Dreaming is service-mode only.
+- Direct Postgres mode does not start a background service loop.
+- Configure an LLM provider for the service before enabling dreaming.
+- Keep write budgets conservative at first.
+- Inspect revisions after the first few runs before widening cadence or concurrency.
+
+For the product framing behind dreaming, see [Background Dreaming](/dreaming).

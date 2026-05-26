@@ -4,6 +4,11 @@ dist
 coverage
 .env
 .DS_Store
+apps/website/.next
+apps/website/out
+apps/website/dist
 apps/service/admin/dist
 apps/service/dist
+packages/core/dist
 packages/sdk/dist
+packages/admin-cli/dist

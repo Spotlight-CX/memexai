@@ -196,6 +196,29 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="section contrast-section">
+        <div className="section-kicker">Deep content</div>
+        <h2>Long-horizon agents need memory you can inspect.</h2>
+        <p className="section-lede">
+          The research direction is clear: agents need durable state across sessions, and memory affects behavior as
+          much as prompt wording. These essays lay out the practical implications for product teams.
+        </p>
+        <div className="feature-grid two-up-grid">
+          <Link className="feature link-card article-card" href="/blog/long-horizon-agents-need-memory">
+            <FileClock size={24} aria-hidden />
+            <span className="small-meta">Agent architecture</span>
+            <h3>Long-horizon agents need memory for trajectories</h3>
+            <p>Why memory should preserve project state, corrections, policies, and progress across sessions.</p>
+          </Link>
+          <Link className="feature link-card article-card" href="/blog/stop-running-evals-only-on-prompts">
+            <ListChecks size={24} aria-hidden />
+            <span className="small-meta">Memory evals</span>
+            <h3>Stop running evals only on prompts</h3>
+            <p>How shared memory and user records become part of the behavior surface you need to test.</p>
+          </Link>
+        </div>
+      </section>
+
       <section className="section">
         <div className="section-kicker">What stays simple</div>
         <h2>A memory system should be legible before it is clever.</h2>

@@ -33,6 +33,7 @@ import {
 import { useAdminData, adminQueryKey } from "./hooks"
 import { BrainIcon, ConnectionIcon, DotsHorizontalIcon, ExternalLinkIcon, MemoryNodeIcon } from "./icons"
 import { FilesView } from "./components/FilesView"
+import { DreamsView } from "./components/DreamsView"
 import { SecretGate } from "./components/SecretGate"
 import { SetupWizard } from "./components/SetupWizard"
 import { ToolPlayground } from "./components/ToolPlayground"
@@ -50,7 +51,7 @@ hljs.registerLanguage("python", python)
 hljs.registerLanguage("tsx", typescript)
 hljs.registerLanguage("typescript", typescript)
 
-const PAGES = ["files", "playground"] as const
+const PAGES = ["files", "playground", "dreams"] as const
 type Page = (typeof PAGES)[number]
 
 function Layout({ children }: { children: React.ReactNode }) {
@@ -217,6 +218,7 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
           <Routes>
             <Route path="/files" element={<FilesView secret={secret} />} />
             <Route path="/playground" element={<ToolPlayground apiKey={apiKey} secret={secret} onApiKeyInvalid={onApiKeyInvalid} />} />
+            <Route path="/dreams" element={<DreamsView secret={secret} />} />
             <Route path="/setup" element={<SetupWizard secret={secret} onComplete={async () => { await queryClient.invalidateQueries({ queryKey: adminQueryKey("/v1/admin/files") }); navigate("/files") }} />} />
             <Route path="*" element={<Navigate to="/files" replace />} />
           </Routes>

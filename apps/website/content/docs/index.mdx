@@ -46,6 +46,15 @@ const tools = memory.createRawToolset()
 // memory_list, memory_read, memory_write, memory_patch, memory_smart_read
 ```
 
+## Shared memory can guide behavior
+
+User memory stores per-user facts, preferences, and project state. Shared memory stores global guidance that every agent can read, such as tool rules, product policies, escalation criteria, and evaluation rubrics.
+
+<Cards>
+  <Card title="Shared memory as behavior guide" href="/docs/concepts/shared-memory" description="Use shared memory files as durable tool guidance, policies, and behavior instructions for agents." />
+  <Card title="Why memory evals matter" href="/blog/stop-running-evals-only-on-prompts" description="Evaluate the memory state and memory writes, not only the prompt text." />
+</Cards>
+
 ## What MemexAI stores
 
 Memory lives in Postgres tables:

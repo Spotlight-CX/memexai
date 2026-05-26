@@ -53,6 +53,10 @@ function createAdminDb() {
         }
       }
 
+      if (sql.includes("COUNT(*) AS total") && sql.includes("FROM mx_revision")) {
+        return { rows: [{ total: "1" }] }
+      }
+
       if (sql.includes("FROM mx_revision")) {
         return {
           rows: [{
@@ -127,12 +131,13 @@ describe("admin routes", () => {
 
   test("lists revisions and access logs", async () => {
     const app = buildServer({ db: createAdminDb() as never, config })
-    const revisions = await app.inject({ method: "GET", url: "/v1/admin/revisions", headers: adminHeaders })
+    const revisions = await app.inject({ method: "GET", url: "/v1/admin/revisions?actor=dream-agent&userId=user_123&from=2026-05-09T00%3A00%3A00.000Z&limit=500&offset=10", headers: adminHeaders })
     const logs = await app.inject({ method: "GET", url: "/v1/admin/access-logs", headers: adminHeaders })
     await app.close()
 
     expect(revisions.statusCode).toBe(200)
     expect(revisions.json().revisions[0].toolCallId).toBe("call_1")
+    expect(revisions.json().pagination).toMatchObject({ limit: 200, offset: 10, total: 1, hasMore: false })
     expect(logs.statusCode).toBe(200)
     expect(logs.json().accessLogs[0].operation).toBe("read")
   })

@@ -134,7 +134,8 @@ try {
     if (dryRun) publishArgs.push("--dry-run");
     if (tag) publishArgs.push("--tag", tag);
     if (otp) publishArgs.push("--otp", otp);
-    run("bun", publishArgs, { cwd: stageDir });
+    if (process.env.CI === "true") publishArgs.push("--provenance");
+    run("npm", publishArgs, { cwd: stageDir });
   }
 } finally {
   if (process.env.PUBLISH_KEEP_STAGE !== "1") {

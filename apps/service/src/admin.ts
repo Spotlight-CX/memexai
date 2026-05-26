@@ -3,6 +3,7 @@ import { HttpError } from "./errors"
 import { newId } from "./ids"
 
 type QueryResult<T> = { rows: T[] }
+const DREAM_STATUSES = new Set(["idle", "running", "completed", "failed"])
 
 export async function listAdminUsers(db: Db, input: { q?: string; limit?: number } = {}) {
   const q = input.q?.trim()
@@ -136,24 +137,51 @@ export async function getAdminFile(db: Db, physicalPath: string) {
   }
 }
 
-export async function listAdminRevisions(db: Db, input: { physicalPath?: string }) {
-  const query = input.physicalPath
-    ? db.query<AdminRevisionRow>(
-        `SELECT id, file_id, physical_path, operation, content_text, reason, actor, user_id, tool_call_id, created_at
-         FROM mx_revision
-         WHERE physical_path = $1
-         ORDER BY created_at DESC
-         LIMIT 200`,
-        [input.physicalPath],
-      )
-    : db.query<AdminRevisionRow>(
-        `SELECT id, file_id, physical_path, operation, content_text, reason, actor, user_id, tool_call_id, created_at
-         FROM mx_revision
-         ORDER BY created_at DESC
-         LIMIT 200`,
-      )
+export async function listAdminRevisions(db: Db, input: {
+  physicalPath?: string
+  actor?: string
+  userId?: string
+  from?: string
+  to?: string
+  limit?: number
+  offset?: number
+} = {}) {
+  const values: unknown[] = []
+  const filters: string[] = []
+  const limit = clampInt(input.limit, 200, 1, 200)
+  const offset = clampInt(input.offset, 0, 0, 100_000)
 
-  const { rows } = await query
+  if (input.physicalPath) {
+    values.push(input.physicalPath)
+    filters.push(`physical_path = $${values.length}`)
+  }
+  if (input.actor) {
+    values.push(input.actor)
+    filters.push(`actor = $${values.length}`)
+  }
+  if (input.userId) {
+    values.push(input.userId)
+    filters.push(`user_id = $${values.length}`)
+  }
+  addDateFilter(filters, values, "created_at", ">=", input.from)
+  addDateFilter(filters, values, "created_at", "<=", input.to)
+
+  const where = filters.length ? `WHERE ${filters.join(" AND ")}` : ""
+  const totalValues = [...values]
+  const { rows: countRows } = await db.query<{ total: string }>(
+    `SELECT COUNT(*) AS total FROM mx_revision ${where}`,
+    totalValues,
+  )
+  values.push(limit, offset)
+  const { rows } = await db.query<AdminRevisionRow>(
+    `SELECT id, file_id, physical_path, operation, content_text, reason, actor, user_id, tool_call_id, created_at
+     FROM mx_revision
+     ${where}
+     ORDER BY created_at DESC
+     LIMIT $${values.length - 1} OFFSET $${values.length}`,
+    values,
+  )
+  const total = Number(countRows[0]?.total ?? 0)
   return {
     revisions: rows.map((row) => ({
       id: row.id,
@@ -167,6 +195,94 @@ export async function listAdminRevisions(db: Db, input: { physicalPath?: string 
       toolCallId: row.tool_call_id,
       createdAt: row.created_at,
     })),
+    pagination: {
+      limit,
+      offset,
+      total,
+      hasMore: offset + limit < total,
+    },
+  }
+}
+
+export async function listAdminDreamUsers(db: Db, input: {
+  status?: string
+  q?: string
+  from?: string
+  to?: string
+  limit?: number
+  offset?: number
+} = {}) {
+  const values: unknown[] = []
+  const baseFilters: string[] = []
+  const filters: string[] = []
+  const limit = clampInt(input.limit, 50, 1, 200)
+  const offset = clampInt(input.offset, 0, 0, 100_000)
+  const timestampExpr = "coalesce(last_started_at, last_dreamed_at, updated_at)"
+
+  const q = input.q?.trim()
+  if (q) {
+    values.push(`%${q.toLowerCase()}%`)
+    baseFilters.push(`lower(user_id) LIKE $${values.length}`)
+  }
+  addDateFilter(baseFilters, values, timestampExpr, ">=", input.from)
+  addDateFilter(baseFilters, values, timestampExpr, "<=", input.to)
+  filters.push(...baseFilters)
+  if (input.status && DREAM_STATUSES.has(input.status)) {
+    values.push(input.status)
+    filters.push(`status = $${values.length}`)
+  }
+
+  const where = filters.length ? `WHERE ${filters.join(" AND ")}` : ""
+  const baseWhere = baseFilters.length ? `WHERE ${baseFilters.join(" AND ")}` : ""
+  const totalValues = [...values]
+  const summaryValues = values.slice(0, values.length - (input.status && DREAM_STATUSES.has(input.status) ? 1 : 0))
+  const { rows: countRows } = await db.query<{ total: string }>(
+    `SELECT COUNT(*) AS total FROM mx_dream_run ${where}`,
+    totalValues,
+  )
+  const { rows: summaryRows } = await db.query<{
+    running: string
+    failed: string
+    completed: string
+    paused: string
+  }>(
+    `SELECT
+       COUNT(*) FILTER (WHERE status = 'running') AS running,
+       COUNT(*) FILTER (WHERE status = 'failed') AS failed,
+       COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+       COUNT(*) FILTER (WHERE paused = true) AS paused
+     FROM mx_dream_run
+     ${baseWhere}`,
+    summaryValues,
+  )
+
+  values.push(limit, offset)
+  const { rows } = await db.query<AdminDreamRunRow>(
+    `SELECT user_id, status, paused, last_dreamed_at, last_started_at, files_touched, error, dream_count, updated_at
+     FROM mx_dream_run
+     ${where}
+     ORDER BY updated_at DESC, user_id ASC
+     LIMIT $${values.length - 1} OFFSET $${values.length}`,
+    values,
+  )
+  const total = Number(countRows[0]?.total ?? 0)
+  const summary = summaryRows[0]
+
+  return {
+    users: rows.map(toAdminDreamUser),
+    summary: {
+      running: Number(summary?.running ?? 0),
+      failed: Number(summary?.failed ?? 0),
+      completed: Number(summary?.completed ?? 0),
+      paused: Number(summary?.paused ?? 0),
+    },
+    pagination: {
+      limit,
+      offset,
+      total,
+      hasMore: offset + limit < total,
+    },
+    serverTime: new Date().toISOString(),
   }
 }
 
@@ -262,6 +378,18 @@ type AdminAccessLogRow = {
   created_at: Date
 }
 
+type AdminDreamRunRow = {
+  user_id: string
+  status: string
+  paused: boolean
+  last_dreamed_at: Date | null
+  last_started_at: Date | null
+  files_touched: number | null
+  error: string | null
+  dream_count: number
+  updated_at: Date
+}
+
 function toAdminFileSummary(row: AdminFileRow) {
   return {
     id: row.id,
@@ -270,6 +398,33 @@ function toAdminFileSummary(row: AdminFileRow) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
+}
+
+function toAdminDreamUser(row: AdminDreamRunRow) {
+  return {
+    userId: row.user_id,
+    status: row.status,
+    paused: row.paused,
+    lastDreamedAt: row.last_dreamed_at,
+    lastStartedAt: row.last_started_at,
+    filesTouched: row.files_touched,
+    error: row.error,
+    dreamCount: Number(row.dream_count),
+    updatedAt: row.updated_at,
+  }
+}
+
+function clampInt(value: number | undefined, fallback: number, min: number, max: number): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback
+  return Math.min(Math.max(Math.trunc(value), min), max)
+}
+
+function addDateFilter(filters: string[], values: unknown[], expr: string, op: ">=" | "<=", value: string | undefined) {
+  if (!value) return
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return
+  values.push(date.toISOString())
+  filters.push(`${expr} ${op} $${values.length}::timestamptz`)
 }
 
 export type AdminQuery<T> = QueryResult<T>
