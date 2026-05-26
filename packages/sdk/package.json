@@ -1,6 +1,6 @@
 {
   "name": "@memexai/sdk",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "TypeScript SDK and agent tool adapters for MemexAI persistent memory.",
   "type": "module",
   "sideEffects": false,
