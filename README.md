@@ -94,7 +94,7 @@ services:
       retries: 5
 
   memexai:
-    image: soorajsanker/memexai:latest
+    image: soorajshankar/memexai:latest
     depends_on:
       postgres:
         condition: service_healthy
