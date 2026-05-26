@@ -1,5 +1,22 @@
 # memexai Roadmap
 
+## North Star
+
+> "Human taste is now more important than ever as codegen tools make everyone a 10x engineer."
+> — Leo Paz (Outlit, W25)
+
+Leo was talking about engineers. But the insight is universal.
+
+AI can now write, advise, plan, and act at near-zero marginal cost. The bottleneck is no longer capability — it is knowing **whose** taste to apply. Not just for engineers. For anyone interacting with an AI agent: the career coach user who has specific anxieties about interviews, the finance app user who hates aggressive upsells, the creative writing user who writes in a particular voice.
+
+Every person has taste. AI currently ignores it — because it has no way to hold it.
+
+MemexAI is the infrastructure that captures and maintains human taste so AI can act confidently on a person's behalf. Not "what did the user say?" — "who is this user?" When the AI knows your taste — your preferences, friction points, style, and identity — it can reduce the decisions you need to make, not just answer questions faster.
+
+The end state: an AI that genuinely knows each user well enough to act for them with high confidence.
+
+---
+
 Memory as structured, inspectable files — curated by an agent as work happens, then reasoned over with lightweight file tools.
 
 MemexAI is not primarily a chat-log retrieval engine. The core bet is not:
@@ -42,6 +59,21 @@ Raw conversation logs can still exist outside MemexAI for replay, audit, or anal
 ---
 
 ## Next
+
+### Shared memory bookkeeper + admin setup (shipped)
+`shared/index.md` is now a root driver pointing to sub-files. `shared/user-memory.md` provides the default memory management guide. `buildPromptBlock()` now injects all `shared/` files so every new sub-file is immediately visible to agents. First-time admins land on a guided setup wizard (`/admin/setup`) — 3-step form generates initial shared memory files. Ongoing refinement via a Gemini-powered Configure tab in the admin UI.
+
+### Team Memory — contribution requests
+The next evolution of shared memory: individual agents or users can propose contributions to `shared/` that admins review before they become canonical context.
+
+How it works:
+- New tool `memory_propose` queues a contribution (fact or file edit) targeting `shared/`
+- Admin sees pending proposals in the Configure tab (or a dedicated Proposals tab)
+- Accept / reject / auto-approve modes (auto-approve after N approvals, or by trusted user ID)
+- Accepted proposals applied via existing admin file write path (full audit trail)
+- Makes `shared/` a living team knowledge base, not just operator-set defaults
+
+Why it matters: the gap between "operator configures once" and "team learns together" is where most memory systems stagnate. This closes it without requiring manual curation of every insight.
 
 ### Launch polish
 Make the first 10 minutes excellent: clear quick-test flow, copyable SDK snippets, better examples, and fewer places where a new developer has to infer the happy path.

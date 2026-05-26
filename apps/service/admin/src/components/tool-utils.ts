@@ -1,7 +1,17 @@
 export const PREFS_STORAGE = "memexai.playgroundPrefs"
 
 export type ArgMode = "form" | "json"
-export type Prefs = { argMode: ArgMode; userId?: string }
+export type SnippetLanguage = "typescript" | "python"
+export type TypeScriptSnippetHarness = "vercel-ai" | "openai" | "langchain" | "raw-sdk"
+export type PythonSnippetHarness = "raw-sdk" | "langchain" | "llamaindex" | "crewai"
+export type Prefs = {
+  argMode: ArgMode
+  userId?: string
+  snippetLanguage?: SnippetLanguage
+  snippetHarness?: TypeScriptSnippetHarness
+  typescriptSnippetHarness?: TypeScriptSnippetHarness
+  pythonSnippetHarness?: PythonSnippetHarness
+}
 
 export function loadPrefs(): Prefs {
   try {

@@ -47,12 +47,12 @@ export default function HomePage() {
           <div>
             <div className="eyebrow">
               <Database size={15} aria-hidden />
-              Durable memory for agents
+              Persistent user memory for AI products
             </div>
-            <h1>Stop treating old chat logs like memory.</h1>
+            <h1>Your users shouldn&apos;t have to re-introduce themselves every session.</h1>
             <p className="hero-copy">
-              MemexAI gives agents a small, inspectable memory surface backed by Postgres. They remember durable facts
-              as files, not as hidden chunks in a retrieval pipeline.
+              MemexAI gives your AI product taste memory — a persistent, inspectable model of who each user is. No GPU,
+              no vector store. Structured files in Postgres your team can read, edit, and trust.
             </p>
             <div className="hero-actions">
               <Link className="site-button site-button-primary" href="/docs">
@@ -64,6 +64,9 @@ export default function HomePage() {
                 <GitPullRequest size={17} aria-hidden />
                 GitHub
               </a>
+              <Link className="site-button site-button-secondary" href="/compare">
+                Compare
+              </Link>
             </div>
           </div>
 
@@ -87,9 +90,9 @@ export default function HomePage() {
                 </div>
                 <div>)</div>
                 <br />
-                <div className="dim"># writes user/profile.md</div>
-                <div className="dim"># updates user/index.md</div>
-                <div className="dim"># records revision and access log</div>
+                <div className="dim"># user returns next session</div>
+                <div className="dim"># AI already knows: preferences,</div>
+                <div className="dim"># friction, goals — no re-intro needed</div>
               </div>
             </div>
 
@@ -111,6 +114,31 @@ export default function HomePage() {
                 <span className="memory-meta">read-only</span>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-kicker">Why AI products churn users</div>
+        <h2>The AI starts fresh every session. Users re-explain everything. Eventually they stop.</h2>
+        <p className="section-lede">
+          Not because your product lacks features. Because the AI doesn&apos;t know who they are. MemexAI maintains the
+          memory your AI should carry forward — preferences, friction points, identity signals — across sessions, models,
+          and devices.
+        </p>
+        <div className="comparison">
+          <div className="comparison-panel muted-panel">
+            <h3>Without MemexAI</h3>
+            <p>User returns. AI starts fresh. User re-explains preferences, situation, goals. Day 7 retention drops.</p>
+            <pre>{`session 1: user explains context\nsession 2: AI starts fresh\nsession 3: user explains again\nday 7: user stops coming back`}</pre>
+          </div>
+          <div className="comparison-panel strong-panel">
+            <h3>With MemexAI</h3>
+            <p>
+              User returns. AI already knows their taste, friction, and goals. The product feels like it genuinely knows
+              them.
+            </p>
+            <pre>{`session 1: AI learns, writes memory\nsession 2: AI reads memory\nsession 3: personalized from first message\nday 7: user feels understood`}</pre>
           </div>
         </div>
       </section>
@@ -147,6 +175,24 @@ export default function HomePage() {
             <p>Let the agent write only durable facts into files that humans can inspect, edit, and audit.</p>
             <pre>{`observe a session\n→ write durable memory\n→ maintain files\n→ recall targeted records`}</pre>
           </div>
+        </div>
+      </section>
+
+      <section className="section">
+        <div className="section-kicker">Evaluate</div>
+        <h2>Choosing between MemexAI, Mem0, Zep, or a vector database?</h2>
+        <p className="section-lede">
+          The important question is whether you need search over old text or an inspectable user memory record your
+          team can operate. The comparison page lays out the tradeoff directly.
+        </p>
+        <div className="hero-actions">
+          <Link className="site-button site-button-primary" href="/compare">
+            Compare memory approaches
+            <ArrowRight size={17} aria-hidden />
+          </Link>
+          <Link className="site-button site-button-secondary" href="/walkthroughs">
+            Walkthrough queue
+          </Link>
         </div>
       </section>
 
@@ -252,6 +298,17 @@ export default function HomePage() {
               <ArrowRight size={17} aria-hidden />
               Docker quickstart
             </Link>
+            <Link className="site-button site-button-secondary" href="/roadmap">
+              Roadmap
+            </Link>
+            <a
+              className="site-button site-button-secondary"
+              href="https://join.slack.com/t/memexaispace/shared_invite/zt-3yy24alf6-t1wRQsErf09JViHww_qlGw"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Community / Support
+            </a>
           </div>
         </div>
       </section>

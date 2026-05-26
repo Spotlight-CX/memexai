@@ -100,16 +100,25 @@ describe("patchArgsSchema", () => {
 
 describe("smartReadArgsSchema", () => {
   test("accepts defaults and optional query", () => {
-    expect(smartReadArgsSchema.parse({})).toEqual({ maxChars: 24000 })
-    expect(smartReadArgsSchema.parse({ maxChars: 100, query: "budget" })).toMatchObject({
+    expect(smartReadArgsSchema.parse({})).toEqual({ maxChars: 24000, relatedDepth: 1 })
+    expect(smartReadArgsSchema.parse({
       maxChars: 100,
       query: "budget",
+      includeRelated: true,
+      relatedDepth: 2,
+    })).toMatchObject({
+      maxChars: 100,
+      query: "budget",
+      includeRelated: true,
+      relatedDepth: 2,
     })
   })
 
   test("rejects invalid bounds", () => {
     expect(() => smartReadArgsSchema.parse({ maxChars: 0 })).toThrow()
     expect(() => smartReadArgsSchema.parse({ query: "" })).toThrow()
+    expect(() => smartReadArgsSchema.parse({ relatedDepth: -1 })).toThrow()
+    expect(() => smartReadArgsSchema.parse({ relatedDepth: 3 })).toThrow()
   })
 })
 

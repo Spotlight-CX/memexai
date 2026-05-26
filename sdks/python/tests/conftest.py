@@ -52,6 +52,10 @@ class FakeDb:
             row = self.files.get(values[0])
             return [dict(row)] if row else []
 
+        if "physical_path = ANY($1)" in sql:
+            physical_paths = set(values[0])
+            return [dict(row) for row in self.files.values() if row["physical_path"] in physical_paths]
+
         if "FROM mx_file" in sql and "ORDER BY physical_path ASC" in sql:
             rows = []
             for row in self.files.values():
@@ -64,6 +68,15 @@ class FakeDb:
                     if row["physical_path"] == "shared" or row["physical_path"].startswith("shared/") or row["physical_path"].startswith(user_prefix):
                         rows.append(dict(row))
             return sorted(rows, key=lambda row: row["physical_path"])
+
+        if "FROM mx_file" in sql and "search_vector @@ q.query" in sql:
+            user_prefix = values[-1].rstrip("%")
+            rows = [
+                dict(row)
+                for row in self.files.values()
+                if "rank" in row and (row["physical_path"].startswith(user_prefix) or row["physical_path"].startswith("shared/"))
+            ]
+            return sorted(rows, key=lambda row: (-row["rank"], row["updated_at"]))
 
         if "FROM mx_file" in sql and "ORDER BY updated_at DESC" in sql:
             user_prefix = values[-1].rstrip("%")

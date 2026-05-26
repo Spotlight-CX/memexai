@@ -62,13 +62,15 @@ raw_tool_definitions = [
     },
     {
         "name": "memory_smart_read",
-        "description": "Read all memory files formatted into a single markdown block, ranked by update time or keyword query, within a character limit.",
+        "description": "Read all memory files formatted into a single markdown block, ranked by update time or keyword query, within a character limit. With a query, deterministic linked recall includes visible one-hop [[user/...]] or [[shared/...]] links if budget remains.",
         "inputSchema": {
             "type": "object",
             "additionalProperties": False,
             "properties": {
                 "maxChars": {"type": "number", "description": "Maximum characters to return. Default: 24000."},
                 "query": {"type": "string", "description": "Optional query to rank files by keyword relevance."},
+                "includeRelated": {"type": "boolean", "description": "Include visible linked memory files. Defaults to true when query is provided."},
+                "relatedDepth": {"type": "number", "description": "Maximum link expansion depth. 0 disables linked retrieval. Default: 1, max: 2."},
             },
         },
     },

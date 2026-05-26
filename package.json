@@ -22,8 +22,8 @@
     "docs:start": "bun run website:start",
     "demo:agent": "bun run --cwd apps/demo-agent start",
     "demo:inspect": "bun run --cwd apps/demo-agent inspect",
-    "dev": "bun run --cwd apps/service dev",
-    "dev:admin": "bun run --cwd apps/service dev:admin",
+    "dev": "cd apps/service && bun --env-file=../../.env run dev",
+    "dev:admin": "bun --env-file=.env run --cwd apps/service dev:admin",
     "admin": "node packages/admin-cli/dist/cli.js --database-url postgresql://memexai:memexai@localhost:5433/memexai",
     "admin:dev": "bun run --cwd packages/admin-cli dev -- --database-url postgresql://memexai:memexai@localhost:5433/memexai",
     "seed:admin": "DATABASE_URL=\"postgresql://memexai:memexai@localhost:5433/memexai\" bun run --cwd apps/service seed:admin",
@@ -32,7 +32,8 @@
     "test": "vitest run",
     "test:unit": "vitest run packages/core/tests/schemas.test.ts packages/core/tests/paths.test.ts packages/core/tests/text-patch.test.ts packages/core/tests/memex.test.ts packages/sdk/tests/client.test.ts packages/sdk/tests/adapters.test.ts apps/service/tests/config.test.ts",
     "test:watch": "vitest",
-    "bench:longmemeval": "bun run apps/benchmark/src/longmemeval.ts"
+    "bench:longmemeval": "bun run apps/benchmark/src/longmemeval.ts",
+    "bench:docker-smoke": "node apps/benchmark/src/docker-smoke-eval.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.19.25",

@@ -37,7 +37,7 @@ describe("memory_smart_read route", () => {
       headers: { authorization: "Bearer agent-key" },
       payload: {
         context: { userId: "u1" },
-        arguments: { maxChars: 1000 },
+        arguments: { maxChars: 1000, includeRelated: false, relatedDepth: 0 },
       },
     })
     await app.close()

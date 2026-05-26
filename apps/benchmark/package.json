@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "longmemeval": "bun run src/longmemeval.ts"
+    "longmemeval": "bun run src/longmemeval.ts",
+    "docker-smoke": "node src/docker-smoke-eval.mjs"
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.29",

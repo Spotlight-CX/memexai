@@ -20,10 +20,11 @@ import {
   getTreeExpandedState,
   useTree,
 } from "@mantine/core"
+import { useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import { useSearchParams } from "react-router-dom"
-import { useAdminData } from "../hooks"
+import { useAdminData, adminQueryKey } from "../hooks"
 import { FileTreeItem } from "./FileTree"
 import { PencilIcon, PlusIcon } from "../icons"
 import type { AdminFile, AdminRevision } from "../types"
@@ -40,19 +41,17 @@ export function FilesView({ secret }: { secret: string }) {
   const [draftContent, setDraftContent] = useState("")
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [refreshKey, setRefreshKey] = useState(0)
   const [newFilePath, setNewFilePath] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
   const { data, error } = useAdminData<{ files: AdminFile[] }>("/v1/admin/files", secret)
   const { data: selected } = useAdminData<{ file: AdminFile }>(
     selectedPath ? `/v1/admin/files/${encodeURIComponent(selectedPath)}` : null,
     secret,
-    refreshKey,
   )
   const { data: revisions, error: revisionsError } = useAdminData<{ revisions: AdminRevision[] }>(
     selectedPath ? `/v1/admin/revisions?physicalPath=${encodeURIComponent(selectedPath)}` : null,
     secret,
-    refreshKey,
   )
 
   const tree = useTree()
@@ -126,7 +125,8 @@ export function FilesView({ secret }: { secret: string }) {
         throw new Error((body as any)?.error?.message ?? "Save failed")
       }
       setIsEditing(false)
-      setRefreshKey((k) => k + 1)
+      await queryClient.invalidateQueries({ queryKey: adminQueryKey(`/v1/admin/files/${encodeURIComponent(selectedPath)}`) })
+      await queryClient.invalidateQueries({ queryKey: adminQueryKey(`/v1/admin/revisions?physicalPath=${encodeURIComponent(selectedPath)}`) })
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Save failed")
     } finally {
@@ -147,11 +147,11 @@ export function FilesView({ secret }: { secret: string }) {
         display: "grid",
         gridTemplateColumns: "264px minmax(0, 1fr) 296px",
         minHeight: 0,
-        background: "var(--mantine-color-white)",
+        background: "transparent",
       }}
     >
       {/* Left: file tree */}
-      <Stack gap={0} h="100%" style={{ minHeight: 0, borderRight: "1px solid var(--mantine-color-gray-2)" }}>
+      <Stack gap={0} h="100%" style={{ minHeight: 0, borderRight: "1px solid var(--mantine-color-gray-2)", background: "rgba(255, 255, 255, 0.4)", backdropFilter: "blur(4px)" }}>
         <Box px={12} pt={12} pb={8}>
           <Group justify="space-between" align="center" mb={6}>
             <Text size="xs" fw={600} c="dimmed" tt="uppercase" style={{ letterSpacing: "0.04em" }}>
@@ -292,14 +292,14 @@ export function FilesView({ secret }: { secret: string }) {
           onClose={() => setNewFilePath(null)}
           onCreated={(path) => {
             setNewFilePath(null)
-            setRefreshKey((k) => k + 1)
+            queryClient.invalidateQueries({ queryKey: adminQueryKey("/v1/admin/files") })
             handleSelectPath(path)
           }}
         />
       )}
 
       {/* Right: revision sidebar */}
-      <Stack gap={0} h="100%" style={{ minHeight: 0, borderLeft: "1px solid var(--mantine-color-gray-2)", background: "var(--mantine-color-gray-0)" }}>
+      <Stack gap={0} h="100%" style={{ minHeight: 0, borderLeft: "1px solid var(--mantine-color-gray-2)", background: "rgba(255, 255, 255, 0.4)", backdropFilter: "blur(4px)" }}>
         <Box px={12} py={10}>
           <Text size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.04em" }}>Revisions</Text>
           <Text size="xs" c="dimmed" mt={2}>{selectedPath ? "File history" : "Select a file to inspect."}</Text>

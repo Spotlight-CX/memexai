@@ -102,11 +102,38 @@ function MemoryMemorizeResponse({ body }: { body: JsonObject }) {
 
 function SearchResponse({ body }: { body: JsonObject }) {
   const results = Array.isArray(body.results) ? body.results.filter(isObject) : []
-  if (results.length === 0) return null
+  const answer = asString(body.answer)
+  const sources = Array.isArray(body.sources) ? body.sources.filter((source): source is string => typeof source === "string" && source.trim() !== "") : []
+  const truncated = typeof body.truncated === "boolean" ? body.truncated : false
 
   return (
-    <Stack gap="xs">
-      <Text size="xs" c="dimmed">{results.length} result{results.length === 1 ? "" : "s"}</Text>
+    <Stack gap="sm">
+      <Group gap="xs">
+        <Text size="xs" c="dimmed">{results.length} result{results.length === 1 ? "" : "s"}</Text>
+        {answer && <Badge size="xs" color="blue" variant="light">answer</Badge>}
+        {sources.length > 0 && <Badge size="xs" color="gray" variant="light">{sources.length} source{sources.length === 1 ? "" : "s"}</Badge>}
+        {truncated && <Badge size="xs" color="yellow" variant="light">truncated</Badge>}
+      </Group>
+
+      {answer && (
+        <Paper withBorder radius={8} p="sm" style={{ background: "var(--mantine-color-blue-0)" }}>
+          <Stack gap="xs">
+            <Text size="xs" fw={700} c="blue.8">Answer</Text>
+            <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>{answer}</Text>
+          </Stack>
+        </Paper>
+      )}
+
+      {sources.length > 0 && (
+        <Group gap={4}>
+          {sources.map((source) => (
+            <Badge key={source} size="xs" variant="light" color="gray" style={{ fontFamily: "monospace", textTransform: "none" }}>
+              {source}
+            </Badge>
+          ))}
+        </Group>
+      )}
+
       {results.map((result, index) => (
         <Paper key={`${asString(result.path) ?? "result"}-${index}`} withBorder radius={8} p="sm">
           <Group justify="space-between" gap="xs">
@@ -118,6 +145,14 @@ function SearchResponse({ body }: { body: JsonObject }) {
           )}
         </Paper>
       ))}
+
+      {!answer && sources.length === 0 && results.length === 0 && (
+        <Paper withBorder radius={8} p="sm" style={{ background: "var(--mantine-color-gray-0)" }}>
+          <Text size="sm" c="dimmed">
+            No matching memory files returned{truncated ? " before the response was truncated." : "."}
+          </Text>
+        </Paper>
+      )}
     </Stack>
   )
 }

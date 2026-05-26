@@ -4,13 +4,29 @@ import { newId } from "./ids"
 
 type QueryResult<T> = { rows: T[] }
 
-export async function listAdminUsers(db: Db) {
+export async function listAdminUsers(db: Db, input: { q?: string; limit?: number } = {}) {
+  const q = input.q?.trim()
+  const limit = input.limit && Number.isFinite(input.limit)
+    ? Math.min(Math.max(Math.trunc(input.limit), 1), 200)
+    : null
+  const values: unknown[] = []
+  const filters: string[] = []
+
+  if (q) {
+    values.push(`%${q.toLowerCase()}%`)
+    filters.push(`lower(user_files.user_id) LIKE $${values.length}`)
+  }
+
+  const where = filters.length ? `WHERE ${filters.join(" AND ")}` : ""
+  const limitSql = limit ? `LIMIT $${values.push(limit)}` : ""
+
   const { rows } = await db.query<{
     user_id: string
     file_count: string
     last_write_at: Date | null
     last_read_at: Date | null
-  }>(`
+  }>(
+    `
     WITH user_files AS (
       SELECT
         split_part(physical_path, '/', 2) AS user_id,
@@ -36,8 +52,12 @@ export async function listAdminUsers(db: Db) {
       user_reads.last_read_at
     FROM user_files
     LEFT JOIN user_reads ON user_reads.user_id = user_files.user_id
+    ${where}
     ORDER BY user_files.last_write_at DESC NULLS LAST, user_files.user_id ASC
-  `)
+    ${limitSql}
+  `,
+    values,
+  )
 
   return {
     users: rows.map((row) => ({

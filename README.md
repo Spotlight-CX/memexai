@@ -67,7 +67,7 @@ const tools = memory.createRawToolset()
 - `memory_read` reads one file.
 - `memory_write` creates or overwrites a user file.
 - `memory_patch` appends under a heading or replaces exact text.
-- `memory_smart_read` builds a bounded context block from visible files.
+- `memory_smart_read` builds a bounded context block from visible files; query reads also include deterministic one-hop linked context when budget allows.
 
 Both paths use the same scoped paths, revision history, and access logs.
 

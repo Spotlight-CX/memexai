@@ -169,6 +169,7 @@ Two operations available:
     description: `Read all (or the most relevant) memory files within a character budget, returned as a single merged context block ready to inject into a system prompt.
 
 Optionally pass a \`query\` to rank files by keyword relevance so the most useful content fits within \`maxChars\`.
+When a query is provided, deterministic linked recall is enabled by default: directly matched files are included first, then visible one-hop \`[[user/...]]\` or \`[[shared/...]]\` links are added if budget remains.
 
 ### Parameters
 
@@ -176,6 +177,8 @@ Optionally pass a \`query\` to rank files by keyword relevance so the most usefu
 |---|---|---|---|
 | \`maxChars\` | number | no | Maximum characters to return. Default: 24 000 |
 | \`query\` | string | no | Keyword query to rank files by relevance |
+| \`includeRelated\` | boolean | no | Include directly linked memory files. Defaults to true when query is set |
+| \`relatedDepth\` | number | no | Link expansion depth, 0-2. Default: 1 |
 
 ### Example input
 
@@ -198,6 +201,8 @@ Optionally pass a \`query\` to rank files by keyword relevance so the most usefu
       properties: {
         maxChars: { type: "number", description: "Maximum characters to return. Default: 24000." },
         query: { type: "string", description: "Optional query to rank files by keyword relevance." },
+        includeRelated: { type: "boolean", description: "Include visible files linked with [[user/...]] or [[shared/...]]. Defaults to true when query is provided." },
+        relatedDepth: { type: "number", description: "Maximum link expansion depth. 0 disables linked retrieval. Default: 1, max: 2." },
       },
     },
   },

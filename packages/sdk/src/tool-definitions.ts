@@ -68,6 +68,8 @@ export const rawToolDefinitions = [
       properties: {
         maxChars: { type: "number", description: "Maximum characters to return. Default: 24000." },
         query: { type: "string", description: "Optional query to rank files by keyword relevance." },
+        includeRelated: { type: "boolean", description: "Include visible linked memory files. Defaults to true when query is provided." },
+        relatedDepth: { type: "number", description: "Maximum link expansion depth. 0 disables linked retrieval. Default: 1, max: 2." },
       },
     },
   },

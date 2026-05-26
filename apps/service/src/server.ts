@@ -1,6 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify"
 import { ZodError } from "zod"
 import { getAdminFile, listAdminAccessLogs, listAdminFiles, listAdminRevisions, listAdminUsers, writeAdminFile } from "./admin"
+import { handleConfigureChat } from "./admin-configure"
+import { handleSetupGenerate } from "./admin-setup"
 import { requireAdminSecret, requireApiKey } from "./auth"
 import type { Config } from "./config"
 import type { Db } from "./db"
@@ -116,7 +118,11 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
   })
 
   app.get("/v1/admin/health", { preHandler: adminAuth }, async () => ({ ok: true, admin: true }))
-  app.get("/v1/admin/users", { preHandler: adminAuth }, async () => listAdminUsers(db))
+  app.get("/v1/admin/users", { preHandler: adminAuth }, async (request) => {
+    const query = request.query as { q?: string; limit?: string }
+    const limit = query.limit ? Number(query.limit) : undefined
+    return listAdminUsers(db, { q: query.q, limit })
+  })
   app.get("/v1/admin/files", { preHandler: adminAuth }, async (request) => {
     const query = request.query as { prefix?: string }
     return listAdminFiles(db, { prefix: query.prefix })
@@ -137,6 +143,24 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
   app.get("/v1/admin/access-logs", { preHandler: adminAuth }, async (request) => {
     const query = request.query as { physicalPath?: string }
     return listAdminAccessLogs(db, { physicalPath: query.physicalPath })
+  })
+
+  app.post("/v1/admin/setup-generate", { preHandler: adminAuth }, async (request) => {
+    const { productDescription, domain, userInfoCategories, extra } = request.body as {
+      productDescription: string
+      domain: string
+      userInfoCategories: string[]
+      extra?: string
+    }
+    return handleSetupGenerate({ productDescription, domain, userInfoCategories, extra })
+  })
+
+  app.post("/v1/admin/configure-chat", { preHandler: adminAuth }, async (request) => {
+    const { message, history } = request.body as {
+      message: string
+      history?: Array<{ role: string; content: string }>
+    }
+    return handleConfigureChat(db, input.model, { message, history: (history ?? []) as Array<{ role: "user" | "assistant"; content: string }> })
   })
 
   registerAdminStaticRoutes(app)
