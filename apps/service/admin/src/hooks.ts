@@ -1,26 +1,17 @@
-import { useEffect, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 
-export function useAdminData<T>(path: string | null, secret: string, refreshKey?: number) {
-  const [data, setData] = useState<T | null>(null)
-  const [error, setError] = useState<string | null>(null)
+export const adminQueryKey = (path: string) => ["admin", path]
 
-  useEffect(() => {
-    if (!path) return
-    let cancelled = false
-    fetch(path, { headers: { "x-memex-admin-secret": secret } })
-      .then(async (response) => {
-        const body = await response.json()
-        if (!response.ok) throw new Error(body?.error?.message ?? "Request failed")
-        return body as T
-      })
-      .then((body) => {
-        if (!cancelled) { setData(body); setError(null) }
-      })
-      .catch((nextError) => {
-        if (!cancelled) setError(nextError instanceof Error ? nextError.message : "Request failed")
-      })
-    return () => { cancelled = true }
-  }, [path, secret, refreshKey])
-
-  return { data, error }
+export function useAdminData<T>(path: string | null, secret: string) {
+  const { data, error } = useQuery<T, Error>({
+    queryKey: adminQueryKey(path ?? ""),
+    queryFn: async () => {
+      const res = await fetch(path!, { headers: { "x-memex-admin-secret": secret } })
+      const body = await res.json()
+      if (!res.ok) throw new Error(body?.error?.message ?? "Request failed")
+      return body as T
+    },
+    enabled: !!path && !!secret,
+  })
+  return { data: data ?? null, error: error?.message ?? null }
 }

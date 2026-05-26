@@ -20,10 +20,11 @@ import {
   getTreeExpandedState,
   useTree,
 } from "@mantine/core"
+import { useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import ReactMarkdown from "react-markdown"
 import { useSearchParams } from "react-router-dom"
-import { useAdminData } from "../hooks"
+import { useAdminData, adminQueryKey } from "../hooks"
 import { FileTreeItem } from "./FileTree"
 import { PencilIcon, PlusIcon } from "../icons"
 import type { AdminFile, AdminRevision } from "../types"
@@ -40,19 +41,17 @@ export function FilesView({ secret }: { secret: string }) {
   const [draftContent, setDraftContent] = useState("")
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
-  const [refreshKey, setRefreshKey] = useState(0)
   const [newFilePath, setNewFilePath] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
   const { data, error } = useAdminData<{ files: AdminFile[] }>("/v1/admin/files", secret)
   const { data: selected } = useAdminData<{ file: AdminFile }>(
     selectedPath ? `/v1/admin/files/${encodeURIComponent(selectedPath)}` : null,
     secret,
-    refreshKey,
   )
   const { data: revisions, error: revisionsError } = useAdminData<{ revisions: AdminRevision[] }>(
     selectedPath ? `/v1/admin/revisions?physicalPath=${encodeURIComponent(selectedPath)}` : null,
     secret,
-    refreshKey,
   )
 
   const tree = useTree()
@@ -126,7 +125,8 @@ export function FilesView({ secret }: { secret: string }) {
         throw new Error((body as any)?.error?.message ?? "Save failed")
       }
       setIsEditing(false)
-      setRefreshKey((k) => k + 1)
+      await queryClient.invalidateQueries({ queryKey: adminQueryKey(`/v1/admin/files/${encodeURIComponent(selectedPath)}`) })
+      await queryClient.invalidateQueries({ queryKey: adminQueryKey(`/v1/admin/revisions?physicalPath=${encodeURIComponent(selectedPath)}`) })
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Save failed")
     } finally {
@@ -292,7 +292,7 @@ export function FilesView({ secret }: { secret: string }) {
           onClose={() => setNewFilePath(null)}
           onCreated={(path) => {
             setNewFilePath(null)
-            setRefreshKey((k) => k + 1)
+            queryClient.invalidateQueries({ queryKey: adminQueryKey("/v1/admin/files") })
             handleSelectPath(path)
           }}
         />

@@ -12,8 +12,9 @@ import {
   Title,
   UnstyledButton,
 } from "@mantine/core"
+import { useQueryClient } from "@tanstack/react-query"
 import { useEffect, useRef, useState } from "react"
-import { useAdminData } from "../hooks"
+import { useAdminData, adminQueryKey } from "../hooks"
 import type { AdminFile } from "../types"
 import { ChatContainer, ChatInputWrapper } from "./ChatLayout"
 
@@ -167,14 +168,13 @@ export function ConfigureTab({ secret, onBackToUser }: { secret: string; onBackT
   const [input, setInput] = useState("")
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
-  const [filesRefreshKey, setFilesRefreshKey] = useState(0)
   const [filesExpanded, setFilesExpanded] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const queryClient = useQueryClient()
 
   const { data: filesData } = useAdminData<{ files: AdminFile[] }>(
     `/v1/admin/files?prefix=shared/`,
     secret,
-    filesRefreshKey,
   )
   const sharedFiles = (filesData?.files ?? []).filter((f) => !f.physicalPath.startsWith("shared/."))
 
@@ -234,7 +234,7 @@ export function ConfigureTab({ secret, onBackToUser }: { secret: string; onBackT
       const body = await res.json()
       throw new Error(body?.error?.message ?? "Apply failed")
     }
-    setFilesRefreshKey((k) => k + 1)
+    queryClient.invalidateQueries({ queryKey: adminQueryKey(`/v1/admin/files?prefix=shared/`) })
   }
 
   const skipChange = (msgIndex: number, path: string) => {

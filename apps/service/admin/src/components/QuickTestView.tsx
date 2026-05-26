@@ -183,8 +183,14 @@ export function QuickTestView({ apiKey, secret, userId, onUserIdChange }: QuickT
                   <UnstyledButton onClick={() => setScope("system")}>
                     <Badge size="xs" color="gray" variant="outline" style={{ cursor: "pointer" }}>User Scope</Badge>
                   </UnstyledButton>
-                  <Box style={{ minWidth: 140 }}>
-                    <UserSelector secret={secret} value={userId} onChange={onUserIdChange} compact />
+                  <Box style={{ width: 240, maxWidth: "40vw", minWidth: 180 }}>
+                    <UserSelector
+                      secret={secret}
+                      value={userId}
+                      onChange={onUserIdChange}
+                      compact
+                      dropdownWidth={320}
+                    />
                   </Box>
                 </Group>
 

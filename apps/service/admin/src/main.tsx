@@ -19,6 +19,7 @@ import {
   Title,
   UnstyledButton,
 } from "@mantine/core"
+import { useQueryClient } from "@tanstack/react-query"
 import { useState, useMemo, useEffect } from "react"
 import { createRoot } from "react-dom/client"
 import {
@@ -29,7 +30,7 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom"
-import { useAdminData } from "./hooks"
+import { useAdminData, adminQueryKey } from "./hooks"
 import { BrainIcon, ConnectionIcon, DotsHorizontalIcon, ExternalLinkIcon, MemoryNodeIcon } from "./icons"
 import { FilesView } from "./components/FilesView"
 import { SecretGate } from "./components/SecretGate"
@@ -116,14 +117,13 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
   gateError: string | null
 }) {
   const [overlay, setOverlay] = useState<Overlay>(null)
-  const [filesRefreshKey, setFilesRefreshKey] = useState(0)
   const location = useLocation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const { data: filesData } = useAdminData<{ files: AdminFile[] }>(
     secret ? "/v1/admin/files" : null,
     secret,
-    filesRefreshKey,
   )
   const files = useMemo(() => filesData?.files ?? [], [filesData])
 
@@ -217,7 +217,7 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
           <Routes>
             <Route path="/files" element={<FilesView secret={secret} />} />
             <Route path="/playground" element={<ToolPlayground apiKey={apiKey} secret={secret} onApiKeyInvalid={onApiKeyInvalid} />} />
-            <Route path="/setup" element={<SetupWizard secret={secret} onComplete={() => { navigate("/files"); setFilesRefreshKey((k) => k + 1) }} />} />
+            <Route path="/setup" element={<SetupWizard secret={secret} onComplete={async () => { await queryClient.invalidateQueries({ queryKey: adminQueryKey("/v1/admin/files") }); navigate("/files") }} />} />
             <Route path="*" element={<Navigate to="/files" replace />} />
           </Routes>
         </AppShell.Main>
