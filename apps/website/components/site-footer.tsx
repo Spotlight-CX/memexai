@@ -1,14 +1,15 @@
 import Link from 'next/link';
 import { GitPullRequest, MessageCircle } from 'lucide-react';
+import { slackUrl } from '@/lib/links';
 
 const footerGroups = [
   {
     title: 'Resources',
     links: [
       { label: 'Docs', href: '/docs' },
+      { label: 'Roadmap', href: '/roadmap' },
       { label: 'Docker quickstart', href: '/docs/quickstart/docker-service' },
       { label: 'Walkthroughs', href: '/walkthroughs' },
-      { label: 'Architecture', href: '/docs/architecture' },
     ],
   },
   {
@@ -43,7 +44,7 @@ const footerGroups = [
       { label: 'GitHub', href: 'https://github.com/Spotlight-CX/memexai', external: true },
       {
         label: 'Slack support',
-        href: 'https://join.slack.com/t/memexaispace/shared_invite/zt-3yy24alf6-t1wRQsErf09JViHww_qlGw',
+        href: slackUrl,
         external: true,
       },
       { label: 'LLMs.txt', href: '/llms.txt' },
@@ -98,7 +99,7 @@ export function SiteFooter() {
               <GitPullRequest size={17} aria-hidden />
             </a>
             <a
-              href="https://join.slack.com/t/memexaispace/shared_invite/zt-3yy24alf6-t1wRQsErf09JViHww_qlGw"
+              href={slackUrl}
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Slack support"

@@ -13,6 +13,7 @@ const routes = [
   '/docs/sdks/python',
   '/docs/mcp',
   '/docs/architecture',
+  '/roadmap',
   '/compare',
   '/compare/mem0',
   '/compare/zep',

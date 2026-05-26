@@ -298,6 +298,9 @@ export default function HomePage() {
               <ArrowRight size={17} aria-hidden />
               Docker quickstart
             </Link>
+            <Link className="site-button site-button-secondary" href="/roadmap">
+              Roadmap
+            </Link>
             <a
               className="site-button site-button-secondary"
               href="https://join.slack.com/t/memexaispace/shared_invite/zt-3yy24alf6-t1wRQsErf09JViHww_qlGw"
