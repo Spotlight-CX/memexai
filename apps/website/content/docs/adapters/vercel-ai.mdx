@@ -1,0 +1,93 @@
+---
+title: Vercel AI SDK
+description: Use MemexAI memory tools with the Vercel AI SDK in TypeScript.
+---
+
+The Vercel AI SDK adapter wires MemexAI memory tools into any `generateText`, `streamText`, or `generateObject` call.
+
+## Install
+
+```bash
+npm install @memexai/sdk ai
+```
+
+For direct Postgres mode:
+
+```bash
+npm install @memexai/core ai
+```
+
+## Service mode (recommended)
+
+Use `@memexai/sdk` when connecting to the [containerized MemexAI service](/docs/quickstart/docker-service).
+
+```ts
+import { MemexAI } from '@memexai/sdk'
+import { generateText, stepCountIs } from 'ai'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
+
+const memex = new MemexAI({ url: 'http://localhost:8080', apiKey: process.env.MEMEX_API_KEY! })
+const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
+
+const result = await generateText({
+  model: createGoogleGenerativeAI()('gemini-2.5-flash'),
+  system: 'You are a helpful assistant with durable memory.',
+  prompt: 'Remember that I prefer quiet neighborhoods near good schools.',
+  tools: memory.createAgenticToolset(),
+  stopWhen: stepCountIs(5),
+})
+
+console.log(result.text)
+```
+
+The instance method `memory.createAgenticToolset()` is the shortest path and returns Vercel AI-compatible tools directly.
+
+## Direct Postgres mode
+
+Use `@memexai/core` when your app owns the Postgres connection.
+
+```ts
+import { createMemex } from '@memexai/core'
+import { generateText, stepCountIs } from 'ai'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
+
+const google = createGoogleGenerativeAI()
+const memex = createMemex({ databaseUrl: process.env.DATABASE_URL!, model: google('gemini-2.5-flash') })
+await memex.migrate()
+
+const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
+
+const result = await generateText({
+  model: google('gemini-2.5-flash'),
+  system: 'You are a helpful assistant with durable memory.',
+  prompt: 'Remember that I prefer quiet neighborhoods near good schools.',
+  tools: memory.createAgenticToolset(),
+  stopWhen: stepCountIs(5),
+})
+
+await memex.end()
+```
+
+## Explicit adapter import
+
+The named export is available if you prefer to import it directly.
+
+```ts
+import { createVercelAITools } from '@memexai/sdk/adapters/vercel-ai'
+// or for direct mode:
+import { createVercelAITools } from '@memexai/core/adapters/vercel-ai'
+
+const agenticTools = createVercelAITools(memory)
+const rawTools = createVercelAITools(memory, { mode: 'raw' })
+```
+
+## Raw toolset
+
+Pass `{ mode: 'raw' }` to expose the full file-level tool set instead of the two agentic tools.
+
+```ts
+tools: memory.createRawToolset()
+// memory_list, memory_read, memory_write, memory_patch, memory_smart_read
+```
+
+Use raw tools when your agent or workflow should control exactly what gets written.

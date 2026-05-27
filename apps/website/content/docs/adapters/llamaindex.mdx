@@ -1,0 +1,50 @@
+---
+title: LlamaIndex
+description: Use MemexAI memory tools with LlamaIndex in Python.
+---
+
+The LlamaIndex adapter wraps all seven MemexAI memory tools as `FunctionTool` objects for use with any LlamaIndex agent.
+
+## Install
+
+```bash
+pip install memexai llama-index-core
+```
+
+## Usage
+
+```python
+from memexai import MemexAI
+from memexai.adapters.llamaindex import get_llamaindex_tools
+from llama_index.core.agent import FunctionCallingAgentWorker
+from llama_index.llms.google import Gemini
+
+memex = MemexAI(url="http://localhost:8080", api_key="dev-agent-key")
+user = memex.for_user("user_123", actor="assistant")
+tools = get_llamaindex_tools(user)
+
+llm = Gemini(model="models/gemini-2.5-flash")
+worker = FunctionCallingAgentWorker.from_tools(tools, llm=llm, verbose=True)
+agent = worker.as_agent()
+
+response = await agent.achat("Remember that I prefer quiet neighborhoods near good schools.")
+print(response)
+
+await memex.close()
+```
+
+## Available tools
+
+`get_llamaindex_tools` returns seven `FunctionTool` objects:
+
+| Tool | Purpose |
+| --- | --- |
+| `memory_list` | List files visible to the current user |
+| `memory_read` | Read a single file by virtual path |
+| `memory_write` | Create or overwrite a user file |
+| `memory_patch` | Apply targeted updates (append, replace) |
+| `memory_smart_read` | Read all memory into a bounded context block |
+| `memory_search` | BM25 full-text search over memory |
+| `memory_memorize` | Feed raw text and let MemexAI decide what to write |
+
+For most assistants, passing only `memory_memorize` and `memory_search` is enough. Include the full set when the agent needs direct file control.

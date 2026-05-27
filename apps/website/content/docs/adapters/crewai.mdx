@@ -1,0 +1,60 @@
+---
+title: CrewAI
+description: Use MemexAI memory tools with CrewAI in Python.
+---
+
+The CrewAI adapter returns MemexAI tools as `@tool`-decorated async functions compatible with CrewAI agents.
+
+## Install
+
+```bash
+pip install memexai crewai
+```
+
+## Usage
+
+```python
+from memexai import MemexAI
+from memexai.adapters.crewai import get_crewai_tools
+from crewai import Agent, Task, Crew
+
+memex = MemexAI(url="http://localhost:8080", api_key="dev-agent-key")
+user = memex.for_user("user_123", actor="assistant")
+tools = get_crewai_tools(user)
+
+assistant = Agent(
+    role="Personal Assistant",
+    goal="Maintain durable memory about the user across sessions.",
+    backstory="You remember what matters and surface it when it's relevant.",
+    tools=tools,
+    verbose=True,
+)
+
+task = Task(
+    description="Remember that the user prefers quiet neighborhoods near good schools.",
+    expected_output="Confirmation that the preference was saved to memory.",
+    agent=assistant,
+)
+
+crew = Crew(agents=[assistant], tasks=[task])
+result = crew.kickoff()
+print(result)
+
+await memex.close()
+```
+
+## Available tools
+
+`get_crewai_tools` returns seven `@tool`-decorated async functions. Each wraps the corresponding `MemexUser` method:
+
+| Tool | Purpose |
+| --- | --- |
+| `memory_list` | List files visible to the current user |
+| `memory_read` | Read a single file by virtual path |
+| `memory_write` | Create or overwrite a user file |
+| `memory_patch` | Apply targeted updates (append, replace) |
+| `memory_smart_read` | Read all memory into a bounded context block |
+| `memory_search` | BM25 full-text search over memory |
+| `memory_memorize` | Feed raw text and let MemexAI decide what to write |
+
+For a minimal setup, assign only `memory_memorize` and `memory_search` to the agent. Include the full set when a task requires direct file control.

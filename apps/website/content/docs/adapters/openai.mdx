@@ -1,0 +1,72 @@
+---
+title: OpenAI SDK
+description: Use MemexAI memory tools with the OpenAI SDK in TypeScript.
+---
+
+The OpenAI adapter is available in `@memexai/sdk` for the service mode. It returns a `definitions` array for the API call and an `execute` method for handling tool call results.
+
+## Install
+
+```bash
+npm install @memexai/sdk openai
+```
+
+## Usage
+
+```ts
+import OpenAI from 'openai'
+import { MemexAI } from '@memexai/sdk'
+import { createOpenAITools } from '@memexai/sdk/adapters/openai'
+
+const openai = new OpenAI()
+const memex = new MemexAI({ url: 'http://localhost:8080', apiKey: process.env.MEMEX_API_KEY! })
+const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
+const { definitions, execute } = createOpenAITools(memory)
+
+const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+  { role: 'user', content: 'Remember that I prefer concise answers.' },
+]
+
+while (true) {
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4.1-mini',
+    messages,
+    tools: definitions,
+    tool_choice: 'auto',
+  })
+
+  const choice = response.choices[0]
+  messages.push(choice.message)
+
+  if (choice.finish_reason === 'stop') {
+    console.log(choice.message.content)
+    break
+  }
+
+  if (choice.finish_reason === 'tool_calls' && choice.message.tool_calls) {
+    for (const toolCall of choice.message.tool_calls) {
+      const result = await execute({
+        name: toolCall.function.name,
+        arguments: toolCall.function.arguments,
+        toolCallId: toolCall.id,
+      })
+      messages.push({
+        role: 'tool',
+        tool_call_id: toolCall.id,
+        content: JSON.stringify(result),
+      })
+    }
+  }
+}
+```
+
+## API reference
+
+### `createOpenAITools(memory)`
+
+Returns `{ definitions, execute }`.
+
+- `definitions` — array of `{ type: 'function', name, description, parameters }` objects, ready to pass as `tools` in a chat completions request.
+- `execute({ name, arguments, toolCallId? })` — executes a tool call and returns the result. The `toolCallId` links the execution to the correct revision and access log entry.
+
+The `arguments` field can be either a JSON string (as the OpenAI API returns it) or a pre-parsed object — `normalizeArguments` handles both cases automatically.

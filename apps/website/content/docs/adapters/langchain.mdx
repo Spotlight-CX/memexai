@@ -1,0 +1,101 @@
+---
+title: LangChain
+description: Use MemexAI memory tools with LangChain in TypeScript and Python.
+---
+
+LangChain adapters are available for both the TypeScript and Python SDKs.
+
+## TypeScript
+
+### Install
+
+```bash
+npm install @memexai/sdk langchain @langchain/core
+```
+
+For direct Postgres mode:
+
+```bash
+npm install @memexai/core langchain @langchain/core
+```
+
+### Service mode
+
+```ts
+import { MemexAI } from '@memexai/sdk'
+import { createLangChainTools } from '@memexai/sdk/adapters/langchain'
+import { AgentExecutor, createToolCallingAgent } from 'langchain/agents'
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai'
+import { ChatPromptTemplate } from '@langchain/core/prompts'
+
+const memex = new MemexAI({ url: 'http://localhost:8080', apiKey: process.env.MEMEX_API_KEY! })
+const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
+const tools = createLangChainTools(memory)
+
+const llm = new ChatGoogleGenerativeAI({ model: 'gemini-2.5-flash' })
+const prompt = ChatPromptTemplate.fromMessages([
+  ['system', 'You are a helpful assistant with durable memory.'],
+  ['human', '{input}'],
+  ['placeholder', '{agent_scratchpad}'],
+])
+
+const agent = await createToolCallingAgent({ llm, tools, prompt })
+const executor = new AgentExecutor({ agent, tools })
+
+const result = await executor.invoke({ input: 'Remember I prefer quiet neighborhoods.' })
+console.log(result.output)
+```
+
+### Direct Postgres mode
+
+```ts
+import { createMemex } from '@memexai/core'
+import { createLangChainTools } from '@memexai/core/adapters/langchain'
+
+const memex = createMemex({ databaseUrl: process.env.DATABASE_URL! })
+await memex.migrate()
+
+const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
+const tools = createLangChainTools(memory)
+```
+
+---
+
+## Python
+
+### Install
+
+```bash
+pip install memexai langchain langchain-google-genai
+```
+
+### Usage
+
+```python
+from memexai import MemexAI
+from memexai.adapters.langchain import get_langchain_tools
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import ChatPromptTemplate
+
+memex = MemexAI(url="http://localhost:8080", api_key="dev-agent-key")
+user = memex.for_user("user_123", actor="assistant")
+tools = get_langchain_tools(user)
+
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful assistant with durable memory."),
+    ("human", "{input}"),
+    ("placeholder", "{agent_scratchpad}"),
+])
+
+agent = create_tool_calling_agent(llm, tools, prompt)
+executor = AgentExecutor(agent=agent, tools=tools)
+
+result = await executor.ainvoke({"input": "Remember I prefer quiet neighborhoods."})
+print(result["output"])
+
+await memex.close()
+```
+
+The Python adapter exposes all seven memory tools: `memory_list`, `memory_read`, `memory_write`, `memory_patch`, `memory_smart_read`, `memory_search`, and `memory_memorize`.

@@ -46,6 +46,19 @@ const tools = memory.createRawToolset()
 // memory_list, memory_read, memory_write, memory_patch, memory_smart_read
 ```
 
+## Framework adapters
+
+Drop Memex into the framework you already use.
+
+<Cards>
+  <Card title="Vercel AI SDK" href="/docs/adapters/vercel-ai" description="Use memory tools with generateText and streamText in TypeScript." />
+  <Card title="Anthropic SDK" href="/docs/adapters/anthropic" description="Integrate with claude-opus-4-7 and other Claude models via @memexai/core." />
+  <Card title="LangChain" href="/docs/adapters/langchain" description="Add memory tools to LangChain agents in TypeScript or Python." />
+  <Card title="OpenAI SDK" href="/docs/adapters/openai" description="Wire memory tool definitions into OpenAI chat completions calls." />
+  <Card title="LlamaIndex" href="/docs/adapters/llamaindex" description="Use FunctionTool memory tools with LlamaIndex agents in Python." />
+  <Card title="CrewAI" href="/docs/adapters/crewai" description="Add memory tools to CrewAI agents and crews in Python." />
+</Cards>
+
 ## Shared memory can guide behavior
 
 User memory stores per-user facts, preferences, and project state. Shared memory stores global guidance that every agent can read, such as tool rules, product policies, escalation criteria, and evaluation rubrics.

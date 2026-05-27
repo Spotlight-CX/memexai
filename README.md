@@ -1,8 +1,14 @@
 # MemexAI
 
+[![npm](https://img.shields.io/npm/v/%40memexai%2Fsdk?label=%40memexai%2Fsdk&color=064e3b)](https://www.npmjs.com/package/@memexai/sdk)
+[![npm](https://img.shields.io/npm/v/%40memexai%2Fcore?label=%40memexai%2Fcore&color=064e3b)](https://www.npmjs.com/package/@memexai/core)
+[![PyPI](https://img.shields.io/pypi/v/memexai?color=064e3b)](https://pypi.org/project/memexai/)
+[![Docker](https://img.shields.io/docker/pulls/soorajshankar/memexai?color=064e3b)](https://hub.docker.com/r/soorajshankar/memexai)
+[![License: MIT](https://img.shields.io/badge/License-MIT-064e3b.svg)](LICENSE)
+
 Persistent memory for AI agents, backed by Postgres.
 
-Agents forget because most memory lives in chat history, prompt glue, or app-specific tables that no one can inspect. MemexAI gives agents a small memory surface and gives humans a real system of record: files, search, revisions, access logs, and an admin UI.
+Agents forget because most memory lives in chat history, prompt glue, or app-specific tables no one can inspect. MemexAI gives agents a small memory surface and gives humans a real system of record: files, search, revisions, access logs, and an admin UI.
 
 No vector database required. No hidden memory blob. Just Postgres.
 
@@ -31,12 +37,9 @@ That is useful, but it is closer to RAG over conversation history than durable m
 conversation happens -> agent writes only durable memory -> inspectable files -> targeted recall later
 ```
 
-MemexAI does not need to store every session as memory. Raw conversation logs can live in your app, warehouse, or audit store. MemexAI is for the smaller working set an agent should actually remember: user profile facts, preferences, timelines, commitments, project notes, decisions, and source-backed updates.
+MemexAI does not store every session as memory. Raw conversation logs can live in your app, warehouse, or audit store. MemexAI is for the smaller working set an agent should actually remember: user profile facts, preferences, timelines, commitments, project notes, decisions, and source-backed updates.
 
-This tradeoff is intentional:
-
-- **Pros:** smaller context, human-readable memory, editable records, revision history, access logs, simple Postgres operations, and no separate vector infrastructure.
-- **Cons:** ingestion quality matters. If the agent fails to write a durable fact, later recall cannot recover it unless you replay raw logs or keep them elsewhere.
+**Tradeoff:** smaller context, human-readable memory, editable records, revision history, access logs, simple Postgres operations, no separate vector infrastructure — at the cost of ingestion quality. If the agent fails to write a durable fact, later recall cannot recover it unless you replay raw logs.
 
 Systems like mem0, Zep, and Supermemory are often strongest when the task is "find the relevant old chat chunk." MemexAI is strongest when the task is "maintain a clean, inspectable system of record that agents and humans can both use."
 
@@ -44,7 +47,7 @@ Systems like mem0, Zep, and Supermemory are often strongest when the task is "fi
 
 ### Agentic Tools: The Default
 
-Use this for most assistants. The model gets two tools and MemexAI handles the file bookkeeping.
+Use this for most assistants. The model gets two tools and Memex handles the file bookkeeping.
 
 ```ts
 const tools = memory.createAgenticToolset()
@@ -52,7 +55,7 @@ const tools = memory.createAgenticToolset()
 ```
 
 - `memory_memorize` extracts durable facts and writes or patches memory.
-- `memory_search` recalls relevant memory. Without a model, it falls back to Postgres full-text search. With a configured model, it resolves over memory files and returns grounded answers with sources.
+- `memory_search` recalls relevant memory. Without a model, it falls back to Postgres full-text search. With a configured model, it resolves over memory files and returns grounded answers with source paths.
 
 ### Raw Tools: Explicit File Control
 
@@ -62,12 +65,6 @@ Use this when your agent or app should manage memory files directly.
 const tools = memory.createRawToolset()
 // memory_list, memory_read, memory_write, memory_patch, memory_smart_read
 ```
-
-- `memory_list` lists visible files.
-- `memory_read` reads one file.
-- `memory_write` creates or overwrites a user file.
-- `memory_patch` appends under a heading or replaces exact text.
-- `memory_smart_read` builds a bounded context block from visible files; query reads also include deterministic one-hop linked context when budget allows.
 
 Both paths use the same scoped paths, revision history, and access logs.
 
@@ -152,24 +149,13 @@ Python apps use the same containerized service:
 ```python
 from memexai import MemexAI
 
-memex = MemexAI(
-    url="http://localhost:8080",
-    api_key="dev-agent-key",
-)
-
+memex = MemexAI(url="http://localhost:8080", api_key="dev-agent-key")
 memory = memex.for_user("user_123", actor="assistant")
 result = await memory.search("What does this user prefer?")
-
 await memex.close()
 ```
 
-In HTTP mode, the SDK constructor stays simple:
-
-```ts
-new MemexAI({ url, apiKey })
-```
-
-LLM-backed `memory_memorize` and agentic `memory_search` are configured on the service/container, not in the SDK. Set one of these in the service environment:
+LLM-backed `memory_memorize` and agentic `memory_search` are configured on the service, not in the SDK. Set one of these in the service environment:
 
 ```bash
 GEMINI_API_KEY=...
@@ -186,38 +172,28 @@ Open the admin UI at `http://localhost:8080/admin`.
 
 ### Anonymous telemetry
 
-MemexAI service telemetry is enabled by default for the OSS Docker image and service process. It sends anonymous product usage events to PostHog so the project can understand whether installs reach first memory, use MCP, enable dreaming, and hit service errors. It never sends memory content, prompts, file paths, tool arguments, user IDs, API keys, admin secrets, or database URLs.
+MemexAI service telemetry is enabled by default for the OSS Docker image. It sends anonymous product usage events to PostHog so the project can understand whether installs reach first memory, use MCP, enable dreaming, and hit service errors. It never sends memory content, prompts, file paths, tool arguments, user IDs, API keys, or database URLs.
 
-Disable service telemetry with:
+Disable with:
 
 ```bash
 MEMEX_TELEMETRY_DISABLED=true
 ```
 
-Self-hosted deployments can override the telemetry sink with `MEMEX_TELEMETRY_POSTHOG_KEY` and `MEMEX_TELEMETRY_POSTHOG_HOST`.
-
 ### Background dreaming
 
-Dreaming is optional background memory consolidation in the service process. When enabled, MemexAI periodically finds users with changed `user/` memory files, waits for a quiet grace period, then runs a consolidation pass to merge duplicates, compact fragmented notes, resolve direct contradictions, and keep long-running memory readable for the next agent session. It writes through the normal revision path as `actor='dream-agent'` and appends to `user/dream-log.md` only when something changed.
+Dreaming is optional background memory consolidation. When enabled, Memex periodically finds users with changed `user/` memory files, waits for a quiet grace period, then runs a consolidation pass to merge duplicates, compact fragmented notes, resolve direct contradictions, and keep long-running memory readable for the next agent session.
 
-Enable the scheduler with `MEMEX_DREAM_ENABLED=true`. Runtime settings live in `mx_config` as `dream_*` keys, and admins can manage them through the Dreams panel or `/v1/admin/dream/*` endpoints. Operators can update cadence and write budgets, inspect per-user dream status, pause dreaming globally, or pause specific users.
+Enable with `MEMEX_DREAM_ENABLED=true`. Runtime settings live in `mx_config` as `dream_*` keys, manageable through the Dreams panel or `/v1/admin/dream/*` endpoints.
 
 ### MCP Clients
 
-The same service also exposes MemexAI as a Model Context Protocol server. REST and MCP both route through the same core tool engine.
+The same service exposes Memex as a Model Context Protocol server. REST and MCP both route through the same core tool engine.
 
 SSE transport:
 
 ```text
 http://localhost:8080/v1/mcp/sse?userId=user_123&actor=claude&apiKey=dev-agent-key
-```
-
-`userId` defaults to `default`, and `actor` defaults to `mcp-client`. The API key can be sent as `Authorization: Bearer ...`; `apiKey` and `token` query parameters are also accepted for MCP clients that cannot set headers on SSE GET requests.
-
-Messages for SSE sessions are posted back to:
-
-```text
-http://localhost:8080/v1/mcp/messages?connectionId=...
 ```
 
 Stdio transport:
@@ -228,15 +204,9 @@ MEMEX_API_KEY=dev-agent-key \
 node apps/service/dist/index.js --stdio --user-id user_123 --actor claude-desktop
 ```
 
-Build the service before using the local stdio command:
-
-```bash
-bun run build:service
-```
-
 ## Quick Start: Direct Postgres
 
-Use direct mode when your app already owns Postgres or you want no HTTP service. The model is part of the local MemexAI container because agentic memory runs in your process.
+Use direct mode when your app already owns Postgres or you want no HTTP service.
 
 ```bash
 npm install @memexai/core ai @ai-sdk/google
@@ -266,8 +236,6 @@ const result = await generateText({
   stopWhen: stepCountIs(5),
 })
 
-console.log(result.text)
-
 await memex.end()
 ```
 
@@ -280,76 +248,58 @@ npx @memexai/admin --database-url postgresql://...
 
 ## Python SDK
 
-The Python SDK is service-first. Use it with the containerized MemexAI service so your Python app does not need database credentials.
-
 ```bash
-python3 -m pip install -e "sdks/python[test]"
+pip install memexai
 ```
 
 ```python
 from memexai import MemexAI
 
-memex = MemexAI(
-    url="http://localhost:8080",
-    api_key="dev-agent-key",
-)
-
+memex = MemexAI(url="http://localhost:8080", api_key="dev-agent-key")
 memory = memex.for_user("user_123", actor="assistant")
-await memory.write_file(
-    "user/profile.md",
-    "# Profile\n\n- Prefers quiet neighborhoods.",
-    reason="captured preference",
-)
 
+await memory.write_file("user/profile.md", "# Profile\n\n- Prefers quiet neighborhoods.", reason="captured preference")
 result = await memory.search("quiet neighborhoods")
 
 await memex.close()
 ```
 
-Optional adapters are available for LangChain, LlamaIndex, and CrewAI. See [sdks/python/README.md](sdks/python/README.md).
+## Framework Adapters
 
-Advanced direct Postgres mode remains available through `create_memex({"databaseUrl": "postgresql://..."})` when a Python app intentionally owns database credentials.
+| Adapter | Package | Language |
+|---|---|---|
+| Vercel AI SDK | `@memexai/sdk`, `@memexai/core` | TypeScript |
+| Anthropic SDK | `@memexai/core` | TypeScript |
+| LangChain | `@memexai/sdk`, `@memexai/core`, `memexai` | TypeScript + Python |
+| OpenAI SDK | `@memexai/sdk` | TypeScript |
+| LlamaIndex | `memexai` | Python |
+| CrewAI | `memexai` | Python |
+| MCP (SSE + stdio) | service | Any |
 
-## Tool Adapters
-
-The instance methods are the clearest path:
+The instance methods are the shortest path:
 
 ```ts
 const agenticTools = memory.createAgenticToolset()
 const rawTools = memory.createRawToolset()
 ```
 
-The Vercel AI adapter is available for compatibility in both packages:
+Named adapter imports are also available:
 
 ```ts
 import { createVercelAITools } from "@memexai/sdk/adapters/vercel-ai"
-// or "@memexai/core/adapters/vercel-ai" for direct Postgres mode
-
-const agenticTools = createVercelAITools(memory)
-const rawTools = createVercelAITools(memory, { mode: "raw" })
-```
-
-Other adapters:
-
-```ts
 import { createAnthropicTools, handleAnthropicToolCall } from "@memexai/core/adapters/anthropic"
 import { createLangChainTools } from "@memexai/core/adapters/langchain"
 import { createOpenAITools } from "@memexai/sdk/adapters/openai"
 ```
 
-Raw MCP-style execution is also available:
+Raw MCP-style execution is available directly:
 
 ```ts
-const tools = memex.getTools()
-
 await memex.executeTool("memory_write", {
   path: "user/profile.md",
   content: "# Profile\n\n- Prefers quiet neighborhoods.",
   reason: "captured user preference",
-}, {
-  userId: "user_123",
-  actor: "assistant",
-})
+}, { userId: "user_123", actor: "assistant" })
 ```
 
 ## Memory Model
@@ -364,38 +314,22 @@ Agents see virtual paths:
 
 ```text
 user/profile.md  -> users/{userId}/profile.md
-user/notes.md    -> users/{userId}/notes.md
 shared/index.md  -> shared/index.md
 ```
 
-The `user/` prefix is translated from the scoped context you create:
-
-```ts
-const memory = memex.forUser({ userId: "user_123", actor: "assistant" })
-```
-
-The model never receives raw physical paths like `users/user_123/...`, and it cannot escape into another user's memory by guessing an ID. See [docs/scopes.md](docs/scopes.md).
+The model never receives raw physical paths and cannot escape into another user's memory. See [docs/scopes.md](docs/scopes.md).
 
 ## Admin UI
 
-Docker includes the admin UI at:
+Docker includes the admin UI at `http://localhost:8080/admin`.
 
-```text
-http://localhost:8080/admin
-```
-
-Direct Postgres mode can use:
+Direct Postgres mode:
 
 ```bash
 npx @memexai/admin --database-url postgresql://...
 ```
 
-The admin UI shows:
-
-- Files as a tree, with full content.
-- Revision history for each write.
-- Access logs for reads, searches, writes, and patches.
-- Users derived from scoped memory paths.
+The admin UI shows files as a tree with full content, revision history for each write, access logs, and users derived from scoped memory paths.
 
 ## Why Postgres Instead Of A Vector Store?
 
@@ -407,8 +341,6 @@ Most durable agent memory is not a nearest-neighbor problem. It is structured re
 - What changed, and who changed it?
 
 Postgres gives MemexAI durable storage, full-text search, migrations, access control boundaries, and audit tables in one place. BM25 is enough for deterministic candidate discovery. When a model is configured, MemexAI can resolve over memory files agentically, with bounded reads and cited source paths.
-
-Embeddings can be useful for some retrieval workloads. They are not required for the default memory loop.
 
 ## Comparison
 
@@ -436,7 +368,7 @@ cd ../anthropic
 DATABASE_URL=postgresql://... ANTHROPIC_API_KEY=... bun run start "Remember I prefer 2BHK apartments"
 ```
 
-HTTP service demo agent (requires cloning the repo):
+HTTP service demo agent:
 
 ```bash
 docker compose up -d
@@ -457,15 +389,17 @@ bun run demo:agent -- --smoke
 
 ## Deeper Topics
 
-- [docs/architecture.md](docs/architecture.md) - system architecture and tool flow.
-- [docs/scopes.md](docs/scopes.md) - `user/` and `shared/` path translation.
-- [docs/revisions.md](docs/revisions.md) - revision history.
-- [docs/access-logs.md](docs/access-logs.md) - access logging.
-- [docs/migrations.md](docs/migrations.md) - schema migrations.
-- [docs/publishing.md](docs/publishing.md) - release and publish workflow.
+- [docs/architecture.md](docs/architecture.md) — system architecture and tool flow
+- [docs/scopes.md](docs/scopes.md) — `user/` and `shared/` path translation
+- [docs/revisions.md](docs/revisions.md) — revision history
+- [docs/access-logs.md](docs/access-logs.md) — access logging
+- [docs/migrations.md](docs/migrations.md) — schema migrations
+- [docs/publishing.md](docs/publishing.md) — release and publish workflow
 
 ## Status
 
 Early stage. The core loop works: Postgres-backed files, scoped agent tools, BM25 search, model-backed memorize/search, revisions, access logs, SDKs, and admin UI.
 
-Feedback and issues are welcome.
+## Community
+
+[Join Slack →](https://join.slack.com/t/memexaispace/shared_invite/zt-3yy24alf6-t1wRQsErf09JViHww_qlGw) &nbsp;·&nbsp; [Open an issue →](https://github.com/Spotlight-CX/memexai/issues) &nbsp;·&nbsp; [Talk to the founders →](https://calendly.com/soorajshankar/linkedin-meeting-with-sooraj)

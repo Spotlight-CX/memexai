@@ -855,6 +855,84 @@ body {
   color: var(--site-muted);
 }
 
+/* ── Scroll reveal ──────────────────────────────────────────────────────── */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.reveal-children > * {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  transition-delay: calc(var(--i, 0) * 80ms);
+}
+
+.reveal-children.is-visible > * {
+  opacity: 1;
+  transform: none;
+}
+
+.memory-loop .loop-step:nth-child(1),
+.comparison .comparison-panel:nth-child(1),
+.feature-grid .feature:nth-child(1) { --i: 0; }
+
+.memory-loop .loop-step:nth-child(2),
+.comparison .comparison-panel:nth-child(2),
+.feature-grid .feature:nth-child(2) { --i: 1; }
+
+.memory-loop .loop-step:nth-child(3),
+.feature-grid .feature:nth-child(3) { --i: 2; }
+
+.memory-loop .loop-step:nth-child(4) { --i: 3; }
+
+/* ── Hover interactions ─────────────────────────────────────────────────── */
+
+.feature {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.feature:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(8, 127, 91, 0.09);
+  border-color: rgba(8, 127, 91, 0.28);
+}
+
+.comparison-panel {
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.comparison-panel:hover {
+  box-shadow: 0 8px 32px rgba(8, 127, 91, 0.1);
+}
+
+.strong-panel:hover {
+  border-color: rgba(8, 127, 91, 0.52);
+}
+
+.site-button {
+  transition: opacity 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.site-button:hover {
+  opacity: 0.88;
+}
+
+.site-button-primary:hover {
+  opacity: 1;
+  box-shadow: 0 4px 16px rgba(6, 78, 59, 0.32);
+  transform: translateY(-1px);
+}
+
+/* ── End scroll reveal ──────────────────────────────────────────────────── */
+
 .site-footer {
   border-top: 0;
   color: white;

@@ -1,0 +1,70 @@
+---
+title: Anthropic SDK
+description: Use MemexAI memory tools with the Anthropic SDK in TypeScript.
+---
+
+The Anthropic SDK adapter is available in `@memexai/core` for direct Postgres mode. It converts MemexAI tool definitions into the format the Anthropic API expects and provides a handler for executing tool use blocks.
+
+## Install
+
+```bash
+npm install @memexai/core @anthropic-ai/sdk
+```
+
+## Usage
+
+```ts
+import Anthropic from '@anthropic-ai/sdk'
+import { createMemex } from '@memexai/core'
+import { createAnthropicTools, handleAnthropicToolCall } from '@memexai/core/adapters/anthropic'
+
+const anthropic = new Anthropic()
+const memex = createMemex({ databaseUrl: process.env.DATABASE_URL! })
+await memex.migrate()
+
+const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
+const tools = createAnthropicTools(memory)
+
+const messages: Anthropic.MessageParam[] = [
+  { role: 'user', content: 'Remember that I prefer concise answers.' },
+]
+
+while (true) {
+  const response = await anthropic.messages.create({
+    model: 'claude-opus-4-7',
+    max_tokens: 1024,
+    tools,
+    messages,
+  })
+
+  if (response.stop_reason === 'end_turn') {
+    console.log(response.content)
+    break
+  }
+
+  if (response.stop_reason === 'tool_use') {
+    const toolResults: Anthropic.ToolResultBlockParam[] = []
+
+    for (const block of response.content) {
+      if (block.type !== 'tool_use') continue
+      const result = await handleAnthropicToolCall(block.name, block.input, memory, undefined, block.id)
+      toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) })
+    }
+
+    messages.push({ role: 'assistant', content: response.content })
+    messages.push({ role: 'user', content: toolResults })
+  }
+}
+
+await memex.end()
+```
+
+## API reference
+
+### `createAnthropicTools(target)`
+
+Returns an array of `AnthropicTool` objects ready to pass to `anthropic.messages.create({ tools })`.
+
+### `handleAnthropicToolCall(toolName, toolInput, target, ctx?, toolUseId?)`
+
+Executes a single tool use block and returns the result. Pass the `tool_use` block's `id` as `toolUseId` to link revisions and access logs to the specific call.
