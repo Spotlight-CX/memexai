@@ -25,7 +25,8 @@ export default function CookiesPage() {
         <h2>Cookie Use</h2>
         <p>
           The site may use essential cookies or local storage for documentation preferences and browser behavior.
-          Third-party services linked from the site may set their own cookies.
+          PostHog may set analytics cookies or local storage to measure aggregate product usage. Third-party services
+          linked from the site may set their own cookies.
         </p>
         <h2>Control</h2>
         <p>You can block or delete cookies in your browser settings. Some documentation preferences may reset.</p>

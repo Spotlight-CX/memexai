@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { MessageCircle, Send } from 'lucide-react';
 import { slackUrl } from '@/lib/links';
+import { captureAnalyticsEvent } from '@/components/analytics';
 
 export type RoadmapInterestFeature = {
   id: string;
@@ -22,6 +23,7 @@ export function RoadmapInterestCard({ feature }: { feature: RoadmapInterestFeatu
   async function submitInterest() {
     setState('submitting');
     setError('');
+    captureAnalyticsEvent('roadmap_interest_submit_attempted', { feature_id: feature.id });
 
     try {
       const response = await fetch('/api/roadmap-interest/', {
@@ -41,13 +43,16 @@ export function RoadmapInterestCard({ feature }: { feature: RoadmapInterestFeatu
       if (!response.ok || !body?.ok) {
         setError(body?.message ?? body?.error ?? 'Could not record interest. Please try Slack instead.');
         setState('error');
+        captureAnalyticsEvent('roadmap_interest_submit_failed', { feature_id: feature.id, error: body?.error ?? 'UNKNOWN' });
         return;
       }
 
       setState('success');
+      captureAnalyticsEvent('roadmap_interest_submit_succeeded', { feature_id: feature.id });
     } catch {
       setError('Could not record interest. Please try Slack instead.');
       setState('error');
+      captureAnalyticsEvent('roadmap_interest_submit_failed', { feature_id: feature.id, error: 'NETWORK' });
     }
   }
 
@@ -91,15 +96,18 @@ export function RoadmapInterestCard({ feature }: { feature: RoadmapInterestFeatu
               onClick={() => {
                 if (state === 'idle') {
                   setState('expanded');
+                  captureAnalyticsEvent('roadmap_interest_expanded', { feature_id: feature.id });
                   return;
                 }
                 void submitInterest();
               }}
+              data-analytics-event="cta_clicked"
+              data-analytics-label={`roadmap_interest_${feature.id}`}
             >
               <Send size={16} aria-hidden />
               {state === 'submitting' ? 'Saving...' : state === 'idle' ? 'I want this' : 'Submit interest'}
             </button>
-            <a className="site-button site-button-secondary" href={slackUrl} target="_blank" rel="noopener noreferrer">
+            <a className="site-button site-button-secondary" href={slackUrl} target="_blank" rel="noopener noreferrer" data-analytics-event="cta_clicked" data-analytics-label={`roadmap_slack_${feature.id}`}>
               <MessageCircle size={16} aria-hidden />
               Discuss in Slack
             </a>

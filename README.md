@@ -104,6 +104,7 @@ services:
       MEMEX_ADMIN_SECRET: dev-admin-secret
       GEMINI_API_KEY: ...     # RECOMMENDED — enables LLM-backed memory_memorize / memory_search
       MEMEX_DREAM_ENABLED: "false"
+      # MEMEX_TELEMETRY_DISABLED: "true" # optional opt-out
       # OPENAI_API_KEY: ...
     ports:
       - "8080:8080"
@@ -182,6 +183,18 @@ OPENAI_MODEL=gpt-4.1-mini
 Without a service model, `memory_search` still works through Postgres full-text search. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.
 
 Open the admin UI at `http://localhost:8080/admin`.
+
+### Anonymous telemetry
+
+MemexAI service telemetry is enabled by default for the OSS Docker image and service process. It sends anonymous product usage events to PostHog so the project can understand whether installs reach first memory, use MCP, enable dreaming, and hit service errors. It never sends memory content, prompts, file paths, tool arguments, user IDs, API keys, admin secrets, or database URLs.
+
+Disable service telemetry with:
+
+```bash
+MEMEX_TELEMETRY_DISABLED=true
+```
+
+Self-hosted deployments can override the telemetry sink with `MEMEX_TELEMETRY_POSTHOG_KEY` and `MEMEX_TELEMETRY_POSTHOG_HOST`.
 
 ### Background dreaming
 

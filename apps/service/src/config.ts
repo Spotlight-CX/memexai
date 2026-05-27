@@ -27,6 +27,9 @@ const envSchema = z.object({
   OLLAMA_BASE_URL: optionalNonEmptyString,
   OLLAMA_MODEL: optionalNonEmptyString,
   MEMEX_DREAM_ENABLED: optionalBoolean,
+  MEMEX_TELEMETRY_DISABLED: optionalBoolean,
+  MEMEX_TELEMETRY_POSTHOG_KEY: optionalNonEmptyString,
+  MEMEX_TELEMETRY_POSTHOG_HOST: optionalNonEmptyString,
 })
 
 export type Config = z.infer<typeof envSchema> & {

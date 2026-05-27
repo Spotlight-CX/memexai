@@ -64,7 +64,7 @@ describe("dream scheduler", () => {
       return []
     })
 
-    await runDreamCycle(db, {
+    const result = await runDreamCycle(db, {
       enabled: true,
       intervalMinutes: 60,
       gracePeriodMinutes: 30,
@@ -72,6 +72,7 @@ describe("dream scheduler", () => {
       concurrency: 1,
     }, { model: { id: "mock" } })
 
+    expect(result).toMatchObject({ status: "updated", usersProcessed: 1, filesTouched: 1 })
     expect(executeMemoryConsolidateMock).toHaveBeenCalledWith(db, { userId: "u1", actor: "dream-agent" }, { model: { id: "mock" }, maxWrites: 10 })
     const calls = (db.query as ReturnType<typeof vi.fn>).mock.calls
     expect(calls.some(([sql]) => String(sql).includes("VALUES ($1, $2, 'running'"))).toBe(true)
@@ -82,7 +83,7 @@ describe("dream scheduler", () => {
     executeMemoryConsolidateMock.mockRejectedValueOnce(new Error("model failed"))
     const db = createDb((sql) => sql.includes("WITH user_writes AS") ? [{ user_id: "u1" }] : [])
 
-    await runDreamCycle(db, {
+    const result = await runDreamCycle(db, {
       enabled: true,
       intervalMinutes: 60,
       gracePeriodMinutes: 30,
@@ -90,6 +91,7 @@ describe("dream scheduler", () => {
       concurrency: 1,
     }, { model: { id: "mock" } })
 
+    expect(result).toMatchObject({ status: "noop", usersProcessed: 1, filesTouched: 0 })
     const calls = (db.query as ReturnType<typeof vi.fn>).mock.calls
     expect(calls.some(([sql, values]) => String(sql).includes("status = 'failed'") && (values as unknown[])[1] === "model failed")).toBe(true)
   })

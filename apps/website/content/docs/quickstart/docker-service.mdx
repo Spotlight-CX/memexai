@@ -34,6 +34,7 @@ services:
       MEMEX_ADMIN_SECRET: dev-admin-secret
       GEMINI_API_KEY: ...
       MEMEX_DREAM_ENABLED: "false"
+      # MEMEX_TELEMETRY_DISABLED: "true" # optional opt-out
     ports:
       - "8080:8080"
 
@@ -134,6 +135,20 @@ OPENAI_MODEL=gpt-4.1-mini
 ```
 
 Without a service model, `memory_search` still works through Postgres full-text search. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.
+
+## Anonymous telemetry
+
+MemexAI service telemetry is enabled by default for the OSS Docker image and service process. It sends anonymous product usage events to PostHog so the project can understand whether installs reach first memory, use MCP, enable dreaming, and hit service errors.
+
+Telemetry never sends memory content, prompts, file paths, tool arguments, user IDs, API keys, admin secrets, or database URLs.
+
+Disable service telemetry with:
+
+```bash
+MEMEX_TELEMETRY_DISABLED=true
+```
+
+To use a different PostHog project or a self-hosted collector, set `MEMEX_TELEMETRY_POSTHOG_KEY` and `MEMEX_TELEMETRY_POSTHOG_HOST`.
 
 ## Background dreaming
 

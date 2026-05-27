@@ -24,14 +24,16 @@ export default function PrivacyPage() {
       <section className="section legal-copy">
         <h2>Information We Receive</h2>
         <p>
-          The public website may receive standard server and analytics information such as page requests, browser type,
-          referral source, and approximate location. Community links may take you to third-party services with their own
-          policies.
+          The public website uses PostHog product analytics for page requests, browser type, referral source,
+          approximate location, and CTA interactions. Roadmap interest analytics do not include your note or email.
+          Community links may take you to third-party services with their own policies.
         </p>
         <h2>Self-Hosted Memory Data</h2>
         <p>
-          MemexAI does not receive memory files from your self-hosted deployment unless you choose to send data to a
-          third-party service or share it with the project maintainers.
+          MemexAI service telemetry is enabled by default for OSS service deployments. It sends anonymous product usage
+          events such as service startup, tool names, MCP usage, dreaming status, route groups, success/failure, and
+          duration buckets. It does not send memory content, prompts, file paths, tool arguments, user IDs, API keys,
+          admin secrets, or database URLs. Disable it with `MEMEX_TELEMETRY_DISABLED=true`.
         </p>
         <h2>Contact</h2>
         <p>For privacy questions, use the GitHub repository or community support link in the footer.</p>
