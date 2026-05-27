@@ -1,0 +1,69 @@
+---
+title: How MemexAI Works
+description: The mental model for memory files, tool calls, Postgres storage, and later recall.
+---
+
+MemexAI gives an AI agent a small memory surface it can read and update. The memory is stored as scoped files in Postgres, not as a hidden model state or a vector-only blob.
+
+## The loop
+
+```txt
+conversation happens
+-> model calls a memory tool
+-> MemexAI validates the request
+-> virtual paths are translated to physical paths
+-> Postgres stores files, revisions, and access logs
+-> a later session searches or reads the memory
+```
+
+The agent only sees virtual paths like `user/profile.md` and `shared/policy.md`. MemexAI translates those paths before touching the database and enforces isolation in code.
+
+## What gets stored
+
+MemexAI stores the durable working set an agent should carry forward:
+
+- user preferences
+- profile facts
+- commitments
+- project notes
+- corrections
+- decisions
+- shared guidance and policies
+
+Raw chat transcripts can still live in your app, warehouse, or audit system. MemexAI is for the smaller memory record the agent should actually use later.
+
+## Runtime paths
+
+Most production apps use the containerized service:
+
+```txt
+app or framework adapter -> MemexAI service -> Postgres
+```
+
+Direct Postgres mode embeds the runtime inside your app:
+
+```txt
+app -> @memexai/core or memexai Python runtime -> Postgres
+```
+
+Both modes share the same schema, path rules, tools, revisions, and access logs.
+
+## What adapters do
+
+Adapters do not change how memory works. They only translate MemexAI tools into the shape a framework expects.
+
+For example:
+
+- Vercel AI SDK expects tool objects for `generateText` or `streamText`.
+- OpenAI and Anthropic expect tool definitions plus a way to execute tool calls.
+- LangChain, LlamaIndex, and CrewAI expect framework-native tool wrappers.
+
+After the adapter receives a tool call, MemexAI still runs the same validation, path translation, SQL, revisions, and access logging.
+
+## Related concepts
+
+- [Memory tools](/docs/concepts/memory-tools)
+- [Memory scopes](/docs/concepts/scopes)
+- [Revision history](/docs/concepts/revisions)
+- [Access logs](/docs/concepts/access-logs)
+- [Architecture](/docs/architecture)

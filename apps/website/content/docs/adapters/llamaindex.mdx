@@ -5,6 +5,13 @@ description: Use MemexAI memory tools with LlamaIndex in Python.
 
 The LlamaIndex adapter wraps all seven MemexAI memory tools as `FunctionTool` objects for use with any LlamaIndex agent.
 
+## Before you start
+
+- Run the [containerized service](/docs/quickstart/docker-service) or another MemexAI service endpoint.
+- Read [How MemexAI works](/docs/concepts/how-it-works) for the tool-call-to-Postgres flow.
+- Read [Memory tools](/docs/concepts/memory-tools) to choose two agentic tools or the full raw tool set.
+- Read [Memory scopes](/docs/concepts/scopes) before writing paths like `user/profile.md`.
+
 ## Install
 
 ```bash
@@ -47,4 +54,4 @@ await memex.close()
 | `memory_search` | BM25 full-text search over memory |
 | `memory_memorize` | Feed raw text and let MemexAI decide what to write |
 
-For most assistants, passing only `memory_memorize` and `memory_search` is enough. Include the full set when the agent needs direct file control.
+This example exposes all tools so you can see the full adapter shape. For most assistants, passing only `memory_memorize` and `memory_search` is enough. Include the full set when the agent needs direct file control.

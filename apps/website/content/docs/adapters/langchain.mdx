@@ -5,6 +5,13 @@ description: Use MemexAI memory tools with LangChain in TypeScript and Python.
 
 LangChain adapters are available for both the TypeScript and Python SDKs.
 
+## Before you start
+
+- Choose [service mode or direct Postgres mode](/docs/architecture).
+- Read [How MemexAI works](/docs/concepts/how-it-works) for the tool-call-to-Postgres flow.
+- Read [Memory tools](/docs/concepts/memory-tools) to choose agentic tools or raw file tools.
+- Read [Memory scopes](/docs/concepts/scopes) before writing paths like `user/profile.md`.
+
 ## TypeScript
 
 ### Install
@@ -98,4 +105,4 @@ print(result["output"])
 await memex.close()
 ```
 
-The Python adapter exposes all seven memory tools: `memory_list`, `memory_read`, `memory_write`, `memory_patch`, `memory_smart_read`, `memory_search`, and `memory_memorize`.
+The Python adapter exposes all seven memory tools: `memory_list`, `memory_read`, `memory_write`, `memory_patch`, `memory_smart_read`, `memory_search`, and `memory_memorize`. For most assistants, start with `memory_memorize` and `memory_search`; see [Memory tools](/docs/concepts/memory-tools) for the tradeoff.

@@ -5,6 +5,13 @@ description: Use MemexAI memory tools with CrewAI in Python.
 
 The CrewAI adapter returns MemexAI tools as `@tool`-decorated async functions compatible with CrewAI agents.
 
+## Before you start
+
+- Run the [containerized service](/docs/quickstart/docker-service) or another MemexAI service endpoint.
+- Read [How MemexAI works](/docs/concepts/how-it-works) for the tool-call-to-Postgres flow.
+- Read [Memory tools](/docs/concepts/memory-tools) to choose two agentic tools or the full raw tool set.
+- Read [Memory scopes](/docs/concepts/scopes) before writing paths like `user/profile.md`.
+
 ## Install
 
 ```bash
@@ -57,4 +64,4 @@ await memex.close()
 | `memory_search` | BM25 full-text search over memory |
 | `memory_memorize` | Feed raw text and let MemexAI decide what to write |
 
-For a minimal setup, assign only `memory_memorize` and `memory_search` to the agent. Include the full set when a task requires direct file control.
+This example exposes all tools so you can see the full adapter shape. For a minimal production setup, assign only `memory_memorize` and `memory_search` to the agent. Include the full set when a task requires direct file control.

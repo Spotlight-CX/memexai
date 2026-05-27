@@ -1,0 +1,65 @@
+---
+title: Memory Tools
+description: Choose between agentic memory tools and raw file-level tools.
+---
+
+MemexAI exposes two tool sets. Most assistants should start with the agentic tools. Use raw tools when the agent or application should control memory files directly.
+
+## Agentic tools
+
+Agentic tools give the model a smaller surface:
+
+| Tool | What it does |
+| --- | --- |
+| `memory_memorize` | Takes raw text and decides what durable facts should be written or patched. |
+| `memory_search` | Searches memory and returns relevant records, with model-backed answer synthesis when configured. |
+
+Use this mode for assistants, copilots, support agents, and product agents where the model should remember useful facts without managing file paths itself.
+
+```ts
+const tools = memory.createAgenticToolset()
+```
+
+In service mode, `memory_memorize` needs an LLM configured on the service with `GEMINI_API_KEY` or `OPENAI_API_KEY`. Without a service model, `memory_search` can still use Postgres full-text search, but `memory_memorize` cannot decide what to write.
+
+## Raw tools
+
+Raw tools expose file-level control:
+
+| Tool | What it does |
+| --- | --- |
+| `memory_list` | Lists visible files. |
+| `memory_read` | Reads one file by virtual path. |
+| `memory_write` | Creates or overwrites a file under `user/`. |
+| `memory_patch` | Appends under a heading or replaces exact text. |
+| `memory_smart_read` | Builds a bounded context block from visible files. |
+
+Use raw tools when your workflow has a file plan, needs deterministic writes, or should let the application decide exactly where memory lives.
+
+```ts
+const tools = memory.createRawToolset()
+```
+
+## Which should an adapter expose?
+
+Adapter examples sometimes show all tools so you can see the full integration shape. For a production assistant, start with two tools:
+
+```txt
+memory_memorize
+memory_search
+```
+
+Add raw tools only when the agent has a reason to manage files directly.
+
+## Tool calls and auditability
+
+Every memory access creates an access log. Every write or patch also creates a revision snapshot.
+
+Pass framework tool call IDs through adapter handlers when available. That links model tool calls to the revision and access log rows they caused.
+
+## Related concepts
+
+- [How MemexAI works](/docs/concepts/how-it-works)
+- [Memory scopes](/docs/concepts/scopes)
+- [Revision history](/docs/concepts/revisions)
+- [Access logs](/docs/concepts/access-logs)
