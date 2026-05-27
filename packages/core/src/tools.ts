@@ -466,12 +466,15 @@ async function runMemoryLlmPass(
     inputPrompt: string
     model: unknown
     maxWrites: number
+    maxReads?: number
     dryRun?: boolean
     budgetErrorMessage: string
   },
 ): Promise<MemoryLlmPassResult> {
   const dryRun = options.dryRun ?? false
+  const maxReads = options.maxReads ?? 0
   const writes: MemorizeWrite[] = []
+  let reads = 0
 
   const ensureWriteBudget = () => {
     if (writes.length >= options.maxWrites) {
@@ -479,71 +482,95 @@ async function runMemoryLlmPass(
     }
   }
 
+  type LlmTool = { description: string; inputSchema: unknown; execute: (args: unknown) => Promise<unknown> }
+  const tools: Record<string, LlmTool> = {}
+
+  if (maxReads > 0) {
+    tools.memory_read = {
+      description: "Read a user/** or shared/** memory file by virtual path before writing.",
+      inputSchema: jsonSchema({
+        type: "object",
+        required: ["path"],
+        additionalProperties: false,
+        properties: { path: { type: "string" } },
+      }),
+      execute: async (toolArgs: unknown) => {
+        if (reads >= maxReads) {
+          throw new MemexError("MAX_READS_EXCEEDED", "memory_memorize read budget exceeded")
+        }
+        reads += 1
+        const parsed = readArgsSchema.parse(toolArgs)
+        return executeMemoryRead(db, parsed, ctx)
+      },
+    }
+  }
+
+  tools.memory_write = {
+    description: "Create or overwrite a writable user/** memory file.",
+    inputSchema: jsonSchema({
+      type: "object",
+      required: ["path", "content"],
+      additionalProperties: false,
+      properties: {
+        path: { type: "string" },
+        content: { type: "string" },
+        reason: { type: "string" },
+      },
+    }),
+    execute: async (toolArgs: unknown) => {
+      ensureWriteBudget()
+      const parsed = writeArgsSchema.parse(toolArgs)
+      assertWritableVirtualPath(parsed.path)
+      const planned: MemorizeWrite = {
+        tool: "memory_write",
+        path: parsed.path,
+        reason: parsed.reason,
+        args: parsed,
+      }
+      if (!dryRun) planned.result = await executeMemoryWrite(db, parsed, ctx)
+      writes.push(planned)
+      return dryRun ? { planned: true, path: parsed.path } : planned.result
+    },
+  }
+
+  tools.memory_patch = {
+    description: "Patch a writable user/** memory file.",
+    inputSchema: jsonSchema({
+      type: "object",
+      required: ["path", "operation"],
+      additionalProperties: false,
+      properties: {
+        path: { type: "string" },
+        operation: { type: "string", enum: ["append_lines", "replace_lines"] },
+        after_heading: { type: "string", description: "Optional heading for section insert; omit to append at EOF." },
+        lines: { type: "array", items: { type: "string" } },
+        match: { type: "string" },
+        replacement: { oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }] },
+        reason: { type: "string" },
+      },
+    }),
+    execute: async (toolArgs: unknown) => {
+      ensureWriteBudget()
+      const parsed = patchArgsSchema.parse(toolArgs)
+      assertWritableVirtualPath(parsed.path)
+      const planned: MemorizeWrite = {
+        tool: "memory_patch",
+        path: parsed.path,
+        reason: parsed.reason,
+        args: parsed,
+      }
+      if (!dryRun) planned.result = await executeMemoryPatch(db, parsed, ctx)
+      writes.push(planned)
+      return dryRun ? { planned: true, path: parsed.path } : planned.result
+    },
+  }
+
   const result = await generateText({
     model: options.model as never,
     system: options.systemPrompt,
     prompt: options.inputPrompt,
-    tools: {
-      memory_write: {
-        description: "Create or overwrite a writable user/** memory file.",
-        inputSchema: jsonSchema({
-          type: "object",
-          required: ["path", "content"],
-          additionalProperties: false,
-          properties: {
-            path: { type: "string" },
-            content: { type: "string" },
-            reason: { type: "string" },
-          },
-        }),
-        execute: async (toolArgs: unknown) => {
-          ensureWriteBudget()
-          const parsed = writeArgsSchema.parse(toolArgs)
-          assertWritableVirtualPath(parsed.path)
-          const planned: MemorizeWrite = {
-            tool: "memory_write",
-            path: parsed.path,
-            reason: parsed.reason,
-            args: parsed,
-          }
-          if (!dryRun) planned.result = await executeMemoryWrite(db, parsed, ctx)
-          writes.push(planned)
-          return dryRun ? { planned: true, path: parsed.path } : planned.result
-        },
-      },
-      memory_patch: {
-        description: "Patch a writable user/** memory file.",
-        inputSchema: jsonSchema({
-          type: "object",
-          required: ["path", "operation"],
-          additionalProperties: false,
-          properties: {
-            path: { type: "string" },
-            operation: { type: "string", enum: ["append_lines", "replace_lines"] },
-            after_heading: { type: "string", description: "Optional heading for section insert; omit to append at EOF." },
-            lines: { type: "array", items: { type: "string" } },
-            match: { type: "string" },
-            replacement: { oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }] },
-            reason: { type: "string" },
-          },
-        }),
-        execute: async (toolArgs: unknown) => {
-          ensureWriteBudget()
-          const parsed = patchArgsSchema.parse(toolArgs)
-          assertWritableVirtualPath(parsed.path)
-          const planned: MemorizeWrite = {
-            tool: "memory_patch",
-            path: parsed.path,
-            reason: parsed.reason,
-            args: parsed,
-          }
-          if (!dryRun) planned.result = await executeMemoryPatch(db, parsed, ctx)
-          writes.push(planned)
-          return dryRun ? { planned: true, path: parsed.path } : planned.result
-        },
-      },
-    },
-    stopWhen: stepCountIs(Math.max(1, options.maxWrites + 1)),
+    tools: tools as any,
+    stopWhen: stepCountIs(Math.max(1, options.maxWrites + maxReads + 1)),
   })
 
   return {
@@ -553,22 +580,38 @@ async function runMemoryLlmPass(
   }
 }
 
+function logTail(content: string, maxLines = 15): string {
+  const lines = content.split(/\r?\n/)
+  return lines.slice(-maxLines).join("\n")
+}
+
 export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolContext, options: { model?: unknown } = {}) {
-  const { text, maxWrites = 5, dryRun = false } = memorizeArgsSchema.parse(args)
+  const { text, maxWrites = 5, maxReads = 3, dryRun = false } = memorizeArgsSchema.parse(args)
   if (!options.model) {
     throw new MemexError("MODEL_NOT_CONFIGURED", "memory_memorize requires a configured model")
   }
 
   const list = await executeMemoryList(db, {}, ctx)
-  const indexReads = await Promise.allSettled([
+  const regularFiles = list.files.filter((f) => !isDreamExcludedPath(f.path))
+  const logFiles = list.files.filter((f) => isDreamExcludedPath(f.path))
+
+  const preflight = await Promise.allSettled([
     executeMemoryRead(db, { path: "user/index.md" }, ctx),
     executeMemoryRead(db, { path: "shared/index.md" }, ctx),
+    ...logFiles.map((f) => executeMemoryRead(db, { path: f.path }, ctx)),
   ])
-  const indexes = indexReads.flatMap((result) => result.status === "fulfilled" ? [result.value] : [])
+  const [indexResult0, indexResult1, ...logResults] = preflight
+  const indexes = [indexResult0, indexResult1].flatMap((r) => r?.status === "fulfilled" ? [r.value] : [])
+  const logPreviews = logFiles.map((f, i) => {
+    const result = logResults[i]
+    const content = result?.status === "fulfilled" ? result.value.content : ""
+    return `### ${f.path}\n${logTail(content)}`
+  })
 
   return runMemoryLlmPass(db, ctx, {
     model: options.model,
     maxWrites,
+    maxReads,
     dryRun,
     budgetErrorMessage: "memory_memorize write budget exceeded",
     systemPrompt: [
@@ -576,11 +619,13 @@ export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolCont
       "Extract only durable facts worth remembering.",
       "Use virtual paths only, such as user/profile.md.",
       "Never use physical paths such as users/{userId}/...",
-      "Prefer memory_patch when a relevant user file already exists.",
+      "Before calling memory_patch on an existing file, read it first with memory_read.",
+      "Use append_lines to add new facts. Use replace_lines only after reading to confirm the exact text to match.",
       "Use memory_write only for new user files.",
       "Always include a concise reason.",
       "After writing or patching any user file, also update user/index.md: patch it if it exists, write it if not. Add or update a one-line entry per file in the format: `- user/filename.md - <short purpose>`.",
       "After all writes, append one line per written file to user/log.md (patch with append_lines and no after_heading if exists, write if not): `- [YYYY-MM-DD] <wrote|patched> user/filename.md - <reason>`. Use today's date.",
+      "Log file previews are truncated. Call memory_read on a log file only if you need full history.",
       "When writing a new file, if related files already exist, add a `## See also` section with `[[user/related.md]]` links. When patching, add links if newly relevant.",
       dryRun ? "Dry run is enabled; plan writes but do not commit them." : "Commit useful writes.",
     ].join("\n"),
@@ -589,8 +634,11 @@ export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolCont
       text,
       "",
       "Existing files:",
-      JSON.stringify(list.files, null, 2),
+      JSON.stringify(regularFiles.map((f) => ({ path: f.path, size: f.size })), null, 2),
       "",
+      ...(logPreviews.length > 0
+        ? ["Log file previews (last 15 lines — call memory_read for full history if needed):", ...logPreviews, ""]
+        : []),
       "Index files:",
       JSON.stringify(indexes.map((file) => ({ path: file.path, content: file.content })), null, 2),
     ].join("\n"),
@@ -605,21 +653,31 @@ type ConsolidateResult = MemoryLlmPassResult & {
 export async function executeMemoryConsolidate(
   db: Db,
   ctx: ToolContext,
-  options: { model?: unknown; maxWrites?: number; dryRun?: boolean } = {},
+  options: { model?: unknown; maxWrites?: number; maxFiles?: number; maxInputChars?: number; dryRun?: boolean } = {},
 ): Promise<ConsolidateResult> {
   if (!options.model) {
     throw new MemexError("MODEL_NOT_CONFIGURED", "memory_consolidate requires a configured model")
   }
 
   const maxWrites = options.maxWrites ?? 10
+  const maxFiles = options.maxFiles ?? 20
+  const maxInputChars = options.maxInputChars ?? 120_000
   const dryRun = options.dryRun ?? false
   const list = await executeMemoryList(db, { prefix: "user" }, ctx)
-  const files = list.files.filter((file) => !isDreamExcludedPath(file.path))
+  const files = list.files
+    .filter((file) => !isDreamExcludedPath(file.path))
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, maxFiles)
   if (files.length === 0) {
     return { text: "No user memory files to consolidate.", dryRun, writes: [], filesRead: [], filesTouched: [] }
   }
 
-  const reads = await Promise.all(files.map((file) => executeMemoryRead(db, { path: file.path }, ctx)))
+  const allReads = await Promise.all(files.map((file) => executeMemoryRead(db, { path: file.path }, ctx)))
+  let chars = 0
+  const reads = allReads.filter((r) => {
+    chars += r.content.length
+    return chars <= maxInputChars
+  })
   const today = new Date().toISOString().slice(0, 10)
   const result = await runMemoryLlmPass(db, { ...ctx, actor: ctx.actor ?? "dream-agent" }, {
     model: options.model,
@@ -652,6 +710,7 @@ export async function executeMemoryConsolidate(
     filesTouched: Array.from(new Set(result.writes.map((write) => write.path))),
   }
 }
+
 
 async function executeMemorySearchBm25(db: Db, input: { query: string; limit?: number; prefix?: string }, ctx: ToolContext) {
   const { query, limit = 10, prefix } = input

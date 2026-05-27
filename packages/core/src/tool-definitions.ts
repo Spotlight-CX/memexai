@@ -221,6 +221,7 @@ MemexAI reads existing memory files, identifies durable facts, and writes or pat
 |---|---|---|---|
 | \`text\` | string | **yes** | Raw text containing facts to remember |
 | \`maxWrites\` | number | no | Max write/patch operations. Default: 5 |
+| \`maxReads\` | number | no | Max files the agent may read before writing. Default: 3 |
 | \`dryRun\` | boolean | no | Plan writes without committing |
 
 ### Example input

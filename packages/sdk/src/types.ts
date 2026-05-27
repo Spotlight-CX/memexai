@@ -96,6 +96,7 @@ export type SearchMemoryResult = {
 export type MemorizeInput = {
   text: string
   maxWrites?: number
+  maxReads?: number
   dryRun?: boolean
   toolCallId?: string
 }

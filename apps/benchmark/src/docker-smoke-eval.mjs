@@ -3,7 +3,7 @@
  * Docker service smoke eval for MemexAI.
  *
  * Usage:
- *   node apps/benchmark/src/docker-smoke-eval.mjs --limit 1 --max-sessions 10
+ *   node apps/benchmark/src/docker-smoke-eval.mjs --limit 1 --max-sessions 10 --batch-size 1
  *
  * This talks to the running MemexAI HTTP service, not direct Postgres.
  */
@@ -76,6 +76,10 @@ if (hasFlag("--max-sessions") && arg("--max-sessions") === undefined) {
   throw new Error("--max-sessions requires a value")
 }
 const MAX_SESSIONS = hasFlag("--max-sessions") ? intArg("--max-sessions", undefined) : undefined
+if (hasFlag("--batch-size") && arg("--batch-size") === undefined) {
+  throw new Error("--batch-size requires a value")
+}
+const BATCH_SIZE = intArg("--batch-size", 1)
 const OUTPUT = arg("--output") ?? join(repoRoot, "apps/benchmark/data/docker-smoke-results.json")
 const RUN_ID = arg("--run-id") ?? new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)
 const SKIP_INGEST = hasFlag("--skip-ingest")
@@ -241,12 +245,121 @@ function summarize(results) {
   }
 }
 
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length)
+  let nextIndex = 0
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex
+      nextIndex++
+      results[index] = await mapper(items[index], index)
+    }
+  }
+
+  const workerCount = Math.min(concurrency, items.length)
+  await Promise.all(Array.from({ length: workerCount }, () => worker()))
+  return results
+}
+
+async function runItem(item, index, totalItems) {
+  const context = { userId: userIdFor(item), actor: "docker-smoke-eval" }
+  const prefix = `[${index + 1}/${totalItems} ${item.question_id}]`
+  const log = (message) => console.log(`${prefix} ${message}`)
+
+  log(`start (${item.question_type})`)
+
+  let ingestMs = 0
+  let queryMs = 0
+  let predicted = ""
+  let sessionsIngested = 0
+
+  try {
+    if (!SKIP_INGEST) {
+      const sessions = MAX_SESSIONS
+        ? item.haystack_sessions.slice(0, MAX_SESSIONS)
+        : item.haystack_sessions
+      const totalAvailable = item.haystack_sessions.length
+      const total = sessions.length
+      const ingestStart = Date.now()
+
+      for (let s = 0; s < total; s++) {
+        const sessionLabel = `session ${s + 1}/${total}${total < totalAvailable ? `/${totalAvailable}` : ""}`
+        log(`${sessionLabel} start`)
+        const sessionStart = Date.now()
+        const text = formatSession(
+          sessions[s],
+          item.haystack_dates[s] ?? "unknown date",
+        )
+        const result = await executeTool("memory_memorize", context, {
+          text,
+          maxWrites: 3,
+          dryRun: DRY_RUN,
+        })
+        sessionsIngested++
+        log(`${sessionLabel} done - ${Date.now() - sessionStart}ms (${result.writes.length} writes)`)
+      }
+
+      ingestMs = Date.now() - ingestStart
+      log(`ingest done - ${total} sessions, ${ingestMs}ms total`)
+    }
+
+    const queryStart = Date.now()
+    log("query start")
+    const searchResult = await executeTool("memory_search", context, {
+      query: item.question,
+      limit: 5,
+    })
+    queryMs = Date.now() - queryStart
+
+    predicted = searchResult.answer
+      ?? searchResult.results.map((result) => result.snippet).join(" ")
+
+    const { em, f1 } = score(predicted, item.answer)
+    log(`query done - ${queryMs}ms EM=${em} F1=${f1.toFixed(2)}`)
+
+    return {
+      question_id: item.question_id,
+      question_type: item.question_type,
+      user_id: context.userId,
+      question: item.question,
+      expected: item.answer,
+      predicted,
+      em,
+      f1,
+      sessions_ingested: sessionsIngested,
+      sessions_available: item.haystack_sessions.length,
+      ingest_ms: ingestMs,
+      query_ms: queryMs,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    log(`ERROR: ${message}`)
+    return {
+      question_id: item.question_id,
+      question_type: item.question_type,
+      user_id: context.userId,
+      question: item.question,
+      expected: item.answer,
+      predicted,
+      em: 0,
+      f1: 0,
+      sessions_ingested: sessionsIngested,
+      sessions_available: item.haystack_sessions.length,
+      ingest_ms: ingestMs,
+      query_ms: queryMs,
+      error: message,
+    }
+  }
+}
+
 async function main() {
   console.log("=== MemexAI Docker Smoke Eval ===\n")
   console.log(`Service:  ${MEMEX_URL}`)
   console.log(`Dataset:  ${DATASET}`)
   console.log(`Limit:    ${LIMIT}`)
   console.log(`Sessions: ${MAX_SESSIONS ? `first ${MAX_SESSIONS} per item` : "all per item"}`)
+  console.log(`Batch:    ${BATCH_SIZE} item${BATCH_SIZE === 1 ? "" : "s"}`)
   console.log(`Run ID:   ${RUN_ID}`)
   if (SKIP_INGEST) console.log("Mode:     skip-ingest")
   if (DRY_RUN) console.log("Mode:     dry-run")
@@ -257,95 +370,7 @@ async function main() {
 
   const items = JSON.parse(readFileSync(DATASET, "utf-8"))
   const subset = items.slice(0, LIMIT)
-  const results = []
-
-  for (let i = 0; i < subset.length; i++) {
-    const item = subset[i]
-    const context = { userId: userIdFor(item), actor: "docker-smoke-eval" }
-
-    process.stdout.write(`[${i + 1}/${subset.length}] ${item.question_id} (${item.question_type})`)
-
-    let ingestMs = 0
-    let queryMs = 0
-    let predicted = ""
-    let sessionsIngested = 0
-
-    try {
-      if (!SKIP_INGEST) {
-        const sessions = MAX_SESSIONS
-          ? item.haystack_sessions.slice(0, MAX_SESSIONS)
-          : item.haystack_sessions
-        const totalAvailable = item.haystack_sessions.length
-        const total = sessions.length
-        const ingestStart = Date.now()
-
-        for (let s = 0; s < total; s++) {
-          process.stdout.write(`\n  session ${s + 1}/${total}${total < totalAvailable ? `/${totalAvailable}` : ""} ...`)
-          const sessionStart = Date.now()
-          const text = formatSession(
-            sessions[s],
-            item.haystack_dates[s] ?? "unknown date",
-          )
-          const result = await executeTool("memory_memorize", context, {
-            text,
-            maxWrites: 3,
-            dryRun: DRY_RUN,
-          })
-          sessionsIngested++
-          process.stdout.write(` ${Date.now() - sessionStart}ms (${result.writes.length} writes)`)
-        }
-
-        ingestMs = Date.now() - ingestStart
-        process.stdout.write(`\n  ingest done - ${total} sessions, ${ingestMs}ms total`)
-      }
-
-      const queryStart = Date.now()
-      const searchResult = await executeTool("memory_search", context, {
-        query: item.question,
-        limit: 5,
-      })
-      queryMs = Date.now() - queryStart
-
-      predicted = searchResult.answer
-        ?? searchResult.results.map((result) => result.snippet).join(" ")
-
-      const { em, f1 } = score(predicted, item.answer)
-      process.stdout.write(` query=${queryMs}ms EM=${em} F1=${f1.toFixed(2)}\n`)
-
-      results.push({
-        question_id: item.question_id,
-        question_type: item.question_type,
-        user_id: context.userId,
-        question: item.question,
-        expected: item.answer,
-        predicted,
-        em,
-        f1,
-        sessions_ingested: sessionsIngested,
-        sessions_available: item.haystack_sessions.length,
-        ingest_ms: ingestMs,
-        query_ms: queryMs,
-      })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      process.stdout.write(` ERROR: ${message}\n`)
-      results.push({
-        question_id: item.question_id,
-        question_type: item.question_type,
-        user_id: context.userId,
-        question: item.question,
-        expected: item.answer,
-        predicted,
-        em: 0,
-        f1: 0,
-        sessions_ingested: sessionsIngested,
-        sessions_available: item.haystack_sessions.length,
-        ingest_ms: ingestMs,
-        query_ms: queryMs,
-        error: message,
-      })
-    }
-  }
+  const results = await mapWithConcurrency(subset, BATCH_SIZE, (item, index) => runItem(item, index, subset.length))
 
   const summary = summarize(results)
 
@@ -375,6 +400,7 @@ async function main() {
       skip_ingest: SKIP_INGEST,
       dry_run: DRY_RUN,
       max_sessions_per_item: MAX_SESSIONS ?? null,
+      batch_size: BATCH_SIZE,
       timestamp: new Date().toISOString(),
     },
     by_type: Object.fromEntries(

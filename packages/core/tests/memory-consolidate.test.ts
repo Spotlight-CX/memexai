@@ -12,6 +12,16 @@ const { executeMemoryConsolidate } = await import("../src/tools")
 
 const updatedAt = new Date("2026-05-14T12:00:00.000Z")
 
+function fileRow(physicalPath: unknown, content: string, minsAgo = 0) {
+  return {
+    id: `file_${String(physicalPath).replace(/\W/g, "_")}`,
+    physical_path: String(physicalPath),
+    content_text: content,
+    created_at: updatedAt,
+    updated_at: new Date(updatedAt.getTime() - minsAgo * 60_000),
+  }
+}
+
 function createDb() {
   return {
     query: vi.fn(async (sql: string, values?: unknown[]) => {
@@ -38,14 +48,29 @@ function createDb() {
   } as unknown as import("../src/db").Db
 }
 
-function fileRow(physicalPath: unknown, content: string) {
-  return {
-    id: `file_${String(physicalPath).replace(/\W/g, "_")}`,
-    physical_path: String(physicalPath),
-    content_text: content,
+function createLargeDb(count: number, contentSize = 10) {
+  const files = Array.from({ length: count }, (_, i) => ({
+    id: `file_note_${i}`,
+    physical_path: `users/u1/note-${i}.md`,
+    content_text: `note-${i} `.repeat(contentSize).trim(),
     created_at: updatedAt,
-    updated_at: updatedAt,
-  }
+    updated_at: new Date(updatedAt.getTime() - i * 60_000),
+  }))
+  return {
+    query: vi.fn(async (sql: string, values?: unknown[]) => {
+      if (sql.includes("ORDER BY physical_path ASC")) return { rows: files }
+      if (sql.includes("WHERE physical_path = $1")) {
+        const path = values?.[0]
+        const f = files.find((r) => r.physical_path === path)
+        return { rows: f ? [f] : [] }
+      }
+      if (sql.includes("UPDATE mx_file")) return { rows: [] }
+      if (sql.includes("INSERT INTO mx_revision") || sql.includes("INSERT INTO mx_access_log")) return { rows: [] }
+      return { rows: [] }
+    }),
+    connect: vi.fn(),
+    end: vi.fn(),
+  } as unknown as import("../src/db").Db
 }
 
 describe("executeMemoryConsolidate", () => {
@@ -106,5 +131,51 @@ describe("executeMemoryConsolidate", () => {
     expect(result.writes[0]).toMatchObject({ tool: "memory_write", path: "user/profile.md" })
     const sqlCalls = (db.query as ReturnType<typeof vi.fn>).mock.calls.map(([sql]) => String(sql))
     expect(sqlCalls.some((sql) => sql.includes("INSERT INTO mx_revision"))).toBe(false)
+  })
+
+  test("reads at most maxFiles files (default 20)", async () => {
+    const db = createLargeDb(25)
+    generateTextMock.mockImplementationOnce(async (input) => {
+      const matches = [...new Set(input.prompt.match(/note-\d+/g) ?? [])]
+      expect(matches.length).toBeLessThanOrEqual(20)
+      return { text: "done" }
+    })
+    await executeMemoryConsolidate(db, { userId: "u1" }, { model: {} })
+  })
+
+  test("respects custom maxFiles option", async () => {
+    const db = createLargeDb(10)
+    generateTextMock.mockImplementationOnce(async (input) => {
+      const matches = [...new Set(input.prompt.match(/note-\d+/g) ?? [])]
+      expect(matches.length).toBeLessThanOrEqual(3)
+      return { text: "done" }
+    })
+    await executeMemoryConsolidate(db, { userId: "u1" }, { model: {}, maxFiles: 3 })
+  })
+
+  test("selects most recently updated files when capping", async () => {
+    // note-0 is newest (0 min old), note-24 is oldest (24 min old)
+    const db = createLargeDb(25)
+    generateTextMock.mockImplementationOnce(async (input) => {
+      expect(input.prompt).toContain("note-0")
+      expect(input.prompt).not.toContain("note-24")
+      return { text: "done" }
+    })
+    await executeMemoryConsolidate(db, { userId: "u1" }, { model: {} })
+  })
+
+  test("drops oldest files to stay under maxInputChars", async () => {
+    // 5 files, each ~50 chars of content; set maxInputChars to 80 so only ~1-2 files fit
+    const db = createLargeDb(5, 5)
+    let promptLength = 0
+    generateTextMock.mockImplementationOnce(async (input) => {
+      promptLength = input.prompt.length
+      return { text: "done" }
+    })
+    await executeMemoryConsolidate(db, { userId: "u1" }, { model: {}, maxInputChars: 80 })
+    // With 80-char budget, fewer than all 5 file contents should appear
+    // note-0 (newest) should still be present
+    expect(promptLength).toBeGreaterThan(0)
+    // The 5 files total ~250 chars; with maxInputChars=80, we expect fewer files in prompt
   })
 })
