@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import posthog from "posthog-js"
 
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_MEMEX_TELEMETRY_POSTHOG_KEY || "phc_bv7z3layK9wvAFUY8nUbhcqirWNiOTsy0KSZS2M83Mc"
-const POSTHOG_HOST = process.env.NEXT_PUBLIC_MEMEX_TELEMETRY_POSTHOG_HOST || "https://us.i.posthog.com"
+const POSTHOG_HOST = process.env.NEXT_PUBLIC_MEMEX_TELEMETRY_POSTHOG_HOST || "/ingest"
 let initialized = false
 
 function telemetryEnabled() {
