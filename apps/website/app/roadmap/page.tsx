@@ -51,10 +51,10 @@ const nextFeatures: RoadmapInterestFeature[] = [
 
 const exploringFeatures: RoadmapInterestFeature[] = [
   {
-    id: 'source-scoped-isolation',
-    title: 'Isolation beyond user scope',
+    id: 'named-mounts',
+    title: 'Named mounts — team, org, workspace scopes',
     stage: 'Exploring',
-    text: 'Add source, workspace, customer, project, or team scopes while preserving the simple virtual path model.',
+    text: 'Register additional memory scopes at init time. A team agent writes to team/itinerary.md and user/prefs.md simultaneously — both isolated, both in the same call. No migration needed.',
   },
   {
     id: 'vector-search',

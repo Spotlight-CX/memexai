@@ -121,6 +121,15 @@ Why it matters: "try it in two minutes" is a different adoption curve than "stan
 
 Restraint: preserve the same mental model as the service: files, scopes, auditability, and search.
 
+### Configurable named mounts
+Let developers register additional memory scopes at init time beyond `user/` and `shared/`. A team itinerary planner configures `{ team: teamId }` and agents write to `team/itinerary.md` alongside `user/prefs.md` — both scopes active in the same call.
+
+Design doc: [`product/specs/10-named-mounts.md`](product/specs/10-named-mounts.md)
+
+Why it matters: the `user/` scope is insufficient when the isolation unit is a team, org, workspace, or session. Current workaround (pass group ID as userId) prevents simultaneous user + group memory.
+
+Restraint: no migration needed — `mx_file` already supports arbitrary physical prefixes. Build when a paying customer asks, not before.
+
 ### Source-scoped memory
 Organize memory around projects, teams, customers, workspaces, or imported knowledge bases, not only `shared/` and per-user files.
 
