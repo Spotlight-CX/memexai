@@ -2,11 +2,16 @@ import type { Config } from "./config"
 
 type ModelFactoryInput = {
   google?: (options: { apiKey: string }) => (modelName: string) => unknown
+  vertex?: (options: {
+    project: string
+    location: string
+    googleAuthOptions: { keyFilename: string }
+  }) => (modelName: string) => unknown
   openai?: (modelName: string) => unknown
 }
 
 export type ServiceModelConfig = {
-  provider: "google" | "openai" | "ollama"
+  provider: "google" | "openai" | "ollama" | "vertex"
   modelName: string
   model: unknown
 }
@@ -24,6 +29,26 @@ export async function createServiceModel(config: Config, factories: ModelFactory
       provider,
       modelName,
       model: google({ apiKey })(modelName),
+    }
+  }
+
+  if (provider === "vertex") {
+    const project = config.GOOGLE_VERTEX_PROJECT
+    if (!project) throw new Error("GOOGLE_VERTEX_PROJECT is required for MEMEX_LLM_PROVIDER=vertex")
+    const keyFilename = config.GOOGLE_APPLICATION_CREDENTIALS
+    if (!keyFilename) throw new Error("GOOGLE_APPLICATION_CREDENTIALS is required for MEMEX_LLM_PROVIDER=vertex")
+    const location = config.GOOGLE_VERTEX_LOCATION ?? "us-central1"
+    const modelName = config.GOOGLE_VERTEX_MODEL ?? "gemini-2.5-flash"
+    const createVertex = factories.vertex ?? (await import("@ai-sdk/google-vertex")).createVertex
+    const vertex = createVertex({
+      project,
+      location,
+      googleAuthOptions: { keyFilename },
+    })
+    return {
+      provider,
+      modelName,
+      model: vertex(modelName),
     }
   }
 
@@ -45,9 +70,10 @@ export async function createServiceModel(config: Config, factories: ModelFactory
   }
 }
 
-function chooseProvider(config: Config): "google" | "openai" | "ollama" | undefined {
+function chooseProvider(config: Config): "google" | "openai" | "ollama" | "vertex" | undefined {
   if (config.MEMEX_LLM_PROVIDER) return config.MEMEX_LLM_PROVIDER
   if (config.GEMINI_API_KEY || config.GOOGLE_GENERATIVE_AI_API_KEY) return "google"
+  if (config.GOOGLE_VERTEX_PROJECT && config.GOOGLE_APPLICATION_CREDENTIALS) return "vertex"
   if (config.OPENAI_API_KEY) return "openai"
   if (config.OLLAMA_MODEL) return "ollama"
   return undefined

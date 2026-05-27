@@ -166,6 +166,41 @@ OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-4.1-mini
 ```
 
+To run the Docker service against Vertex AI with a service-account key, generate a local Vertex env file:
+
+```bash
+./scripts/setup-vertex-env.sh
+
+set -a
+source .env.vertex.local
+set +a
+docker compose up -d --build
+```
+
+The helper uses your active `gcloud` project, creates or reuses a `memexai-vertex-smoke` service account, grants `roles/aiplatform.user`, writes the key to `.secrets/google-vertex-sa.json`, and writes `.env.vertex.local` with:
+
+```bash
+MEMEX_LLM_PROVIDER=vertex
+GOOGLE_VERTEX_PROJECT=your-gcp-project
+GOOGLE_VERTEX_LOCATION=us-central1
+GOOGLE_VERTEX_MODEL=gemini-2.5-flash
+GOOGLE_APPLICATION_CREDENTIALS_HOST=/absolute/path/to/.secrets/google-vertex-sa.json
+GOOGLE_APPLICATION_CREDENTIALS=/run/secrets/google-vertex-sa.json
+```
+
+Smoke the Vertex path:
+
+```bash
+curl -s http://localhost:8080/health
+
+curl -s -X POST http://localhost:8080/v1/tools/memory_memorize/execute \
+  -H "Authorization: Bearer ${MEMEX_API_KEY:-dev-agent-key}" \
+  -H "Content-Type: application/json" \
+  -d '{"context":{"userId":"vertex_smoke","actor":"curl"},"arguments":{"text":"Remember that I prefer 2BHK apartments near metro stations.","maxWrites":2}}'
+
+bun run --cwd apps/benchmark docker-smoke -- --limit 1 --max-sessions 3
+```
+
 Without a service model, `memory_search` still works through Postgres full-text search. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.
 
 Open the admin UI at `http://localhost:8080/admin`.

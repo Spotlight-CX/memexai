@@ -30,6 +30,12 @@ const shipped = [
 
 const nextFeatures: RoadmapInterestFeature[] = [
   {
+    id: 'sidecar-memory-writes',
+    title: 'Sidecar memory writes',
+    stage: 'Next',
+    text: 'Pass a raw_data argument to memory_write and MemexAI stores the payload directly to Postgres without routing it through the model context window — ideal for bulk transcripts, documents, or structured data. memory_memorize gains a sidecar path: after its reasoning pass it issues a direct write to the designated target without re-injecting the full content into the LLM turn.',
+  },
+  {
     id: 'pii-hooks',
     title: 'PII hooks',
     stage: 'Next',

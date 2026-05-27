@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.29",
+    "@ai-sdk/google-vertex": "^3.0.139",
     "@ai-sdk/openai": "^2.0.46",
     "@mantine/code-highlight": "^9.2.1",
     "@mantine/core": "^9.0.1",

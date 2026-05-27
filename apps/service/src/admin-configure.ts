@@ -20,7 +20,7 @@ export async function handleConfigureChat(
     throw new HttpError(
       503,
       "MODEL_NOT_CONFIGURED",
-      "Configure chat requires a configured LLM. Set GEMINI_API_KEY (or OPENAI_API_KEY / OLLAMA_MODEL) in your environment.",
+      "Configure chat requires a configured LLM. Set GEMINI_API_KEY, Vertex AI env vars, OPENAI_API_KEY, or OLLAMA_MODEL in your environment.",
     )
   }
 

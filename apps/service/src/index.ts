@@ -11,6 +11,7 @@ import { countBucket, createTelemetryClient } from "./telemetry"
 async function main() {
   const config = loadConfig()
   const modelConfig = await createServiceModel(config)
+  console.error(`MemexAI model provider: ${modelConfig ? `${modelConfig.provider}/${modelConfig.modelName}` : "none"}`)
   const db = createPool(config.DATABASE_URL)
   await runMigrations(db)
   const telemetry = await createTelemetryClient({ config, db, serviceVersion: process.env.npm_package_version })

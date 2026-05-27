@@ -41,6 +41,62 @@ describe("createServiceModel", () => {
     expect(openaiFactory).toHaveBeenCalledWith("gpt-test")
   })
 
+  test("chooses Vertex when Vertex env is present", async () => {
+    const model = { id: "vertex" }
+    const vertexModel = vi.fn(() => model)
+    const vertexFactory = vi.fn(() => vertexModel)
+
+    const result = await createServiceModel(config({
+      GOOGLE_VERTEX_PROJECT: "vertex-project",
+      GOOGLE_APPLICATION_CREDENTIALS: "/run/secrets/google-vertex-sa.json",
+    }), {
+      vertex: vertexFactory as never,
+    })
+
+    expect(result).toMatchObject({ provider: "vertex", modelName: "gemini-2.5-flash", model })
+    expect(vertexFactory).toHaveBeenCalledWith({
+      project: "vertex-project",
+      location: "us-central1",
+      googleAuthOptions: { keyFilename: "/run/secrets/google-vertex-sa.json" },
+    })
+    expect(vertexModel).toHaveBeenCalledWith("gemini-2.5-flash")
+  })
+
+  test("honors Vertex model and location overrides", async () => {
+    const vertexModel = vi.fn(() => ({ id: "vertex" }))
+    const vertexFactory = vi.fn(() => vertexModel)
+
+    const result = await createServiceModel(config({
+      MEMEX_LLM_PROVIDER: "vertex",
+      GOOGLE_VERTEX_PROJECT: "vertex-project",
+      GOOGLE_VERTEX_LOCATION: "asia-south1",
+      GOOGLE_VERTEX_MODEL: "gemini-test",
+      GOOGLE_APPLICATION_CREDENTIALS: "/tmp/vertex-key.json",
+    }), {
+      vertex: vertexFactory as never,
+    })
+
+    expect(result?.modelName).toBe("gemini-test")
+    expect(vertexFactory).toHaveBeenCalledWith({
+      project: "vertex-project",
+      location: "asia-south1",
+      googleAuthOptions: { keyFilename: "/tmp/vertex-key.json" },
+    })
+    expect(vertexModel).toHaveBeenCalledWith("gemini-test")
+  })
+
+  test("requires Vertex project and credentials when provider is Vertex", async () => {
+    await expect(createServiceModel(config({
+      MEMEX_LLM_PROVIDER: "vertex",
+      GOOGLE_APPLICATION_CREDENTIALS: "/tmp/vertex-key.json",
+    }))).rejects.toThrow(/GOOGLE_VERTEX_PROJECT/)
+
+    await expect(createServiceModel(config({
+      MEMEX_LLM_PROVIDER: "vertex",
+      GOOGLE_VERTEX_PROJECT: "vertex-project",
+    }))).rejects.toThrow(/GOOGLE_APPLICATION_CREDENTIALS/)
+  })
+
   test("honors explicit provider", async () => {
     const model = { id: "openai" }
     const openaiFactory = vi.fn(() => model)

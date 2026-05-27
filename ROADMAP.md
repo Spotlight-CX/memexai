@@ -94,6 +94,13 @@ Why it matters: inspectable files should stay useful to humans and agents.
 
 Keep it simple: preserve provenance and make compaction explicit in revision history.
 
+### Sidecar memory writes
+Add an optional `raw_data` argument to `memory_write`. When provided, MemexAI writes the payload directly to Postgres without including it in the model's context window — the content bypasses the LLM turn entirely. The `memory_memorize` agentic loop is extended to issue sidecar writes: after its normal reasoning pass it emits a final direct-write for any structured or bulk data it has designated a target path for, without sending that data back through the model.
+
+Why it matters: agents that ingest large transcripts, documents, or structured payloads today either flood their own context budget or require a separate out-of-band write. Sidecar writes make bulk ingestion a first-class memory primitive while keeping the agentic loop cheap.
+
+Keep it simple: `raw_data` is a string or base64-encoded blob, same write path, same audit trail. No new tables.
+
 ### PII hooks
 Support redaction/blocking before writes in service mode and direct SDK mode.
 

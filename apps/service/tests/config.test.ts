@@ -33,6 +33,24 @@ describe("config", () => {
     expect(config.OPENAI_MODEL).toBe("gpt-test")
   })
 
+  test("loads Vertex model env", () => {
+    const config = loadConfig({
+      DATABASE_URL: "postgresql://localhost/memexai",
+      MEMEX_API_KEY: "dev-key",
+      MEMEX_LLM_PROVIDER: "vertex",
+      GOOGLE_VERTEX_PROJECT: "vertex-project",
+      GOOGLE_VERTEX_LOCATION: "asia-south1",
+      GOOGLE_VERTEX_MODEL: "gemini-test",
+      GOOGLE_APPLICATION_CREDENTIALS: "/run/secrets/google-vertex-sa.json",
+    })
+
+    expect(config.MEMEX_LLM_PROVIDER).toBe("vertex")
+    expect(config.GOOGLE_VERTEX_PROJECT).toBe("vertex-project")
+    expect(config.GOOGLE_VERTEX_LOCATION).toBe("asia-south1")
+    expect(config.GOOGLE_VERTEX_MODEL).toBe("gemini-test")
+    expect(config.GOOGLE_APPLICATION_CREDENTIALS).toBe("/run/secrets/google-vertex-sa.json")
+  })
+
   test("parses dream loop env flag", () => {
     const config = loadConfig({
       DATABASE_URL: "postgresql://localhost/memexai",
