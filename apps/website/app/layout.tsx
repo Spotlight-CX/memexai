@@ -1,6 +1,7 @@
 import { Inter } from 'next/font/google';
 import { Provider } from '@/components/provider';
 import { SiteFooter } from '@/components/site-footer';
+import { Analytics } from '@/components/analytics';
 import './global.css';
 import type { Metadata } from 'next';
 
@@ -49,6 +50,7 @@ export default function Layout({ children }: LayoutProps<'/'>) {
     <html lang="en" className={inter.className} suppressHydrationWarning>
       <body className="flex flex-col min-h-screen">
         <Provider>
+          <Analytics />
           {children}
           <SiteFooter />
         </Provider>

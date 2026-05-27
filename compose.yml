@@ -31,6 +31,8 @@ services:
       NODE_ENV: production
       PORT: 8080
       MEMEX_DREAM_ENABLED: 'true'
+      # Anonymous product telemetry is enabled by default. Uncomment to opt out.
+      # MEMEX_TELEMETRY_DISABLED: 'true'
       DATABASE_URL: postgresql://memexai:memexai@postgres:5432/memexai
       MEMEX_API_KEY: ${MEMEX_API_KEY:-dev-agent-key}
       MEMEX_ADMIN_SECRET: ${MEMEX_ADMIN_SECRET:-dev-admin-secret}

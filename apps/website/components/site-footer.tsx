@@ -73,11 +73,13 @@ export function SiteFooter() {
                 {group.links.map((link) => (
                   <li key={link.href}>
                     {link.external ? (
-                      <a href={link.href} target="_blank" rel="noopener noreferrer">
+                      <a href={link.href} target="_blank" rel="noopener noreferrer" data-analytics-event="footer_link_clicked" data-analytics-label={link.label}>
                         {link.label}
                       </a>
                     ) : (
-                      <Link href={link.href}>{link.label}</Link>
+                      <Link href={link.href} data-analytics-event="footer_link_clicked" data-analytics-label={link.label}>
+                        {link.label}
+                      </Link>
                     )}
                   </li>
                 ))}
@@ -89,7 +91,7 @@ export function SiteFooter() {
         <div className="site-footer-bottom">
           <span>© 2026 MemexAI. Open-source memory infrastructure.</span>
           <div>
-            <a href="https://github.com/Spotlight-CX/memexai" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+            <a href="https://github.com/Spotlight-CX/memexai" target="_blank" rel="noopener noreferrer" aria-label="GitHub" data-analytics-event="footer_link_clicked" data-analytics-label="GitHub icon">
               <GitPullRequest size={17} aria-hidden />
             </a>
             <a
@@ -97,6 +99,8 @@ export function SiteFooter() {
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Slack support"
+              data-analytics-event="footer_link_clicked"
+              data-analytics-label="Slack icon"
             >
               <MessageCircle size={17} aria-hidden />
             </a>

@@ -55,16 +55,16 @@ export default function HomePage() {
               no vector store. Structured files in Postgres your team can read, edit, and trust.
             </p>
             <div className="hero-actions">
-              <Link className="site-button site-button-primary" href="/docs">
+              <Link className="site-button site-button-primary" href="/docs" data-analytics-event="cta_clicked" data-analytics-label="home_start_with_docker">
                 <BookOpen size={17} aria-hidden />
                 Start with Docker
                 <ArrowRight size={17} aria-hidden />
               </Link>
-              <a className="site-button site-button-secondary" href="https://github.com/Spotlight-CX/memexai">
+              <a className="site-button site-button-secondary" href="https://github.com/Spotlight-CX/memexai" data-analytics-event="cta_clicked" data-analytics-label="home_github">
                 <GitPullRequest size={17} aria-hidden />
                 GitHub
               </a>
-              <Link className="site-button site-button-secondary" href="/compare">
+              <Link className="site-button site-button-secondary" href="/compare" data-analytics-event="cta_clicked" data-analytics-label="home_compare">
                 Compare
               </Link>
             </div>
@@ -186,11 +186,11 @@ export default function HomePage() {
           team can operate. The comparison page lays out the tradeoff directly.
         </p>
         <div className="hero-actions">
-          <Link className="site-button site-button-primary" href="/compare">
+          <Link className="site-button site-button-primary" href="/compare" data-analytics-event="cta_clicked" data-analytics-label="home_compare_memory_approaches">
             Compare memory approaches
             <ArrowRight size={17} aria-hidden />
           </Link>
-          <Link className="site-button site-button-secondary" href="/walkthroughs">
+          <Link className="site-button site-button-secondary" href="/walkthroughs" data-analytics-event="cta_clicked" data-analytics-label="home_walkthrough_queue">
             Walkthrough queue
           </Link>
         </div>
@@ -313,15 +313,15 @@ export default function HomePage() {
             remember durable facts, inspect the files, search them later.
           </p>
           <div className="hero-actions">
-            <Link className="site-button site-button-primary" href="/docs">
+            <Link className="site-button site-button-primary" href="/docs" data-analytics-event="cta_clicked" data-analytics-label="home_view_docs">
               <BookOpen size={17} aria-hidden />
               View docs
             </Link>
-            <Link className="site-button site-button-secondary" href="/docs/quickstart/docker-service">
+            <Link className="site-button site-button-secondary" href="/docs/quickstart/docker-service" data-analytics-event="cta_clicked" data-analytics-label="home_docker_quickstart">
               <ArrowRight size={17} aria-hidden />
               Docker quickstart
             </Link>
-            <Link className="site-button site-button-secondary" href="/roadmap">
+            <Link className="site-button site-button-secondary" href="/roadmap" data-analytics-event="cta_clicked" data-analytics-label="home_roadmap">
               Roadmap
             </Link>
             <a
@@ -329,6 +329,8 @@ export default function HomePage() {
               href="https://join.slack.com/t/memexaispace/shared_invite/zt-3yy24alf6-t1wRQsErf09JViHww_qlGw"
               target="_blank"
               rel="noopener noreferrer"
+              data-analytics-event="cta_clicked"
+              data-analytics-label="home_slack"
             >
               Community / Support
             </a>

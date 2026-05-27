@@ -14,6 +14,16 @@ export type DreamConfig = {
   concurrency: number
 }
 
+export type DreamCycleResult = {
+  status: "disabled" | "no_users" | "updated" | "noop"
+  usersProcessed: number
+  filesTouched: number
+}
+
+export type UserDreamResult = {
+  filesTouched: number
+}
+
 const DEFAULT_DREAM_CONFIG: DreamConfig = {
   enabled: false,
   intervalMinutes: 60,
@@ -87,28 +97,37 @@ export async function runDreamCycle(
   db: Db,
   config: DreamConfig,
   options: { model: unknown },
-): Promise<void> {
-  if (!config.enabled) return
+): Promise<DreamCycleResult> {
+  if (!config.enabled) return { status: "disabled", usersProcessed: 0, filesTouched: 0 }
   await resetStaleDreamRuns(db)
   const userIds = await selectUsersToDream(db, { gracePeriodMinutes: config.gracePeriodMinutes })
   if (userIds.length === 0) {
     console.log("MemexAI dream cycle: no users with pending writes, skipping")
-    return
+    return { status: "no_users", usersProcessed: 0, filesTouched: 0 }
   }
   const concurrency = Math.max(1, config.concurrency)
+  let filesTouched = 0
+  let usersProcessed = 0
 
   for (let index = 0; index < userIds.length; index += concurrency) {
     const batch = userIds.slice(index, index + concurrency)
-    await Promise.allSettled(batch.map((userId) => runUserDream(db, userId, config, options.model)))
+    const results = await Promise.allSettled(batch.map((userId) => runUserDream(db, userId, config, options.model)))
+    for (const result of results) {
+      usersProcessed += 1
+      if (result.status === "fulfilled") filesTouched += result.value.filesTouched
+    }
   }
+
+  return { status: filesTouched > 0 ? "updated" : "noop", usersProcessed, filesTouched }
 }
 
-async function runUserDream(db: Db, userId: string, config: DreamConfig, model: unknown): Promise<void> {
+async function runUserDream(db: Db, userId: string, config: DreamConfig, model: unknown): Promise<UserDreamResult> {
   await markDreamRunning(db, userId)
   const ctx: ToolContext = { userId, actor: "dream-agent" }
 
   try {
     const result = await executeMemoryConsolidate(db, ctx, { model, maxWrites: config.maxWrites })
+    const filesTouched = result.filesTouched.filter((path) => !isDreamExcludedPath(path)).length
     await db.query(
       `
         UPDATE mx_dream_run
@@ -120,8 +139,9 @@ async function runUserDream(db: Db, userId: string, config: DreamConfig, model: 
             updated_at = now()
         WHERE user_id = $1
       `,
-      [userId, result.filesTouched.filter((path) => !isDreamExcludedPath(path)).length],
+      [userId, filesTouched],
     )
+    return { filesTouched }
   } catch (error) {
     await db.query(
       `
@@ -146,8 +166,8 @@ export async function triggerUserDream(
   userId: string,
   config: DreamConfig,
   options: { model: unknown },
-): Promise<void> {
-  await runUserDream(db, userId, config, options.model)
+): Promise<UserDreamResult> {
+  return runUserDream(db, userId, config, options.model)
 }
 
 async function markDreamRunning(db: Db, userId: string): Promise<void> {

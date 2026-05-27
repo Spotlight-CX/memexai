@@ -42,4 +42,31 @@ describe("config", () => {
 
     expect(config.MEMEX_DREAM_ENABLED).toBe(true)
   })
+
+  test("telemetry is enabled by default and can be disabled", () => {
+    const defaultConfig = loadConfig({
+      DATABASE_URL: "postgresql://localhost/memexai",
+      MEMEX_API_KEY: "dev-key",
+    })
+    const disabledConfig = loadConfig({
+      DATABASE_URL: "postgresql://localhost/memexai",
+      MEMEX_API_KEY: "dev-key",
+      MEMEX_TELEMETRY_DISABLED: "yes",
+    })
+
+    expect(defaultConfig.MEMEX_TELEMETRY_DISABLED).toBe(false)
+    expect(disabledConfig.MEMEX_TELEMETRY_DISABLED).toBe(true)
+  })
+
+  test("loads telemetry PostHog overrides", () => {
+    const config = loadConfig({
+      DATABASE_URL: "postgresql://localhost/memexai",
+      MEMEX_API_KEY: "dev-key",
+      MEMEX_TELEMETRY_POSTHOG_KEY: "phc_test",
+      MEMEX_TELEMETRY_POSTHOG_HOST: "https://posthog.test",
+    })
+
+    expect(config.MEMEX_TELEMETRY_POSTHOG_KEY).toBe("phc_test")
+    expect(config.MEMEX_TELEMETRY_POSTHOG_HOST).toBe("https://posthog.test")
+  })
 })

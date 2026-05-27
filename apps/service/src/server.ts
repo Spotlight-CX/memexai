@@ -11,14 +11,16 @@ import { buildPromptBlock } from "./prompt-block"
 import { executeToolRequestSchema, promptBlockQuerySchema } from "./schemas"
 import { executeTool, listTools } from "./tools"
 import { registerAdminStaticRoutes } from "./static-admin"
+import { countBucket, createNoopTelemetry, durationBucket, type TelemetryClient } from "./telemetry"
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js"
 import { newId } from "./ids"
 import { activeMcpSessions, createConnectionScopedMcpServer } from "./mcp"
 import { readDreamConfig, runDreamCycle, triggerUserDream } from "@memexai/core"
 
-export function buildServer(input: { db: Db; config: Config; model?: unknown }): FastifyInstance {
+export function buildServer(input: { db: Db; config: Config; model?: unknown; telemetry?: TelemetryClient }): FastifyInstance {
   const app = Fastify({ logger: true })
   const { db, config } = input
+  const telemetry = input.telemetry ?? createNoopTelemetry()
   const apiAuth = requireApiKey(config.MEMEX_API_KEY)
   const adminAuth = requireAdminSecret(config.MEMEX_ADMIN_SECRET)
 
@@ -49,6 +51,17 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
     return reply.status(response.statusCode).send(response.body)
   })
 
+  app.addHook("onResponse", (request, reply, done) => {
+    const group = adminRouteGroup(request.url)
+    if (group) {
+      telemetry.capture("admin_route_used", {
+        admin_route_group: group,
+        success: reply.statusCode < 400,
+      })
+    }
+    done()
+  })
+
   app.get("/health", async () => ({ ok: true }))
 
   app.get("/v1/mcp/sse", { preHandler: mcpAuth }, async (request, reply) => {
@@ -63,6 +76,7 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
     const mcpServer = createConnectionScopedMcpServer(db, ctx, input.model)
 
     await mcpServer.connect(transport)
+    telemetry.capture("mcp_session_started", { transport: "sse" })
 
     activeMcpSessions.set(connectionId, {
       server: mcpServer,
@@ -99,23 +113,56 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
   app.get("/v1/tools", { preHandler: apiAuth }, async () => listTools())
 
   app.post("/v1/tools/:toolName/execute", { preHandler: apiAuth }, async (request) => {
+    const started = Date.now()
     const params = request.params as { toolName?: string }
     if (!params.toolName) {
       throw new HttpError(400, "TOOL_NAME_REQUIRED", "toolName is required")
     }
 
-    const body = executeToolRequestSchema.parse(request.body)
-    return executeTool(db, params.toolName, body.arguments, body.context, { model: input.model })
+    try {
+      const body = executeToolRequestSchema.parse(request.body)
+      const result = await executeTool(db, params.toolName, body.arguments, body.context, { model: input.model })
+      telemetry.capture("tool_executed", {
+        tool_name: params.toolName,
+        success: true,
+        duration_bucket: durationBucket(Date.now() - started),
+      })
+      return result
+    } catch (error) {
+      telemetry.capture("tool_executed", {
+        tool_name: params.toolName,
+        success: false,
+        error_code: errorCode(error),
+        duration_bucket: durationBucket(Date.now() - started),
+      })
+      throw error
+    }
   })
 
   app.get("/v1/prompt-block", { preHandler: apiAuth }, async (request) => {
-    const context = promptBlockQuerySchema.parse(request.query)
-    return { promptBlock: await buildPromptBlock(db, context) }
+    const started = Date.now()
+    try {
+      const context = promptBlockQuerySchema.parse(request.query)
+      const result = { promptBlock: await buildPromptBlock(db, context) }
+      telemetry.capture("prompt_block_requested", { route_kind: "get", success: true, duration_bucket: durationBucket(Date.now() - started) })
+      return result
+    } catch (error) {
+      telemetry.capture("prompt_block_requested", { route_kind: "get", success: false, error_code: errorCode(error), duration_bucket: durationBucket(Date.now() - started) })
+      throw error
+    }
   })
 
   app.post("/v1/prompt-block", { preHandler: apiAuth }, async (request) => {
-    const body = executeToolRequestSchema.pick({ context: true }).parse(request.body)
-    return { promptBlock: await buildPromptBlock(db, body.context) }
+    const started = Date.now()
+    try {
+      const body = executeToolRequestSchema.pick({ context: true }).parse(request.body)
+      const result = { promptBlock: await buildPromptBlock(db, body.context) }
+      telemetry.capture("prompt_block_requested", { route_kind: "post", success: true, duration_bucket: durationBucket(Date.now() - started) })
+      return result
+    } catch (error) {
+      telemetry.capture("prompt_block_requested", { route_kind: "post", success: false, error_code: errorCode(error), duration_bucket: durationBucket(Date.now() - started) })
+      throw error
+    }
   })
 
   app.get("/v1/admin/health", { preHandler: adminAuth }, async () => ({ ok: true, admin: true }))
@@ -257,14 +304,26 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
     const dreamConfig = await readDreamConfig(db)
 
     if (body.userId) {
-      void triggerUserDream(db, body.userId, dreamConfig, { model: input.model }).catch((err: unknown) => {
+      void triggerUserDream(db, body.userId, dreamConfig, { model: input.model }).then((result) => {
+        telemetry.capture("dream_cycle_run", {
+          status: result.filesTouched === 0 ? "noop" : "updated",
+          files_touched_bucket: countBucket(result.filesTouched),
+        })
+      }).catch((err: unknown) => {
+        telemetry.capture("dream_cycle_run", { status: "error", error_code: errorCode(err) })
         console.error("Admin dream trigger failed for user", body.userId, err)
       })
       reply.code(202)
       return { started: true, userId: body.userId }
     }
 
-    void runDreamCycle(db, { ...dreamConfig, enabled: true }, { model: input.model }).catch((err: unknown) => {
+    void runDreamCycle(db, { ...dreamConfig, enabled: true }, { model: input.model }).then((result) => {
+      telemetry.capture("dream_cycle_run", {
+        status: result.status,
+        files_touched_bucket: countBucket(result.filesTouched),
+      })
+    }).catch((err: unknown) => {
+      telemetry.capture("dream_cycle_run", { status: "error", error_code: errorCode(err) })
       console.error("Admin dream trigger failed (global)", err)
     })
     reply.code(202)
@@ -292,4 +351,24 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown }):
   registerAdminStaticRoutes(app)
 
   return app
+}
+
+function errorCode(error: unknown): string {
+  if (error instanceof HttpError) return error.code
+  if (error instanceof ZodError) return "VALIDATION_ERROR"
+  if (error instanceof Error) return error.name || "ERROR"
+  return "ERROR"
+}
+
+function adminRouteGroup(url: string): string | null {
+  if (!url.startsWith("/v1/admin/")) return null
+  if (url.startsWith("/v1/admin/dream/")) return "dreams"
+  if (url.startsWith("/v1/admin/files")) return "files"
+  if (url.startsWith("/v1/admin/revisions")) return "revisions"
+  if (url.startsWith("/v1/admin/access-logs")) return "access_logs"
+  if (url.startsWith("/v1/admin/users")) return "users"
+  if (url.startsWith("/v1/admin/setup-generate")) return "setup"
+  if (url.startsWith("/v1/admin/configure-chat")) return "configure"
+  if (url.startsWith("/v1/admin/health")) return "health"
+  return "other"
 }
