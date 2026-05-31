@@ -115,8 +115,8 @@ export default function DreamingMemoryBlogPage() {
             <p className="section-lede">
               Anthropic&apos;s Managed Agents Dreams are a strong signal: long-running agents need memory consolidation,
               not just memory storage. The same pressure shows up in shorter products too, as soon as users return
-              across separate sessions. Here is the research thread, the product problem, and why MemexAI takes a
-              different infrastructure path.
+              across separate sessions. Here is the research thread, what happens to personalization when memory is
+              never cleaned, and why MemexAI takes a different infrastructure path.
             </p>
           </div>
         </section>
@@ -124,9 +124,9 @@ export default function DreamingMemoryBlogPage() {
         <section className="section article-layout">
           <div className="article-body">
             <p>
-              The important thing about Dreaming is not the name. It is the admission underneath it: once agents work
-              across sessions, memory cannot just accumulate. It needs to be curated, cleaned, corrected, and made
-              usable again.
+              Once agents work across sessions, memory cannot just accumulate. It needs to be curated, cleaned,
+              corrected, and made usable again. That is the admission Anthropic made explicit in Managed Agents Dreams —
+              and it is the right framing. Multi-session memory is not a storage problem. It is a maintenance problem.
             </p>
 
             <p>
@@ -152,6 +152,10 @@ export default function DreamingMemoryBlogPage() {
                 </div>
               ))}
             </div>
+            <p className="small-meta">
+              Figures above are Anthropic-reported customer and internal results. They are evidence that the category
+              matters — not MemexAI benchmark claims.
+            </p>
 
             <h2>The research thread</h2>
             <p>
@@ -336,26 +340,24 @@ export default function DreamingMemoryBlogPage() {
             </p>
 
             <p>
-              This is also why the product page and the blog need to do different jobs. The product page explains what
-              operators can turn on. The research argument is that any AI product with persistent user memory eventually
-              needs a memory hygiene loop, because user trust depends on the quality of the maintained record, not the
-              total volume of remembered text.
+              Any AI product with persistent user memory eventually needs a memory hygiene loop, because user trust
+              depends on the quality of the maintained record, not the total volume of remembered text.
             </p>
 
             <h2>What shipped</h2>
             <p>
-              The shipped version of MemexAI Dreaming includes opt-in service-mode scheduling, runtime config in
-              Postgres, per-user state in <code>mx_dream_run</code>, global and per-user pause controls, quiet-period
-              eligibility, write budgets, concurrency controls, skipped log paths, no-op behavior without dream-log
-              noise, admin API endpoints, a Dreams panel in the admin UI, and revision/access-log preservation through
-              the normal memory write path.
+              The core design is now live: opt-in background scheduling with a quiet grace period, write budgets that
+              cap how much a single dream pass can change, per-user pause controls, and full revision and access-log
+              preservation through the normal memory write path. Dream writes are indistinguishable from agent writes in
+              the audit trail — except the actor is <code>dream-agent</code>. If a dream run finds nothing worth
+              changing, it records zero files touched and stays silent.
             </p>
 
             <p>
-              This is not the final form of memory health. Source-aware consolidation, consent controls, better conflict
-              detection, quality evals for dream runs, and policy hooks for sensitive domains are all still ahead. But
-              this first version establishes the line we care about: memory is product state, and background maintenance
-              should be inspectable infrastructure.
+              Still ahead: source-aware consolidation, consent controls, conflict detection for context-dependent
+              preferences, quality evals for dream runs, and policy hooks for sensitive domains. But this first version
+              draws the line that matters — memory is product state, and background maintenance should be inspectable
+              infrastructure, not a hidden rewrite.
             </p>
 
             <div className="hero-actions">
