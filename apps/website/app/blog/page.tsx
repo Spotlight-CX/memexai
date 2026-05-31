@@ -17,6 +17,13 @@ export const metadata: Metadata = {
 
 const posts = [
   {
+    href: '/blog/why-we-shipped-dreaming-for-ai-memory',
+    title: 'Why we shipped Dreaming for AI memory',
+    description:
+      'The design decisions behind Background Dreaming: quiet periods, write budgets, skipped logs, revisions, and inspectable memory cleanup.',
+    label: 'Background Dreaming',
+  },
+  {
     href: '/blog/long-horizon-agents-need-memory',
     title: 'Long-horizon agents need memory for trajectories, not just facts',
     description:

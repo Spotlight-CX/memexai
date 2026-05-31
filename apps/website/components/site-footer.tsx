@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { GitPullRequest, MessageCircle } from 'lucide-react';
+import { ArrowRight, GitPullRequest, MessageCircle } from 'lucide-react';
 import { slackUrl } from '@/lib/links';
 import { BrandMark } from '@/components/brand-mark';
 
@@ -60,33 +60,54 @@ export function SiteFooter() {
   return (
     <footer className="site-footer">
       <div className="site-footer-inner">
-        <div className="site-footer-brand">
-          <BrandMark size="footer" />
-          <p>Persistent user memory for AI products.</p>
+        <div className="site-footer-cta">
+          <p className="site-footer-kicker">Open-source memory infrastructure</p>
+          <h2>Make memory a product surface, not a prompt secret.</h2>
+          <p>
+            MemexAI keeps durable memory inspectable, revisioned, and ready for agents that personalize and operate
+            across sessions.
+          </p>
+          <div className="site-footer-actions">
+            <Link className="site-footer-button primary" href="/docs/quickstart/docker-service">
+              Start with Docker
+              <ArrowRight size={16} aria-hidden />
+            </Link>
+            <Link className="site-footer-button secondary" href="/blog/why-we-shipped-dreaming-for-ai-memory">
+              See why memory needs cleanup
+              <ArrowRight size={16} aria-hidden />
+            </Link>
+          </div>
         </div>
 
-        <nav className="site-footer-grid" aria-label="Footer navigation">
-          {footerGroups.map((group) => (
-            <div className="footer-column" key={group.title}>
-              <h2>{group.title}</h2>
-              <ul>
-                {group.links.map((link) => (
-                  <li key={link.href}>
-                    {link.external ? (
-                      <a href={link.href} target="_blank" rel="noopener noreferrer" data-analytics-event="footer_link_clicked" data-analytics-label={link.label}>
-                        {link.label}
-                      </a>
-                    ) : (
-                      <Link href={link.href} data-analytics-event="footer_link_clicked" data-analytics-label={link.label}>
-                        {link.label}
-                      </Link>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </nav>
+        <div className="site-footer-main">
+          <div className="site-footer-brand">
+            <BrandMark size="footer" />
+            <p>Persistent memory for AI products.</p>
+          </div>
+
+          <nav className="site-footer-grid" aria-label="Footer navigation">
+            {footerGroups.map((group) => (
+              <div className="footer-column" key={group.title}>
+                <h2>{group.title}</h2>
+                <ul>
+                  {group.links.map((link) => (
+                    <li key={link.href}>
+                      {link.external ? (
+                        <a href={link.href} target="_blank" rel="noopener noreferrer" data-analytics-event="footer_link_clicked" data-analytics-label={link.label}>
+                          {link.label}
+                        </a>
+                      ) : (
+                        <Link href={link.href} data-analytics-event="footer_link_clicked" data-analytics-label={link.label}>
+                          {link.label}
+                        </Link>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </nav>
+        </div>
 
         <div className="site-footer-bottom">
           <span>© 2026 MemexAI. Open-source memory infrastructure.</span>

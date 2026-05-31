@@ -16,13 +16,12 @@ export const metadata: Metadata = {
     template: '%s | MemexAI',
   },
   description:
-    'Persistent user memory for AI products: inspectable memory files, revisions, access logs, and Postgres-native storage.',
+    'Persistent user memory for AI products: inspectable memory files, revisions, access logs, and durable personalization.',
   keywords: [
     'AI memory',
     'agent memory',
     'user memory',
     'AI personalization',
-    'Postgres memory',
     'Mem0 alternative',
     'Zep alternative',
   ],
@@ -32,7 +31,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'MemexAI - Persistent user memory for AI products',
     description:
-      'Inspectable memory files for AI products. No vector database required. Backed by Postgres.',
+      'Inspectable memory files for AI products, with revisions, access logs, and durable personalization.',
     type: 'website',
     url: 'https://memexai.space',
     siteName: 'MemexAI',
@@ -41,7 +40,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'MemexAI - Persistent user memory for AI products',
     description:
-      'Inspectable memory files for AI products. No vector database required. Backed by Postgres.',
+      'Inspectable memory files for AI products, with revisions, access logs, and durable personalization.',
   },
 };
 

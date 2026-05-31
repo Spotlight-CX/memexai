@@ -18,6 +18,7 @@ const routes = [
   '/roadmap',
   '/dreaming',
   '/blog',
+  '/blog/why-we-shipped-dreaming-for-ai-memory',
   '/blog/long-horizon-agents-need-memory',
   '/blog/stop-running-evals-only-on-prompts',
   '/compare',
