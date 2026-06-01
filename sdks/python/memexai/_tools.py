@@ -280,7 +280,7 @@ async def execute_memory_patch(db: DbPool, args: Dict[str, Any], ctx: RequestCon
         "noOp": not changed,
     }
 
-def extract_wiki_links(content: str) -> List[str]:
+def extract_memory_links(content: str) -> List[str]:
     links = []
     seen = set()
     for match in re.finditer(r"\[\[([^\]\n]+)\]\]", content):
@@ -396,7 +396,7 @@ async def retrieve_memory_context(db: DbPool, ctx: RequestContext, options: Dict
             break
         link_sources = {}
         for source in frontier:
-            for linked_path in extract_wiki_links(source["content"]):
+            for linked_path in extract_memory_links(source["content"]):
                 if linked_path in visited or linked_path in link_sources:
                     continue
                 try:

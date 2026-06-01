@@ -234,7 +234,7 @@ function buildMemoryBlock(input: {
   ].filter(Boolean).join("\n\n")
 }
 
-export function extractWikiLinks(content: string): string[] {
+export function extractMemoryLinks(content: string): string[] {
   const links = new Set<string>()
   const regex = /\[\[([^\]\n]+)\]\]/g
   let match: RegExpExecArray | null
@@ -352,7 +352,7 @@ export async function retrieveMemoryContext(db: Db, ctx: ToolContext, options: {
   for (let depth = 1; includeRelated && depth <= relatedDepth && frontier.length > 0; depth += 1) {
     const linkSources = new Map<string, MemoryContextFile>()
     for (const source of frontier) {
-      for (const linkedPath of extractWikiLinks(source.content)) {
+      for (const linkedPath of extractMemoryLinks(source.content)) {
         if (visited.has(linkedPath) || linkSources.has(linkedPath)) continue
         try {
           virtualToPhysical(linkedPath, ctx)

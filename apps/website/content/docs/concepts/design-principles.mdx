@@ -1,0 +1,76 @@
+---
+title: Design Principles
+description: The decisions that shape how MemexAI stores, retrieves, and isolates memory — and why.
+---
+
+MemexAI makes a small number of opinionated decisions that affect everything downstream. Understanding them helps you structure memory well and predict behavior when things are working correctly.
+
+## Files, not embeddings
+
+Memory is Markdown text stored as rows in Postgres — not embedding vectors in a separate store.
+
+This means memory is human-readable, grep-able, patchable by a script, and auditable with a SQL query. You can open any memory file in the admin UI and understand exactly what the agent knows. You can also run eval fixtures against a known memory state and get reproducible results.
+
+The tradeoff: semantic similarity search requires explicit tooling (hybrid search is on the roadmap). BM25 and memory-link traversal cover most retrieval cases in practice, and the behavior they produce is predictable and testable.
+
+## Path-enforced isolation
+
+Multi-tenancy is enforced in code, not prompts.
+
+When an agent calls a memory tool, MemexAI validates the virtual path and injects the `userId` before touching the database. `user/profile.md` physically becomes `users/{userId}/profile.md`. Agents cannot construct a path that reaches another user's data, regardless of what the model generates.
+
+Shared memory is read-only for agents by the same mechanism. A write to `shared/anything.md` is rejected at the path validation layer. No prompt instruction changes this.
+
+## Deterministic retrieval
+
+`memory_smart_read` returns the same files for the same query on the same data, every time.
+
+Retrieval is BM25 full-text search for initial candidates, followed by memory-link graph traversal (forward and inbound) within a character budget. Every file in the response carries a `reason` field — `query_match`, `linked`, `inbound_link`, or `recency` — explaining how it was found.
+
+This makes retrieval testable. You can write an eval that seeds a known memory state and asserts exactly which files are returned and why.
+
+## The knowledge graph grows forward
+
+A note written today makes an old hub file richer without touching the hub.
+
+When an agent writes `user/visit-jan.md` containing `[[user/preferences.md]]`, a backlink is created immediately. The next time anything seeds `preferences.md`, the visit note surfaces as an inbound file in the same response — no re-indexing, no re-writing the hub.
+
+Files that many others reference accumulate an `importance_score`. Hub files with high scores rank higher in search results, which means the most central memory surfaces naturally over time.
+
+## Writes are permanently recorded
+
+Every write creates a full content snapshot in `mx_revision`. Nothing is silently overwritten.
+
+Agents can correct memory — a later write can update or contradict an earlier one. But the previous version is always recoverable. The access log records every read and write, including which tool call caused it.
+
+This supports post-hoc debugging: when an agent gives a wrong answer, you can inspect the exact memory state it read and trace every write that produced that state.
+
+## Admin and agent have separate trust levels
+
+Agents and operators are not the same thing. MemexAI enforces this structurally.
+
+- **Agents** authenticate with an API key and can write only to `user/*`. They can read `shared/*` but not write it.
+- **Operators** authenticate with an admin secret and can read or write any file, inspect revisions, manage config, and control dreaming behavior.
+
+The boundary is not advisory — it is enforced at the route and path validation level. Changing it requires changing how the service is deployed or extending the path rules in code.
+
+## Vocabulary
+
+| Term | Meaning |
+|---|---|
+| **User** | The person the AI product serves. Each user has a private `user/` namespace. |
+| **Agent** | The LLM acting on behalf of the user. Can read+write `user/*` and read `shared/*`. |
+| **Operator** | The team or developer running the deployment. Controls `shared/*`, admin config, and model settings. |
+| **Virtual path** | The path agents see: `user/profile.md`, `shared/index.md`. |
+| **Physical path** | How paths are stored in Postgres: `users/{userId}/profile.md`. Agents never see these. |
+| **Hub file** | A memory file that many others link to. High `importance_score`. Grows richer as related notes accumulate. |
+| **Memory link** | `[[user/file.md]]` syntax in file content. Creates graph edges used by smart_read traversal. |
+| **Scope** | The namespace prefix that determines write access and visibility: `user/` or `shared/`. |
+| **Dreaming** | Background consolidation. Merges duplicates, resolves contradictions, and keeps memory clean between sessions. See [Dreaming](/docs/operations/dreaming). |
+
+## Related
+
+- [Memory scopes](/docs/concepts/scopes)
+- [How MemexAI works](/docs/concepts/how-it-works)
+- [Shared memory as behavior guide](/docs/concepts/shared-memory)
+- [Dreaming](/docs/operations/dreaming)

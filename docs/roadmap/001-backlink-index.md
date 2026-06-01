@@ -4,7 +4,7 @@
 
 ## Problem
 
-`memory_smart_read` traversal is forward-only. Starting from a BM25-seeded file, it follows WikiLinks the file *points to* (depth 0 → 1 → 2), correctly avoids circular loops, and assembles everything into one response.
+`memory_smart_read` traversal is forward-only. Starting from a BM25-seeded file, it follows memory links the file *points to* (depth 0 → 1 → 2), correctly avoids circular loops, and assembles everything into one response.
 
 The gap is **backward traversal**. Hub files like `user/preferences.md` are referenced by many specific, recent files — visit notes, chat summaries, correction logs. Those inbound files are the most current evidence *about* the hub concept, but the current implementation never discovers them.
 
@@ -39,7 +39,7 @@ Updated on every write: `importance_score = (SELECT COUNT(*) FROM mx_backlink WH
 
 ### New module: `packages/core/src/backlinks.ts`
 
-- `extractWikiLinks(content: string): string[]` — parses `[[path]]` syntax, deduplicates
+- `extractMemoryLinks(content: string): string[]` — parses memory-link `[[path]]` syntax, deduplicates
 - `syncBacklinks(db: Pool, sourcePath: string, content: string): Promise<void>` — upserts new links, deletes stale ones, updates `importance_score` on affected targets
 - `getInboundLinks(db: Pool, targetPath: string): Promise<string[]>` — reverse lookup
 
@@ -76,14 +76,14 @@ Admin queries `mx_backlink` for files with 0 inbound links → candidate stale f
 ## Test Plan
 
 **Unit tests** (`packages/core/tests/backlinks.test.ts`):
-- `extractWikiLinks` — parses `[[user/foo.md]]`, ignores malformed syntax, deduplicates
+- `extractMemoryLinks` — parses `[[user/foo.md]]`, ignores malformed syntax, deduplicates
 - `syncBacklinks` — inserts new links, deletes removed links, idempotent on same content
 - Circular pair (A→B, B→A): both synced; `getInboundLinks(A)` returns B and vice versa
 - Orphan: file with 0 inbound links returns empty array
 
 **Integration tests** (`packages/core/tests/smart-read-backlinks.test.ts`):
 - Write hub + 3 files linking to it → smart_read on hub includes ≥1 inbound in same response
-- Overwrite file removing a WikiLink → stale `mx_backlink` row deleted
+- Overwrite file removing a memory link → stale `mx_backlink` row deleted
 - `importance_score` increments on target after each new inbound link
 
 **Regression tests**:
@@ -92,4 +92,4 @@ Admin queries `mx_backlink` for files with 0 inbound links → candidate stale f
 - Character budget respected even with many inbound files
 
 **Performance test**:
-- 1,000 files with random WikiLink graph → smart_read completes in < 100ms
+- 1,000 files with random memory-link graph → smart_read completes in < 100ms

@@ -44,3 +44,13 @@ MemexAI rejects:
 - Writes to `shared/`.
 
 Path isolation is enforced in code, not left to the model prompt.
+
+## Why only two scopes
+
+MemexAI ships with two scopes because most products only need these two trust levels: per-user private and operator-global. Adding more scopes before knowing the shape of real usage would bake in premature assumptions.
+
+Team, workspace, and project scopes are on the roadmap as [named mounts](/docs/roadmap#named-mounts) — register additional memory scopes at init time so a team agent can write to `team/itinerary.md` and `user/prefs.md` in the same call. The current design deliberately avoids those scopes until the pull is real.
+
+## Vocabulary
+
+For definitions of user, agent, operator, virtual path, physical path, and other terms used across these docs, see [Design Principles — Vocabulary](/docs/concepts/design-principles#vocabulary).

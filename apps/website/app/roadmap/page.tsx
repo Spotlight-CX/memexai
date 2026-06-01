@@ -84,7 +84,7 @@ const exploringFeatures: RoadmapInterestFeature[] = [
     id: 'link-aware-memory',
     title: 'Bidirectional memory links',
     stage: 'Exploring',
-    text: 'Index WikiLinks as a precomputed backlink graph. memory_smart_read today only follows links forward — with reverse traversal, seeding on a hub file also surfaces the most recent notes that reference it (visit logs, chat summaries, corrections). Files with many inbound references rank higher in search. Hub files become self-enriching context anchors instead of static snapshots.',
+    text: 'Index memory links as a precomputed backlink graph. memory_smart_read today only follows links forward — with reverse traversal, seeding on a hub file also surfaces the most recent notes that reference it (visit logs, chat summaries, corrections). Files with many inbound references rank higher in search. Hub files become self-enriching context anchors instead of static snapshots.',
   },
 ];
 

@@ -75,7 +75,7 @@ describe("executeMemorySmartRead", () => {
     expect(values).toEqual(["budget", "users/u1/%"])
   })
 
-  test("expands one-hop wiki links for query smart reads", async () => {
+  test("expands one-hop memory links for query smart reads", async () => {
     const db = createMockDb([
       row("users/u1/profile.md", "# Profile\n[[user/preferences.md]]\n[[shared/index.md]]", now, 0.8),
       row("users/u1/preferences.md", "# Preferences\n- Quiet"),
