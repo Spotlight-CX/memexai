@@ -11,6 +11,7 @@ import {
   Paper,
   ScrollArea,
   Stack,
+  Tabs,
   Text,
   Textarea,
   TextInput,
@@ -27,7 +28,7 @@ import { useSearchParams } from "react-router-dom"
 import { useAdminData, adminQueryKey } from "../hooks"
 import { FileTreeItem } from "./FileTree"
 import { PencilIcon, PlusIcon } from "../icons"
-import type { AdminFile, AdminRevision } from "../types"
+import type { AdminFile, AdminRevision, FileObservability } from "../types"
 import { deriveTree, formatDate, isCodeLike, relativeTime } from "../utils"
 import { ErrorText } from "./TableViews"
 
@@ -36,6 +37,7 @@ export function FilesView({ secret }: { secret: string }) {
   const selectedPath = searchParams.get("path")
   const [search, setSearch] = useState("")
   const [selectedRevision, setSelectedRevision] = useState<AdminRevision | null>(null)
+  const [sidebarTab, setSidebarTab] = useState<string | null>("activity")
   const [copied, setCopied] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [draftContent, setDraftContent] = useState("")
@@ -51,6 +53,10 @@ export function FilesView({ secret }: { secret: string }) {
   )
   const { data: revisions, error: revisionsError } = useAdminData<{ revisions: AdminRevision[] }>(
     selectedPath ? `/v1/admin/revisions?physicalPath=${encodeURIComponent(selectedPath)}` : null,
+    secret,
+  )
+  const { data: fileObservability, error: fileObservabilityError } = useAdminData<FileObservability>(
+    selectedPath ? `/v1/admin/files/${encodeURIComponent(selectedPath)}/observability?bucket=hour` : null,
     secret,
   )
 
@@ -298,28 +304,52 @@ export function FilesView({ secret }: { secret: string }) {
         />
       )}
 
-      {/* Right: revision sidebar */}
+      {/* Right: observability sidebar */}
       <Stack gap={0} h="100%" style={{ minHeight: 0, borderLeft: "1px solid var(--mantine-color-gray-2)", background: "rgba(255, 255, 255, 0.4)", backdropFilter: "blur(4px)" }}>
         <Box px={12} py={10}>
-          <Text size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.04em" }}>Revisions</Text>
-          <Text size="xs" c="dimmed" mt={2}>{selectedPath ? "File history" : "Select a file to inspect."}</Text>
+          <Text size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.04em" }}>File Observability</Text>
+          <Text size="xs" c="dimmed" mt={2} truncate>{selectedPath ?? "Select a file to inspect."}</Text>
         </Box>
         <Divider />
-        <ScrollArea flex={1} offsetScrollbars>
-          <Stack gap={4} p={8}>
-            {revisionsError ? <ErrorText error={revisionsError} /> : null}
-            {!selectedPath ? <Text size="xs" c="dimmed" p="xs">No file selected.</Text> : null}
-            {selectedPath && !revisions?.revisions?.length ? <Text size="xs" c="dimmed" p="xs">No revisions yet.</Text> : null}
-            {(revisions?.revisions ?? []).map((revision) => (
-              <RevisionRow
-                key={revision.id}
-                revision={revision}
-                selected={selectedRevision?.id === revision.id}
-                onClick={() => setSelectedRevision(revision)}
+        <Tabs value={sidebarTab} onChange={setSidebarTab} keepMounted={false} style={{ minHeight: 0, display: "flex", flexDirection: "column", flex: 1 }}>
+          <Tabs.List grow>
+            <Tabs.Tab value="activity">Activity</Tabs.Tab>
+            <Tabs.Tab value="users">Users</Tabs.Tab>
+            <Tabs.Tab value="revisions">Revisions</Tabs.Tab>
+          </Tabs.List>
+          <Tabs.Panel value="activity" style={{ minHeight: 0, flex: 1 }}>
+            <ScrollArea h="100%" offsetScrollbars>
+              <ActivitySidebar
+                selectedPath={selectedPath}
+                data={fileObservability}
+                error={fileObservabilityError}
+                onOpenFile={handleSelectPath}
               />
-            ))}
-          </Stack>
-        </ScrollArea>
+            </ScrollArea>
+          </Tabs.Panel>
+          <Tabs.Panel value="users" style={{ minHeight: 0, flex: 1 }}>
+            <ScrollArea h="100%" offsetScrollbars>
+              <UsersSidebar selectedPath={selectedPath} data={fileObservability} error={fileObservabilityError} />
+            </ScrollArea>
+          </Tabs.Panel>
+          <Tabs.Panel value="revisions" style={{ minHeight: 0, flex: 1 }}>
+            <ScrollArea h="100%" offsetScrollbars>
+              <Stack gap={4} p={8}>
+                {revisionsError ? <ErrorText error={revisionsError} /> : null}
+                {!selectedPath ? <Text size="xs" c="dimmed" p="xs">No file selected.</Text> : null}
+                {selectedPath && !revisions?.revisions?.length ? <Text size="xs" c="dimmed" p="xs">No revisions yet.</Text> : null}
+                {(revisions?.revisions ?? []).map((revision) => (
+                  <RevisionRow
+                    key={revision.id}
+                    revision={revision}
+                    selected={selectedRevision?.id === revision.id}
+                    onClick={() => setSelectedRevision(revision)}
+                  />
+                ))}
+              </Stack>
+            </ScrollArea>
+          </Tabs.Panel>
+        </Tabs>
       </Stack>
     </Box>
   )
@@ -333,6 +363,149 @@ function getAncestorPaths(path: string) {
 function isRiskyPath(path: string | null) {
   if (!path) return false
   return path.startsWith("shared/") || path.split("/").pop() === "index.md"
+}
+
+function ActivitySidebar({
+  selectedPath,
+  data,
+  error,
+  onOpenFile,
+}: {
+  selectedPath: string | null
+  data: FileObservability | null
+  error: string | null
+  onOpenFile: (path: string) => void
+}) {
+  if (!selectedPath) return <Text size="xs" c="dimmed" p="sm">No file selected.</Text>
+  if (error) return <Box p="sm"><ErrorText error={error} /></Box>
+  const summary = data?.summary
+  return (
+    <Stack gap="sm" p="sm">
+      <MiniBars buckets={data?.activity ?? []} />
+      <Box
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 8,
+        }}
+      >
+        <MiniMetric label="Reads" value={summary?.reads ?? 0} />
+        <MiniMetric label="Writes" value={summary?.writes ?? 0} />
+        <MiniMetric label="Searches" value={(summary?.searches ?? 0) + (summary?.smartReads ?? 0)} />
+        <MiniMetric label="p95" value={formatMs(summary?.p95Ms)} />
+      </Box>
+      <Paper withBorder radius="sm" p="xs" bg="gray.0">
+        <Stack gap={4}>
+          <InfoRow label="Last access" value={summary?.lastAccessedAt ? relativeTime(summary.lastAccessedAt) : "n/a"} />
+          <InfoRow label="Last write" value={summary?.lastWrittenAt ? relativeTime(summary.lastWrittenAt) : "n/a"} />
+          <InfoRow label="Unique users" value={String(summary?.uniqueUsers ?? 0)} />
+          <InfoRow label="Revisions" value={String(summary?.revisions ?? 0)} />
+        </Stack>
+      </Paper>
+      <Paper withBorder radius="sm" p="xs">
+        <Text size="xs" fw={650} c="dimmed" tt="uppercase" style={{ letterSpacing: "0.04em" }}>Frequently accessed nearby</Text>
+        <Stack gap={6} mt={8}>
+          {(data?.coHitFiles ?? []).length ? data?.coHitFiles.map((file) => (
+            <UnstyledButton key={file.physicalPath} onClick={() => onOpenFile(file.physicalPath)} style={{ width: "100%" }}>
+              <Group gap="xs" justify="space-between" wrap="nowrap">
+                <Code style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{file.physicalPath}</Code>
+                <Badge size="xs" variant="light">{file.count}</Badge>
+              </Group>
+            </UnstyledButton>
+          )) : <Text size="xs" c="dimmed">No co-hit files yet.</Text>}
+        </Stack>
+      </Paper>
+    </Stack>
+  )
+}
+
+function UsersSidebar({ selectedPath, data, error }: {
+  selectedPath: string | null
+  data: FileObservability | null
+  error: string | null
+}) {
+  if (!selectedPath) return <Text size="xs" c="dimmed" p="sm">No file selected.</Text>
+  if (error) return <Box p="sm"><ErrorText error={error} /></Box>
+  const isShared = selectedPath.startsWith("shared/")
+  return (
+    <Stack gap="sm" p="sm">
+      <Text size="xs" c="dimmed">
+        {isShared ? "Top users hitting this shared file." : "User-level access pattern for this memory file."}
+      </Text>
+      {(data?.topUsers ?? []).length ? data?.topUsers.map((user) => (
+        <Paper key={user.userId ?? "unknown"} withBorder radius="sm" p="xs">
+          <Group justify="space-between" gap="xs" wrap="nowrap">
+            <Code style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{user.userId ?? "unknown"}</Code>
+            <Text size="xs" c="dimmed">{user.lastAccessedAt ? relativeTime(user.lastAccessedAt) : ""}</Text>
+          </Group>
+          <Group gap="xs" mt={6}>
+            <Badge size="xs" variant="light" color="blue">reads {user.reads}</Badge>
+            <Badge size="xs" variant="light" color="teal">writes {user.writes}</Badge>
+            <Badge size="xs" variant="light" color="grape">search {user.searches}</Badge>
+          </Group>
+        </Paper>
+      )) : <Text size="xs" c="dimmed">No users have hit this file yet.</Text>}
+    </Stack>
+  )
+}
+
+function MiniMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <Paper withBorder radius="sm" p="xs">
+      <Text size="xs" c="dimmed">{label}</Text>
+      <Text size="sm" fw={650}>{value}</Text>
+    </Paper>
+  )
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <Group justify="space-between" gap="xs" wrap="nowrap">
+      <Text size="xs" c="dimmed">{label}</Text>
+      <Text size="xs" fw={500} style={{ whiteSpace: "nowrap" }}>{value}</Text>
+    </Group>
+  )
+}
+
+function MiniBars({ buckets }: { buckets: FileObservability["activity"] }) {
+  const width = 260
+  const height = 88
+  if (!buckets.length) {
+    return (
+      <Box h={height} display="flex" style={{ alignItems: "center", justifyContent: "center", border: "1px dashed var(--mantine-color-gray-3)", borderRadius: 6 }}>
+        <Text size="xs" c="dimmed">No activity yet.</Text>
+      </Box>
+    )
+  }
+  const max = Math.max(1, ...buckets.map((bucket) => bucket.reads + bucket.writes + bucket.searches + bucket.smartReads))
+  const gap = 2
+  const barWidth = Math.max(3, (width - gap * (buckets.length - 1)) / buckets.length)
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} role="img" aria-label="File activity chart">
+      <line x1="0" x2={width} y1={height - 10} y2={height - 10} stroke="var(--mantine-color-gray-3)" />
+      {buckets.map((bucket, index) => {
+        const total = bucket.reads + bucket.writes + bucket.searches + bucket.smartReads
+        const barHeight = (total / max) * (height - 18)
+        return (
+          <rect
+            key={bucket.bucketStart}
+            x={index * (barWidth + gap)}
+            y={height - 10 - barHeight}
+            width={barWidth}
+            height={barHeight}
+            rx={1}
+            fill="var(--mantine-color-blue-5)"
+          />
+        )
+      })}
+    </svg>
+  )
+}
+
+function formatMs(value: number | null | undefined) {
+  if (value === null || value === undefined) return "n/a"
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}s`
+  return `${Math.round(value)}ms`
 }
 
 function NewFileModal({

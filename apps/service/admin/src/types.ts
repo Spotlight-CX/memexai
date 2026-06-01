@@ -174,6 +174,36 @@ export type ObservabilitySchemaSignals = {
   }>
 }
 
+export type FileObservability = {
+  summary: {
+    reads: number
+    writes: number
+    searches: number
+    smartReads: number
+    revisions: number
+    uniqueUsers: number
+    lastAccessedAt: string | null
+    lastWrittenAt: string | null
+    p95Ms: number | null
+  }
+  activity: Array<{
+    bucketStart: string
+    reads: number
+    writes: number
+    searches: number
+    smartReads: number
+  }>
+  topUsers: Array<{
+    userId: string | null
+    reads: number
+    writes: number
+    searches: number
+    lastAccessedAt: string | null
+  }>
+  coHitFiles: ObservabilityFileCount[]
+  recentEvents: ObservabilityEvent[]
+}
+
 export type Pagination = {
   limit: number
   offset: number

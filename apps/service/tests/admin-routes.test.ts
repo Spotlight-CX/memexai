@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import { buildServer } from "../src/server"
 
 const config = {
@@ -13,7 +13,7 @@ const adminHeaders = { "x-memex-admin-secret": "admin-secret" }
 
 function createAdminDb() {
   return {
-    query: async (sql: string, values?: unknown[]) => {
+    query: vi.fn(async (sql: string, values?: unknown[]) => {
       if (sql.includes("WITH user_files AS")) {
         expect(sql).not.toContain("split_part(mx_file.physical_path")
         if (values?.[0] === "%user_4%" && values?.[1] === 50) {
@@ -57,7 +57,7 @@ function createAdminDb() {
         return { rows: [{ total: "1" }] }
       }
 
-      if (sql.includes("FROM mx_revision") && !sql.includes("HAVING COUNT(*) > 1")) {
+      if (sql.includes("FROM mx_revision") && !sql.includes("HAVING COUNT(*) > 1") && !sql.includes("file_access")) {
         return {
           rows: [{
             id: "rev_1",
@@ -90,7 +90,7 @@ function createAdminDb() {
         }
       }
 
-      if (sql.includes("FROM mx_observation_event") && sql.includes("percentile_cont") && !sql.includes("failed_calls")) {
+      if (sql.includes("FROM mx_observation_event") && sql.includes("percentile_cont") && !sql.includes("failed_calls") && !sql.includes("file_access")) {
         return {
           rows: [{
             tool_calls: "12",
@@ -112,6 +112,56 @@ function createAdminDb() {
             writes: "2",
             searches: "1",
             smart_reads: "2",
+          }],
+        }
+      }
+
+      if (sql.includes("SELECT * FROM mx_access_log")) {
+        return {
+          rows: [{
+            reads: "8",
+            writes: "2",
+            searches: "1",
+            smart_reads: "1",
+            unique_users: "2",
+            last_accessed_at: new Date("2026-05-09T08:10:00Z"),
+            last_written_at: new Date("2026-05-09T08:09:00Z"),
+            revisions: "3",
+            p95_ms: "310",
+          }],
+        }
+      }
+
+      if (sql.includes("date_trunc") && sql.includes("FROM mx_access_log") && sql.includes("GROUP BY 1")) {
+        return {
+          rows: [{
+            bucket_start: new Date("2026-05-09T08:00:00Z"),
+            reads: "4",
+            writes: "1",
+            searches: "1",
+            smart_reads: "0",
+          }],
+        }
+      }
+
+      if (sql.includes("GROUP BY user_id") && sql.includes("last_accessed_at")) {
+        return {
+          rows: [{
+            user_id: "user_123",
+            reads: "8",
+            writes: "2",
+            searches: "1",
+            last_accessed_at: new Date("2026-05-09T08:10:00Z"),
+          }],
+        }
+      }
+
+      if (sql.includes("JOIN mx_access_log other")) {
+        return {
+          rows: [{
+            physical_path: "users/user_123/preferences.md",
+            count: "5",
+            last_seen_at: new Date("2026-05-09T08:11:00Z"),
           }],
         }
       }
@@ -270,7 +320,7 @@ function createAdminDb() {
       }
 
       return { rows: [] }
-    },
+    }),
   }
 }
 
@@ -307,6 +357,23 @@ describe("admin routes", () => {
       physicalPath: "users/user_123/profile.md",
       content: "# Profile",
     })
+  })
+
+  test("returns file observability by physical path", async () => {
+    const db = createAdminDb()
+    const app = buildServer({ db: db as never, config })
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/admin/files/users%2Fuser_123%2Fprofile.md/observability",
+      headers: adminHeaders,
+    })
+    await app.close()
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().summary).toMatchObject({ reads: 8, writes: 2, revisions: 3, p95Ms: 310 })
+    expect(response.json().activity[0]).toMatchObject({ reads: 4, writes: 1 })
+    expect(response.json().topUsers[0]).toMatchObject({ userId: "user_123", reads: 8 })
+    expect(response.json().coHitFiles[0]).toMatchObject({ physicalPath: "users/user_123/preferences.md", count: 5 })
   })
 
   test("lists revisions and access logs", async () => {

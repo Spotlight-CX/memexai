@@ -595,6 +595,205 @@ export async function getObservabilitySchemaSignals(db: Db, input: Observability
   }
 }
 
+export async function getFileObservability(db: Db, physicalPath: string, input: ObservabilityFilters = {}) {
+  const scoped = { ...input, physicalPath }
+  const access = buildAccessWhere(scoped)
+  const bucket = bucketExpr(input.bucket)
+
+  const [
+    { rows: summaryRows },
+    { rows: activityRows },
+    { rows: userRows },
+    { rows: coHitRows },
+    { rows: eventRows },
+  ] = await Promise.all([
+    db.query<{
+      reads: string
+      writes: string
+      searches: string
+      smart_reads: string
+      unique_users: string
+      last_accessed_at: Date | null
+      last_written_at: Date | null
+      revisions: string
+      p95_ms: string | number | null
+    }>(
+      `
+        WITH file_access AS (
+          SELECT * FROM mx_access_log ${access.where}
+        ),
+        related_events AS (
+          SELECT e.duration_ms
+          FROM mx_observation_event e
+          WHERE e.duration_ms IS NOT NULL
+            AND (
+              e.physical_path = $${access.values.length + 1}
+              OR EXISTS (
+                SELECT 1 FROM mx_access_log l
+                WHERE l.physical_path = $${access.values.length + 1}
+                  AND l.tool_call_id IS NOT NULL
+                  AND l.tool_call_id = e.tool_call_id
+              )
+            )
+        )
+        SELECT
+          COUNT(*) FILTER (WHERE operation = 'read') AS reads,
+          COUNT(*) FILTER (WHERE operation IN ('write', 'patch')) AS writes,
+          COUNT(*) FILTER (WHERE operation = 'search') AS searches,
+          COUNT(*) FILTER (WHERE operation = 'smart_read') AS smart_reads,
+          COUNT(DISTINCT user_id) FILTER (WHERE user_id IS NOT NULL) AS unique_users,
+          MAX(created_at) AS last_accessed_at,
+          MAX(created_at) FILTER (WHERE operation IN ('write', 'patch')) AS last_written_at,
+          (SELECT COUNT(*) FROM mx_revision WHERE physical_path = $${access.values.length + 1}) AS revisions,
+          (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) FROM related_events) AS p95_ms
+        FROM file_access
+      `,
+      [...access.values, physicalPath],
+    ),
+    db.query<{
+      bucket_start: Date
+      reads: string
+      writes: string
+      searches: string
+      smart_reads: string
+    }>(
+      `
+        SELECT
+          ${bucket} AS bucket_start,
+          COUNT(*) FILTER (WHERE operation = 'read') AS reads,
+          COUNT(*) FILTER (WHERE operation IN ('write', 'patch')) AS writes,
+          COUNT(*) FILTER (WHERE operation = 'search') AS searches,
+          COUNT(*) FILTER (WHERE operation = 'smart_read') AS smart_reads
+        FROM mx_access_log
+        ${access.where}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `,
+      access.values,
+    ),
+    db.query<{
+      user_id: string | null
+      reads: string
+      writes: string
+      searches: string
+      last_accessed_at: Date | null
+    }>(
+      `
+        SELECT
+          user_id,
+          COUNT(*) FILTER (WHERE operation = 'read') AS reads,
+          COUNT(*) FILTER (WHERE operation IN ('write', 'patch')) AS writes,
+          COUNT(*) FILTER (WHERE operation IN ('search', 'smart_read')) AS searches,
+          MAX(created_at) AS last_accessed_at
+        FROM mx_access_log
+        ${access.where}
+        GROUP BY user_id
+        ORDER BY COUNT(*) DESC, last_accessed_at DESC
+        LIMIT 20
+      `,
+      access.values,
+    ),
+    db.query<{
+      physical_path: string
+      count: string
+      last_seen_at: Date | null
+    }>(
+      `
+        SELECT other.physical_path, COUNT(*) AS count, MAX(other.created_at) AS last_seen_at
+        FROM mx_access_log base
+        JOIN mx_access_log other ON other.tool_call_id = base.tool_call_id
+          AND other.tool_call_id IS NOT NULL
+          AND other.physical_path <> base.physical_path
+        WHERE base.physical_path = $1
+        GROUP BY other.physical_path
+        ORDER BY count DESC, last_seen_at DESC
+        LIMIT 8
+      `,
+      [physicalPath],
+    ),
+    db.query<{
+      id: string
+      event_type: string
+      status: string
+      duration_ms: number | null
+      user_id: string | null
+      actor: string | null
+      tool_name: string | null
+      operation: string | null
+      physical_path: string | null
+      tool_call_id: string | null
+      error_code: string | null
+      attributes: Record<string, unknown>
+      created_at: Date
+    }>(
+      `
+        SELECT e.id, e.event_type, e.status, e.duration_ms, e.user_id, e.actor, e.tool_name,
+               e.operation, e.physical_path, e.tool_call_id, e.error_code, e.attributes, e.created_at
+        FROM mx_observation_event e
+        WHERE e.physical_path = $1
+          OR EXISTS (
+            SELECT 1 FROM mx_access_log l
+            WHERE l.physical_path = $1
+              AND l.tool_call_id IS NOT NULL
+              AND l.tool_call_id = e.tool_call_id
+          )
+        ORDER BY e.created_at DESC
+        LIMIT 20
+      `,
+      [physicalPath],
+    ),
+  ])
+
+  const summary = summaryRows[0]
+  return {
+    summary: {
+      reads: toNumber(summary?.reads),
+      writes: toNumber(summary?.writes),
+      searches: toNumber(summary?.searches),
+      smartReads: toNumber(summary?.smart_reads),
+      revisions: toNumber(summary?.revisions),
+      uniqueUsers: toNumber(summary?.unique_users),
+      lastAccessedAt: summary?.last_accessed_at ?? null,
+      lastWrittenAt: summary?.last_written_at ?? null,
+      p95Ms: nullableNumber(summary?.p95_ms),
+    },
+    activity: activityRows.map((row) => ({
+      bucketStart: row.bucket_start,
+      reads: toNumber(row.reads),
+      writes: toNumber(row.writes),
+      searches: toNumber(row.searches),
+      smartReads: toNumber(row.smart_reads),
+    })),
+    topUsers: userRows.map((row) => ({
+      userId: row.user_id,
+      reads: toNumber(row.reads),
+      writes: toNumber(row.writes),
+      searches: toNumber(row.searches),
+      lastAccessedAt: row.last_accessed_at,
+    })),
+    coHitFiles: coHitRows.map((row) => ({
+      physicalPath: row.physical_path,
+      count: toNumber(row.count),
+      lastSeenAt: row.last_seen_at,
+    })),
+    recentEvents: eventRows.map((row) => ({
+      id: row.id,
+      eventType: row.event_type,
+      status: row.status,
+      durationMs: row.duration_ms,
+      userId: row.user_id,
+      actor: row.actor,
+      toolName: row.tool_name,
+      operation: row.operation,
+      physicalPath: row.physical_path,
+      toolCallId: row.tool_call_id,
+      errorCode: row.error_code,
+      attributes: row.attributes,
+      createdAt: row.created_at,
+    })),
+  }
+}
+
 type FileCountRow = {
   physical_path: string
   count: string

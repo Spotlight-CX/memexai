@@ -3,6 +3,7 @@ import { ZodError } from "zod"
 import { getAdminFile, listAdminAccessLogs, listAdminDreamUsers, listAdminFiles, listAdminRevisions, listAdminUsers, writeAdminFile } from "./admin"
 import { handleConfigureChat } from "./admin-configure"
 import {
+  getFileObservability,
   getObservabilitySummary,
   getObservabilitySchemaSignals,
   getObservabilityTimeseries,
@@ -245,6 +246,11 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
   app.get("/v1/admin/files", { preHandler: adminAuth }, async (request) => {
     const query = request.query as { prefix?: string }
     return listAdminFiles(db, { prefix: query.prefix })
+  })
+  app.get("/v1/admin/files/:physicalPath/observability", { preHandler: adminAuth }, async (request) => {
+    const params = request.params as { physicalPath: string }
+    const query = request.query as { bucket?: string }
+    return getFileObservability(db, decodeURIComponent(params.physicalPath), { bucket: query.bucket })
   })
   app.get("/v1/admin/files/*", { preHandler: adminAuth }, async (request) => {
     const params = request.params as { "*": string }
