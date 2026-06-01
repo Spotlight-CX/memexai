@@ -1,5 +1,8 @@
-import { Box, Code, Paper, ScrollArea, Table, Text } from "@mantine/core"
-import { useAdminData } from "../hooks"
+import { Alert, Box, Button, Code, Group, NumberInput, Paper, ScrollArea, Stack, Table, Text } from "@mantine/core"
+import { useQueryClient } from "@tanstack/react-query"
+import { useState } from "react"
+import { adminHeaders, requestJson } from "../api"
+import { adminQueryKey, useAdminData } from "../hooks"
 import type { AdminAccessLog, AdminRevision, AdminUser } from "../types"
 import { formatDate } from "../utils"
 
@@ -50,32 +53,82 @@ export function RevisionsView({
   if (userId) params.set("userId", userId)
   const query = `/v1/admin/revisions${params.size ? `?${params.toString()}` : ""}`
   const { data, error } = useAdminData<{ revisions: AdminRevision[] }>(query, secret)
+  const queryClient = useQueryClient()
+  const [daysToKeep, setDaysToKeep] = useState<number | string>(90)
+  const [pruneState, setPruneState] = useState<{ kind: "success" | "error"; message: string } | null>(null)
+  const [isPruning, setIsPruning] = useState(false)
+
+  const handlePrune = async () => {
+    const olderThanDays = Number(daysToKeep)
+    if (!Number.isFinite(olderThanDays) || olderThanDays < 1) {
+      setPruneState({ kind: "error", message: "Enter a retention window of at least 1 day." })
+      return
+    }
+
+    setIsPruning(true)
+    setPruneState(null)
+    try {
+      const result = await requestJson<{ deleted: number }>("/v1/admin/revisions/prune", {
+        method: "POST",
+        headers: { ...adminHeaders(secret), "content-type": "application/json" },
+        body: JSON.stringify({ olderThanDays }),
+      })
+      await queryClient.invalidateQueries({ queryKey: adminQueryKey(query) })
+      setPruneState({ kind: "success", message: `Deleted ${result.deleted} revisions.` })
+    } catch (err) {
+      setPruneState({ kind: "error", message: err instanceof Error ? err.message : "Failed to prune revisions." })
+    } finally {
+      setIsPruning(false)
+    }
+  }
+
   if (error) return <ErrorText error={error} />
 
   return (
     <TableShell>
-      <Table striped highlightOnHover stickyHeader>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Time</Table.Th>
-            <Table.Th>Path</Table.Th>
-            <Table.Th>Op</Table.Th>
-            <Table.Th>Actor</Table.Th>
-            <Table.Th>Reason</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {(data?.revisions ?? []).map((revision) => (
-            <Table.Tr key={revision.id}>
-              <Table.Td>{formatDate(revision.createdAt)}</Table.Td>
-              <Table.Td><Code>{revision.physicalPath}</Code></Table.Td>
-              <Table.Td>{revision.operation}</Table.Td>
-              <Table.Td>{revision.actor ?? ""}</Table.Td>
-              <Table.Td>{revision.reason ?? ""}</Table.Td>
+      <Stack gap="sm" p="md">
+        <Group justify="space-between" align="end">
+          <NumberInput
+            label="Days to keep"
+            min={1}
+            max={3650}
+            allowDecimal={false}
+            value={daysToKeep}
+            onChange={setDaysToKeep}
+            w={160}
+          />
+          <Button onClick={handlePrune} loading={isPruning} variant="filled">
+            Prune old revisions
+          </Button>
+        </Group>
+        {pruneState ? (
+          <Alert color={pruneState.kind === "success" ? "green" : "red"} variant="light">
+            {pruneState.message}
+          </Alert>
+        ) : null}
+        <Table striped highlightOnHover stickyHeader>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Time</Table.Th>
+              <Table.Th>Path</Table.Th>
+              <Table.Th>Op</Table.Th>
+              <Table.Th>Actor</Table.Th>
+              <Table.Th>Reason</Table.Th>
             </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
+          </Table.Thead>
+          <Table.Tbody>
+            {(data?.revisions ?? []).map((revision) => (
+              <Table.Tr key={revision.id}>
+                <Table.Td>{formatDate(revision.createdAt)}</Table.Td>
+                <Table.Td><Code>{revision.physicalPath}</Code></Table.Td>
+                <Table.Td>{revision.operation}</Table.Td>
+                <Table.Td>{revision.actor ?? ""}</Table.Td>
+                <Table.Td>{revision.reason ?? ""}</Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </Stack>
     </TableShell>
   )
 }

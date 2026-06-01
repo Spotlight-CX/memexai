@@ -8,7 +8,7 @@ Full pre-launch task list. Find the first `[ ]` row by Priority, open the linked
 | P0 | [x] | copy-update | Align homepage hero to launch tagline | [homepage-copy-alignment.md](homepage-copy-alignment.md) |
 | P0 | [ ] | code | Verify all npm/PyPI/Docker package links are live | [package-links-verification.md](package-links-verification.md) |
 | P0 | [ ] | docs | Capture 6 gallery-ready admin UI screenshots | [gtm/product-hunt-launch/tasks/admin-ui-screenshots.md](../../gtm/product-hunt-launch/tasks/admin-ui-screenshots.md) |
-| P1 | [ ] | code | Add revision prune endpoint + admin UI button | [revision-prune-endpoint.md](revision-prune-endpoint.md) |
+| P1 | [x] | code | Add revision prune endpoint + admin UI button | [revision-prune-endpoint.md](revision-prune-endpoint.md) |
 | P1 | [ ] | docs | Create public production caveats docs page | [production-caveats-docs-page.md](production-caveats-docs-page.md) |
 | P1 | [ ] | docs | Write honest production caveats (internal GTM doc) | [gtm/product-hunt-launch/tasks/production-caveats.md](../../gtm/product-hunt-launch/tasks/production-caveats.md) |
 | P1 | [ ] | docs | Document userId trust model and security boundary | [gtm/product-hunt-launch/tasks/trust-model.md](../../gtm/product-hunt-launch/tasks/trust-model.md) |

@@ -61,6 +61,11 @@ function createAdminDb() {
         return { rows: [{ total: "1" }] }
       }
 
+      if (sql.includes("DELETE FROM mx_revision") && sql.includes("RETURNING id")) {
+        expect(values).toEqual([30])
+        return { rows: [{ id: "rev_old_1" }, { id: "rev_old_2" }] }
+      }
+
       if (sql.includes("FROM mx_revision") && !sql.includes("HAVING COUNT(*) > 1") && !sql.includes("file_access") && !sql.includes("AS normalized_path")) {
         return {
           rows: [{
@@ -472,6 +477,48 @@ describe("admin routes", () => {
     expect(revisions.json().pagination).toMatchObject({ limit: 200, offset: 10, total: 1, hasMore: false })
     expect(logs.statusCode).toBe(200)
     expect(logs.json().accessLogs[0].operation).toBe("read")
+  })
+
+  test("prunes old revisions", async () => {
+    const app = buildServer({ db: createAdminDb() as never, config })
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/admin/revisions/prune",
+      headers: { ...adminHeaders, "content-type": "application/json" },
+      payload: { olderThanDays: 30 },
+    })
+    await app.close()
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ deleted: 2 })
+  })
+
+  test("supports x-admin-secret alias for admin auth", async () => {
+    const app = buildServer({ db: createAdminDb() as never, config })
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/admin/revisions/prune",
+      headers: { "x-admin-secret": "admin-secret", "content-type": "application/json" },
+      payload: { olderThanDays: 30 },
+    })
+    await app.close()
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ deleted: 2 })
+  })
+
+  test("rejects invalid revision prune windows", async () => {
+    const app = buildServer({ db: createAdminDb() as never, config })
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/admin/revisions/prune",
+      headers: { ...adminHeaders, "content-type": "application/json" },
+      payload: { olderThanDays: 0 },
+    })
+    await app.close()
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json().error.code).toBe("INVALID_RETENTION_WINDOW")
   })
 
   test("returns observability overview data", async () => {

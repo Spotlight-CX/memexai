@@ -12,7 +12,7 @@ export function requireApiKey(expected: string) {
 
 export function requireAdminSecret(expected: string) {
   return async (request: FastifyRequest, _reply: FastifyReply) => {
-    const secret = request.headers["x-memex-admin-secret"]
+    const secret = request.headers["x-memex-admin-secret"] ?? request.headers["x-admin-secret"]
     if (secret !== expected) {
       throw new HttpError(401, "UNAUTHORIZED_ADMIN", "Missing or invalid admin secret")
     }

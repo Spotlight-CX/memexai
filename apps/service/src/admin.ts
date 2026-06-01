@@ -204,6 +204,22 @@ export async function listAdminRevisions(db: Db, input: {
   }
 }
 
+export async function pruneAdminRevisions(db: Db, input: { olderThanDays: number }) {
+  const olderThanDays = Math.trunc(input.olderThanDays)
+  if (!Number.isFinite(input.olderThanDays) || olderThanDays < 1 || olderThanDays > 3650) {
+    throw new HttpError(400, "INVALID_RETENTION_WINDOW", "olderThanDays must be between 1 and 3650")
+  }
+
+  const { rows } = await db.query<{ id: string }>(
+    `DELETE FROM mx_revision
+     WHERE created_at < now() - ($1 || ' days')::interval
+     RETURNING id`,
+    [olderThanDays],
+  )
+
+  return { deleted: rows.length }
+}
+
 export async function listAdminDreamUsers(db: Db, input: {
   status?: string
   q?: string

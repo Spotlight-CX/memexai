@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify"
 import { ZodError } from "zod"
-import { getAdminFile, listAdminAccessLogs, listAdminDreamUsers, listAdminFiles, listAdminRevisions, listAdminUsers, writeAdminFile } from "./admin"
+import { getAdminFile, listAdminAccessLogs, listAdminDreamUsers, listAdminFiles, listAdminRevisions, listAdminUsers, pruneAdminRevisions, writeAdminFile } from "./admin"
 import { handleConfigureChat } from "./admin-configure"
 import {
   getFileObservability,
@@ -282,6 +282,10 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
       limit: query.limit ? Number(query.limit) : undefined,
       offset: query.offset ? Number(query.offset) : undefined,
     })
+  })
+  app.post("/v1/admin/revisions/prune", { preHandler: adminAuth }, async (request) => {
+    const { olderThanDays } = (request.body ?? {}) as { olderThanDays?: number }
+    return pruneAdminRevisions(db, { olderThanDays: Number(olderThanDays) })
   })
   app.get("/v1/admin/access-logs", { preHandler: adminAuth }, async (request) => {
     const query = request.query as { physicalPath?: string }
