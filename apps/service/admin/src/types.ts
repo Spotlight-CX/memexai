@@ -64,6 +64,69 @@ export type AdminDreamConfigRow = {
   updatedAt: string
 }
 
+export type ObservabilitySummary = {
+  totals: {
+    toolCalls: number
+    promptBlocks: number
+    activeUsers: number
+    fileHits: number
+    reads: number
+    writes: number
+    searches: number
+    smartReads: number
+    errors: number
+  }
+  latency: {
+    p50Ms: number | null
+    p95Ms: number | null
+    slowestToolName: string | null
+  }
+  ratios: {
+    errorRate: number
+    readWriteRatio: number | null
+  }
+}
+
+export type ObservabilityBucket = {
+  bucketStart: string
+  reads: number
+  writes: number
+  searches: number
+  smartReads: number
+  toolCalls: number
+  errors: number
+  p50Ms: number | null
+  p95Ms: number | null
+}
+
+export type ObservabilityTopFile = {
+  physicalPath: string
+  reads: number
+  writes: number
+  searches: number
+  smartReads: number
+  totalHits: number
+  uniqueUsers: number
+  size: number | null
+  lastAccessedAt: string | null
+}
+
+export type ObservabilityEvent = {
+  id: string
+  eventType: string
+  status: string
+  durationMs: number | null
+  userId: string | null
+  actor: string | null
+  toolName: string | null
+  operation: string | null
+  physicalPath: string | null
+  toolCallId: string | null
+  errorCode: string | null
+  attributes: Record<string, unknown>
+  createdAt: string
+}
+
 export type Pagination = {
   limit: number
   offset: number

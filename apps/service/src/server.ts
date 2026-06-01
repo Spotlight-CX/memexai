@@ -2,7 +2,14 @@ import Fastify, { type FastifyInstance } from "fastify"
 import { ZodError } from "zod"
 import { getAdminFile, listAdminAccessLogs, listAdminDreamUsers, listAdminFiles, listAdminRevisions, listAdminUsers, writeAdminFile } from "./admin"
 import { handleConfigureChat } from "./admin-configure"
-import { recordObservationEvent } from "./admin-observability"
+import {
+  getObservabilitySummary,
+  getObservabilityTimeseries,
+  listObservabilityEvents,
+  listObservabilityTopFiles,
+  recordObservationEvent,
+  type ObservabilityFilters,
+} from "./admin-observability"
 import { handleSetupGenerate } from "./admin-setup"
 import { requireAdminSecret, requireApiKey } from "./auth"
 import type { Config } from "./config"
@@ -270,6 +277,18 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
     const query = request.query as { physicalPath?: string }
     return listAdminAccessLogs(db, { physicalPath: query.physicalPath })
   })
+  app.get("/v1/admin/observability/summary", { preHandler: adminAuth }, async (request) => {
+    return getObservabilitySummary(db, parseObservabilityQuery(request.query))
+  })
+  app.get("/v1/admin/observability/timeseries", { preHandler: adminAuth }, async (request) => {
+    return getObservabilityTimeseries(db, parseObservabilityQuery(request.query))
+  })
+  app.get("/v1/admin/observability/top-files", { preHandler: adminAuth }, async (request) => {
+    return listObservabilityTopFiles(db, parseObservabilityQuery(request.query))
+  })
+  app.get("/v1/admin/observability/events", { preHandler: adminAuth }, async (request) => {
+    return listObservabilityEvents(db, parseObservabilityQuery(request.query))
+  })
   app.get("/v1/admin/dream/config", { preHandler: adminAuth }, async () => {
     const { rows } = await db.query<{ key: string; value: string; description: string | null; updated_at: Date }>(
       "SELECT key, value, description, updated_at FROM mx_config WHERE key LIKE 'dream_%' ORDER BY key ASC",
@@ -454,6 +473,7 @@ function observationAttributesForResult(result: unknown): Record<string, unknown
 function adminRouteGroup(url: string): string | null {
   if (!url.startsWith("/v1/admin/")) return null
   if (url.startsWith("/v1/admin/dream/")) return "dreams"
+  if (url.startsWith("/v1/admin/observability")) return "observability"
   if (url.startsWith("/v1/admin/files")) return "files"
   if (url.startsWith("/v1/admin/revisions")) return "revisions"
   if (url.startsWith("/v1/admin/access-logs")) return "access_logs"
@@ -462,4 +482,21 @@ function adminRouteGroup(url: string): string | null {
   if (url.startsWith("/v1/admin/configure-chat")) return "configure"
   if (url.startsWith("/v1/admin/health")) return "health"
   return "other"
+}
+
+function parseObservabilityQuery(query: unknown): ObservabilityFilters {
+  const input = query as Record<string, string | undefined>
+  return {
+    from: input.from,
+    to: input.to,
+    userId: input.userId,
+    physicalPath: input.physicalPath,
+    toolName: input.toolName,
+    operation: input.operation,
+    status: input.status,
+    actor: input.actor,
+    bucket: input.bucket,
+    limit: input.limit ? Number(input.limit) : undefined,
+    offset: input.offset ? Number(input.offset) : undefined,
+  }
 }

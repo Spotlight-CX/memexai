@@ -74,6 +74,84 @@ function createAdminDb() {
         }
       }
 
+      if (sql.includes("access_buckets")) {
+        return {
+          rows: [{
+            bucket_start: new Date("2026-05-09T08:00:00Z"),
+            reads: "4",
+            writes: "1",
+            searches: "2",
+            smart_reads: "1",
+            tool_calls: "5",
+            errors: "1",
+            p50_ms: "100",
+            p95_ms: "300",
+          }],
+        }
+      }
+
+      if (sql.includes("FROM mx_observation_event") && sql.includes("percentile_cont")) {
+        return {
+          rows: [{
+            tool_calls: "12",
+            prompt_blocks: "3",
+            errors: "1",
+            active_users: "2",
+            p50_ms: "120",
+            p95_ms: "420",
+            slowest_tool_name: "memory_search",
+          }],
+        }
+      }
+
+      if (sql.includes("COUNT(*) AS file_hits")) {
+        return {
+          rows: [{
+            file_hits: "6",
+            reads: "1",
+            writes: "2",
+            searches: "1",
+            smart_reads: "2",
+          }],
+        }
+      }
+
+      if (sql.includes("FROM mx_access_log l")) {
+        return {
+          rows: [{
+            physical_path: "users/user_123/profile.md",
+            reads: "4",
+            writes: "1",
+            searches: "0",
+            smart_reads: "0",
+            total_hits: "5",
+            unique_users: "1",
+            size: "9",
+            last_accessed_at: new Date("2026-05-09T08:03:00Z"),
+          }],
+        }
+      }
+
+      if (sql.includes("FROM mx_observation_event")) {
+        return {
+          rows: [{
+            id: "obs_1",
+            event_type: "tool_execution",
+            status: "success",
+            duration_ms: 120,
+            user_id: "user_123",
+            actor: "assistant",
+            tool_name: "memory_search",
+            operation: "search",
+            physical_path: null,
+            tool_call_id: "call_1",
+            error_code: null,
+            attributes: { files_returned: 1 },
+            created_at: new Date("2026-05-09T08:03:00Z"),
+          }],
+        }
+      }
+
       if (sql.includes("FROM mx_access_log")) {
         return {
           rows: [{
@@ -140,6 +218,24 @@ describe("admin routes", () => {
     expect(revisions.json().pagination).toMatchObject({ limit: 200, offset: 10, total: 1, hasMore: false })
     expect(logs.statusCode).toBe(200)
     expect(logs.json().accessLogs[0].operation).toBe("read")
+  })
+
+  test("returns observability overview data", async () => {
+    const app = buildServer({ db: createAdminDb() as never, config })
+    const summary = await app.inject({ method: "GET", url: "/v1/admin/observability/summary?userId=user_123", headers: adminHeaders })
+    const timeseries = await app.inject({ method: "GET", url: "/v1/admin/observability/timeseries?bucket=hour", headers: adminHeaders })
+    const topFiles = await app.inject({ method: "GET", url: "/v1/admin/observability/top-files?limit=10", headers: adminHeaders })
+    const events = await app.inject({ method: "GET", url: "/v1/admin/observability/events?limit=10", headers: adminHeaders })
+    await app.close()
+
+    expect(summary.statusCode).toBe(200)
+    expect(summary.json().totals).toMatchObject({ toolCalls: 12, reads: 1 })
+    expect(timeseries.statusCode).toBe(200)
+    expect(timeseries.json().buckets[0]).toMatchObject({ reads: 4, p95Ms: 300 })
+    expect(topFiles.statusCode).toBe(200)
+    expect(topFiles.json().files[0]).toMatchObject({ physicalPath: "users/user_123/profile.md", totalHits: 5 })
+    expect(events.statusCode).toBe(200)
+    expect(events.json().events[0]).toMatchObject({ eventType: "tool_execution", toolName: "memory_search" })
   })
 
   test("does not expose admin mutation routes", async () => {
