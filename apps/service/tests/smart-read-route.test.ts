@@ -12,6 +12,7 @@ const config = {
 function createDb() {
   return {
     query: vi.fn(async (sql: string) => {
+      if (sql.includes("mx_observation_event")) return { rows: [] }
       if (sql.includes("mx_access_log")) return { rows: [] }
       return {
         rows: [{
@@ -45,5 +46,18 @@ describe("memory_smart_read route", () => {
     expect(response.statusCode).toBe(200)
     expect(response.json().filesIncluded).toEqual(["user/profile.md"])
     expect(response.json().content).toContain("## user/profile.md")
+    const observationCall = db.query.mock.calls.find(([sql]) => String(sql).includes("mx_observation_event"))
+    expect(observationCall?.[1]).toEqual(expect.arrayContaining([
+      "tool_execution",
+      "success",
+      "u1",
+      "memory_smart_read",
+      "smart_read",
+    ]))
+    expect(observationCall?.[1]?.at(-1)).toBe(JSON.stringify({
+      files_included: 1,
+      files_omitted: 0,
+      truncated: false,
+    }))
   })
 })

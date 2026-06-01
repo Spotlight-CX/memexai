@@ -11,7 +11,8 @@ const config = {
 
 describe("memory_memorize route", () => {
   test("returns MODEL_NOT_CONFIGURED when service has no model", async () => {
-    const app = buildServer({ db: { query: vi.fn() } as never, config })
+    const db = { query: vi.fn(async () => ({ rows: [] })) }
+    const app = buildServer({ db: db as never, config })
 
     const response = await app.inject({
       method: "POST",
@@ -26,5 +27,14 @@ describe("memory_memorize route", () => {
 
     expect(response.statusCode).toBe(400)
     expect(response.json().error.code).toBe("MODEL_NOT_CONFIGURED")
+    const observationCall = db.query.mock.calls.find(([sql]) => String(sql).includes("mx_observation_event"))
+    expect(observationCall?.[1]).toEqual(expect.arrayContaining([
+      "tool_execution",
+      "error",
+      "u1",
+      "memory_memorize",
+      "memorize",
+      "MODEL_NOT_CONFIGURED",
+    ]))
   })
 })

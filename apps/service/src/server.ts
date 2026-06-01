@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance } from "fastify"
 import { ZodError } from "zod"
 import { getAdminFile, listAdminAccessLogs, listAdminDreamUsers, listAdminFiles, listAdminRevisions, listAdminUsers, writeAdminFile } from "./admin"
 import { handleConfigureChat } from "./admin-configure"
+import { recordObservationEvent } from "./admin-observability"
 import { handleSetupGenerate } from "./admin-setup"
 import { requireAdminSecret, requireApiKey } from "./auth"
 import type { Config } from "./config"
@@ -115,13 +116,26 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
   app.post("/v1/tools/:toolName/execute", { preHandler: apiAuth }, async (request) => {
     const started = Date.now()
     const params = request.params as { toolName?: string }
+    let context: { userId?: string; actor?: string; toolCallId?: string } | undefined
     if (!params.toolName) {
       throw new HttpError(400, "TOOL_NAME_REQUIRED", "toolName is required")
     }
 
     try {
       const body = executeToolRequestSchema.parse(request.body)
+      context = body.context
       const result = await executeTool(db, params.toolName, body.arguments, body.context, { model: input.model })
+      await recordObservationEvent(db, {
+        eventType: "tool_execution",
+        status: "success",
+        durationMs: Date.now() - started,
+        userId: body.context.userId,
+        actor: body.context.actor,
+        toolCallId: body.context.toolCallId,
+        toolName: params.toolName,
+        operation: toolOperation(params.toolName),
+        attributes: observationAttributesForResult(result),
+      })
       telemetry.capture("tool_executed", {
         tool_name: params.toolName,
         success: true,
@@ -129,6 +143,17 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
       })
       return result
     } catch (error) {
+      await recordObservationEvent(db, {
+        eventType: "tool_execution",
+        status: "error",
+        durationMs: Date.now() - started,
+        userId: context?.userId,
+        actor: context?.actor,
+        toolCallId: context?.toolCallId,
+        toolName: params.toolName,
+        operation: toolOperation(params.toolName),
+        errorCode: errorCode(error),
+      })
       telemetry.capture("tool_executed", {
         tool_name: params.toolName,
         success: false,
@@ -141,12 +166,30 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
 
   app.get("/v1/prompt-block", { preHandler: apiAuth }, async (request) => {
     const started = Date.now()
+    let context: { userId?: string; actor?: string } | undefined
     try {
-      const context = promptBlockQuerySchema.parse(request.query)
+      context = promptBlockQuerySchema.parse(request.query)
       const result = { promptBlock: await buildPromptBlock(db, context) }
+      await recordObservationEvent(db, {
+        eventType: "prompt_block",
+        status: "success",
+        durationMs: Date.now() - started,
+        userId: context.userId,
+        actor: context.actor,
+        attributes: { route_kind: "get" },
+      })
       telemetry.capture("prompt_block_requested", { route_kind: "get", success: true, duration_bucket: durationBucket(Date.now() - started) })
       return result
     } catch (error) {
+      await recordObservationEvent(db, {
+        eventType: "prompt_block",
+        status: "error",
+        durationMs: Date.now() - started,
+        userId: context?.userId,
+        actor: context?.actor,
+        errorCode: errorCode(error),
+        attributes: { route_kind: "get" },
+      })
       telemetry.capture("prompt_block_requested", { route_kind: "get", success: false, error_code: errorCode(error), duration_bucket: durationBucket(Date.now() - started) })
       throw error
     }
@@ -154,12 +197,31 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
 
   app.post("/v1/prompt-block", { preHandler: apiAuth }, async (request) => {
     const started = Date.now()
+    let context: { userId?: string; actor?: string } | undefined
     try {
       const body = executeToolRequestSchema.pick({ context: true }).parse(request.body)
+      context = body.context
       const result = { promptBlock: await buildPromptBlock(db, body.context) }
+      await recordObservationEvent(db, {
+        eventType: "prompt_block",
+        status: "success",
+        durationMs: Date.now() - started,
+        userId: body.context.userId,
+        actor: body.context.actor,
+        attributes: { route_kind: "post" },
+      })
       telemetry.capture("prompt_block_requested", { route_kind: "post", success: true, duration_bucket: durationBucket(Date.now() - started) })
       return result
     } catch (error) {
+      await recordObservationEvent(db, {
+        eventType: "prompt_block",
+        status: "error",
+        durationMs: Date.now() - started,
+        userId: context?.userId,
+        actor: context?.actor,
+        errorCode: errorCode(error),
+        attributes: { route_kind: "post" },
+      })
       telemetry.capture("prompt_block_requested", { route_kind: "post", success: false, error_code: errorCode(error), duration_bucket: durationBucket(Date.now() - started) })
       throw error
     }
@@ -359,6 +421,34 @@ function errorCode(error: unknown): string {
   if (error instanceof ZodError) return "VALIDATION_ERROR"
   if (error instanceof Error) return error.name || "ERROR"
   return "ERROR"
+}
+
+function toolOperation(toolName: string): string | null {
+  if (toolName === "memory_list") return "list"
+  if (toolName === "memory_read") return "read"
+  if (toolName === "memory_write") return "write"
+  if (toolName === "memory_patch") return "patch"
+  if (toolName === "memory_smart_read") return "smart_read"
+  if (toolName === "memory_search") return "search"
+  if (toolName === "memory_memorize") return "memorize"
+  return null
+}
+
+function observationAttributesForResult(result: unknown): Record<string, unknown> {
+  if (!result || typeof result !== "object") return {}
+  const value = result as Record<string, unknown>
+  const attributes: Record<string, unknown> = {}
+
+  if (Array.isArray(value.files)) attributes.files_returned = value.files.length
+  if (Array.isArray(value.results)) attributes.files_returned = value.results.length
+  if (Array.isArray(value.filesIncluded)) attributes.files_included = value.filesIncluded.length
+  if (Array.isArray(value.filesOmitted)) attributes.files_omitted = value.filesOmitted.length
+  if (typeof value.changed === "boolean") attributes.changed = value.changed
+  if (typeof value.created === "boolean") attributes.created = value.created
+  if (typeof value.updated === "boolean") attributes.updated = value.updated
+  if (typeof value.truncated === "boolean") attributes.truncated = value.truncated
+
+  return attributes
 }
 
 function adminRouteGroup(url: string): string | null {

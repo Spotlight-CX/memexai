@@ -12,6 +12,7 @@ const config = {
 function createDb() {
   return {
     query: vi.fn(async (sql: string) => {
+      if (sql.includes("mx_observation_event")) return { rows: [] }
       if (sql.includes("mx_access_log")) return { rows: [] }
       return {
         rows: [{
@@ -45,5 +46,15 @@ describe("memory_search route", () => {
     expect(response.json().results).toMatchObject([
       { path: "user/profile.md", snippet: "quiet neighborhood", rank: 0.4 },
     ])
+    const observationCall = db.query.mock.calls.find(([sql]) => String(sql).includes("mx_observation_event"))
+    expect(observationCall).toBeTruthy()
+    expect(observationCall?.[1]).toEqual(expect.arrayContaining([
+      "tool_execution",
+      "success",
+      "u1",
+      "memory_search",
+      "search",
+    ]))
+    expect(String(observationCall?.[1])).not.toContain("neighborhood")
   })
 })
