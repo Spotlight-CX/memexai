@@ -151,6 +151,8 @@ export async function getObservabilitySummary(db: Db, input: ObservabilityFilter
   const eventRow = eventRows[0]
   const accessRow = accessRows[0]
   const toolCalls = toNumber(eventRow?.tool_calls)
+  const promptBlocks = toNumber(eventRow?.prompt_blocks)
+  const observedEvents = toolCalls + promptBlocks
   const errors = toNumber(eventRow?.errors)
   const reads = toNumber(accessRow?.reads)
   const writes = toNumber(accessRow?.writes)
@@ -158,7 +160,7 @@ export async function getObservabilitySummary(db: Db, input: ObservabilityFilter
   return {
     totals: {
       toolCalls,
-      promptBlocks: toNumber(eventRow?.prompt_blocks),
+      promptBlocks,
       activeUsers: toNumber(eventRow?.active_users),
       fileHits: toNumber(accessRow?.file_hits),
       reads,
@@ -173,7 +175,7 @@ export async function getObservabilitySummary(db: Db, input: ObservabilityFilter
       slowestToolName: eventRow?.slowest_tool_name ?? null,
     },
     ratios: {
-      errorRate: toolCalls > 0 ? errors / toolCalls : 0,
+      errorRate: observedEvents > 0 ? errors / observedEvents : 0,
       readWriteRatio: writes > 0 ? reads / writes : null,
     },
   }
@@ -491,6 +493,8 @@ export async function getObservabilitySchemaSignals(db: Db, input: Observability
   const access = buildAccessWhere(input)
   const values = access.values
   const accessWhere = prefixWhere(access.where, "l")
+  const accessJoin = accessWhere ? accessWhere.replace(/^WHERE /, "AND ") : ""
+  const coHitWhere = prefixWhere(access.where, "a")
 
   const [
     { rows: hotRows },
@@ -516,12 +520,13 @@ export async function getObservabilitySchemaSignals(db: Db, input: Observability
       `
         SELECT f.physical_path, length(f.content_text) AS size, COUNT(l.id) AS count, MAX(l.created_at) AS last_seen_at
         FROM mx_file f
-        LEFT JOIN mx_access_log l ON l.physical_path = f.physical_path AND l.operation = 'read'
+        LEFT JOIN mx_access_log l ON l.physical_path = f.physical_path AND l.operation = 'read' ${accessJoin}
         GROUP BY f.physical_path, f.content_text, f.updated_at
         HAVING COUNT(l.id) = 0
         ORDER BY f.updated_at ASC
         LIMIT 8
       `,
+      values,
     ),
     db.query<{
       source_path: string
@@ -535,10 +540,12 @@ export async function getObservabilitySchemaSignals(db: Db, input: Observability
         JOIN mx_access_log b ON b.tool_call_id = a.tool_call_id
           AND b.physical_path <> a.physical_path
           AND b.tool_call_id IS NOT NULL
+        ${coHitWhere}
         GROUP BY a.physical_path, b.physical_path
         ORDER BY count DESC, last_seen_at DESC
         LIMIT 8
       `,
+      values,
     ),
     db.query<SchemaFileSignalRow>(
       `
@@ -554,11 +561,12 @@ export async function getObservabilitySchemaSignals(db: Db, input: Observability
       `
         SELECT physical_path, 0 AS size, COUNT(*) AS count, MAX(created_at) AS last_seen_at
         FROM mx_access_log
-        WHERE physical_path LIKE 'shared/%'
+        ${access.where ? `${access.where} AND` : "WHERE"} physical_path LIKE 'shared/%'
         GROUP BY physical_path
         ORDER BY count DESC, last_seen_at DESC
         LIMIT 8
       `,
+      values,
     ),
     db.query<{
       user_id: string | null
@@ -568,11 +576,12 @@ export async function getObservabilitySchemaSignals(db: Db, input: Observability
       `
         SELECT user_id, COUNT(*) AS count, MAX(created_at) AS last_seen_at
         FROM mx_access_log
-        WHERE operation IN ('search', 'smart_read')
+        ${access.where ? `${access.where} AND` : "WHERE"} operation IN ('search', 'smart_read')
         GROUP BY user_id
         ORDER BY count DESC, last_seen_at DESC
         LIMIT 8
       `,
+      values,
     ),
   ])
 
@@ -830,7 +839,7 @@ function buildObservationWhere(input: ObservabilityFilters) {
   addDateFilter(filters, values, "created_at", ">=", input.from)
   addDateFilter(filters, values, "created_at", "<=", input.to)
   addTextFilter(filters, values, "user_id", input.userId)
-  addTextFilter(filters, values, "physical_path", input.physicalPath)
+  addObservationPathFilter(filters, values, input.physicalPath)
   addTextFilter(filters, values, "tool_name", input.toolName)
   addTextFilter(filters, values, "operation", input.operation)
   addTextFilter(filters, values, "status", input.status)
@@ -847,6 +856,7 @@ function buildAccessWhere(input: ObservabilityFilters) {
   addTextFilter(filters, values, "physical_path", input.physicalPath)
   addTextFilter(filters, values, "operation", input.operation)
   addTextFilter(filters, values, "actor", input.actor)
+  addAccessObservationFilter(filters, values, input)
   return { where: filters.length ? `WHERE ${filters.join(" AND ")}` : "", values }
 }
 
@@ -855,6 +865,37 @@ function addTextFilter(filters: string[], values: unknown[], column: string, val
   if (!trimmed) return
   values.push(trimmed)
   filters.push(`${column} = $${values.length}`)
+}
+
+function addObservationPathFilter(filters: string[], values: unknown[], value: string | undefined) {
+  const trimmed = value?.trim()
+  if (!trimmed) return
+  values.push(trimmed)
+  filters.push(`(
+    physical_path = $${values.length}
+    OR tool_call_id IN (
+      SELECT tool_call_id
+      FROM mx_access_log
+      WHERE physical_path = $${values.length}
+        AND tool_call_id IS NOT NULL
+    )
+  )`)
+}
+
+function addAccessObservationFilter(filters: string[], values: unknown[], input: ObservabilityFilters) {
+  const observationFilters: string[] = ["e.tool_call_id = mx_access_log.tool_call_id", "e.tool_call_id IS NOT NULL"]
+  const toolName = input.toolName?.trim()
+  const status = input.status?.trim()
+  if (!toolName && !status) return
+  if (toolName) {
+    values.push(toolName)
+    observationFilters.push(`e.tool_name = $${values.length}`)
+  }
+  if (status) {
+    values.push(status)
+    observationFilters.push(`e.status = $${values.length}`)
+  }
+  filters.push(`EXISTS (SELECT 1 FROM mx_observation_event e WHERE ${observationFilters.join(" AND ")})`)
 }
 
 function addDateFilter(filters: string[], values: unknown[], column: string, op: ">=" | "<=", value: string | undefined) {
@@ -871,12 +912,12 @@ function shiftPlaceholders(sql: string, offset: number): string {
 }
 
 function prefixWhere(where: string, alias: string): string {
-  return where
-    .replaceAll("physical_path", `${alias}.physical_path`)
-    .replaceAll("created_at", `${alias}.created_at`)
-    .replaceAll("user_id", `${alias}.user_id`)
-    .replaceAll("operation", `${alias}.operation`)
-    .replaceAll("actor", `${alias}.actor`)
+  const columns = ["physical_path", "created_at", "user_id", "operation", "actor"]
+  let qualified = where.replaceAll("mx_access_log.", `${alias}.`)
+  for (const column of columns) {
+    qualified = qualified.replace(new RegExp(`(?<![.\\w])${column}\\b`, "g"), `${alias}.${column}`)
+  }
+  return qualified
 }
 
 function bucketExpr(bucket: string | undefined) {

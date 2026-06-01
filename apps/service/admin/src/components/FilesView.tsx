@@ -151,8 +151,9 @@ export function FilesView({ secret }: { secret: string }) {
       h="100%"
       style={{
         display: "grid",
-        gridTemplateColumns: "264px minmax(0, 1fr) 296px",
+        gridTemplateColumns: "264px minmax(520px, 1fr) 296px",
         minHeight: 0,
+        overflowX: "auto",
         background: "transparent",
       }}
     >

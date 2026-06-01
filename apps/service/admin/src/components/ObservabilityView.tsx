@@ -129,7 +129,7 @@ export function ObservabilityView({ secret }: { secret: string }) {
           <MetricCard label="Error rate" value={formatPercent(summaryData?.ratios.errorRate)} tone={(summaryData?.ratios.errorRate ?? 0) > 0 ? "red" : "green"} />
           <MetricCard label="p95 latency" value={formatMs(summaryData?.latency.p95Ms)} />
           <MetricCard label="Active users" value={formatNumber(summaryData?.totals.activeUsers)} />
-          <MetricCard label="Read/write" value={summaryData?.ratios.readWriteRatio === null ? "n/a" : `${formatDecimal(summaryData?.ratios.readWriteRatio)} : 1`} />
+          <MetricCard label="Read/write" value={summaryData ? (summaryData.ratios.readWriteRatio === null ? "n/a" : `${formatDecimal(summaryData.ratios.readWriteRatio)} : 1`) : "n/a"} />
         </SimpleGrid>
 
         {filters.userId.trim() ? (
@@ -143,7 +143,7 @@ export function ObservabilityView({ secret }: { secret: string }) {
         <Box
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(0, 1.35fr) minmax(340px, 0.9fr)",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))",
             gap: 12,
           }}
         >

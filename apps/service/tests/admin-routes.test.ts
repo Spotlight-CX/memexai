@@ -399,6 +399,7 @@ describe("admin routes", () => {
 
     expect(summary.statusCode).toBe(200)
     expect(summary.json().totals).toMatchObject({ toolCalls: 12, reads: 1 })
+    expect(summary.json().ratios.errorRate).toBeCloseTo(1 / 15)
     expect(timeseries.statusCode).toBe(200)
     expect(timeseries.json().buckets[0]).toMatchObject({ reads: 4, p95Ms: 300 })
     expect(topFiles.statusCode).toBe(200)
