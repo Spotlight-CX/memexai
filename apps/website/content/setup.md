@@ -57,7 +57,13 @@ Inspect the target app before changing it:
 4. Find the agent entrypoint:
    - Look for `generateText`, `streamText`, `openai.chat.completions.create`, `client.messages.create`, agent route handlers, or scripts that call the model.
 
-If no supported SDK is found, use the raw HTTP fallback section.
+Adapter priority:
+
+1. Use a first-party MemexAI adapter when one matches the detected SDK.
+2. If no adapter exists, keep the app's existing language/model SDK and wire MemexAI through that SDK's custom tool/function resolver API.
+3. Use direct HTTP calls only as the last reserve: manual debugging, validation scripts, or apps with no usable tool-calling abstraction.
+
+The HTTP tool contract section below is the low-level wire contract that custom resolvers call behind the scenes.
 
 ## Local service setup
 
@@ -260,11 +266,19 @@ For Python projects, install:
 python -m pip install memexai
 ```
 
-Use the adapter that matches the detected framework if present. If no framework adapter is available, use the HTTP fallback below.
+Use the adapter that matches the detected framework if present. If no framework adapter is available, keep the app's Python agent SDK and wire MemexAI as custom tools using the HTTP tool contract below.
 
-## Raw HTTP fallback
+## HTTP tool contract
 
-Use this if the app's agent SDK is unknown.
+This is the low-level MemexAI contract. Prefer first-party adapters. If no adapter exists, use this contract inside the app's existing SDK-native custom tool resolver. Use direct HTTP calls only as the last reserve.
+
+1. Fetch MemexAI tool definitions from `/v1/tools`.
+2. Convert the selected MemexAI tools into the SDK's custom tool/function schema format.
+3. Add the prompt block from `/v1/prompt-block` to the system prompt.
+4. When the model emits a tool call, execute it through `/v1/tools/:toolName/execute`.
+5. Return the tool result to the model using the SDK's normal tool-result loop.
+
+The curl examples below are for manual debugging and for runtimes that truly cannot expose SDK-native tools.
 
 Get tool definitions:
 
