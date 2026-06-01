@@ -64,15 +64,15 @@ const exploringFeatures: RoadmapInterestFeature[] = [
   },
   {
     id: 'vector-search',
-    title: 'Optional vector search',
+    title: 'Hybrid search with reciprocal rank fusion',
     stage: 'Exploring',
-    text: 'Keep Postgres full-text as the default while supporting opt-in semantic retrieval for larger memory sets.',
+    text: 'Run BM25 and vector search in parallel, then combine results with Reciprocal Rank Fusion. Queries like "user prefers greenery" find memories written as "loves parks and open space" — no keyword overlap needed. BM25 results are preserved, not replaced. The embedding function is injected at init so there is no hard dependency on any provider. Falls back to BM25-only if no embed function is configured.',
   },
   {
     id: 'reranking-improvements',
-    title: 'Reranking improvements',
+    title: 'Confidence and provenance on memories',
     stage: 'Exploring',
-    text: 'Improve memory_search with stronger candidate selection, model-backed reranking, and grounded summaries.',
+    text: 'Attach a confidence score (0–1) and source type (explicit, inferred, consolidated) to each memory file. Explicitly stated facts outrank agent-inferred ones. The dream consolidation job propagates confidence through merges and can downgrade contradicted memories rather than deleting them. Ranking in search and smart_read multiplies by confidence — stale or uncertain memories fade, high-signal ones stay front-of-mind.',
   },
   {
     id: 'source-scoped-memory',
@@ -82,9 +82,9 @@ const exploringFeatures: RoadmapInterestFeature[] = [
   },
   {
     id: 'link-aware-memory',
-    title: 'Link-aware memory',
+    title: 'Bidirectional memory links',
     stage: 'Exploring',
-    text: 'Treat explicit links between memory files as useful navigation signals for humans and agents.',
+    text: 'Index WikiLinks as a precomputed backlink graph. memory_smart_read today only follows links forward — with reverse traversal, seeding on a hub file also surfaces the most recent notes that reference it (visit logs, chat summaries, corrections). Files with many inbound references rank higher in search. Hub files become self-enriching context anchors instead of static snapshots.',
   },
 ];
 
