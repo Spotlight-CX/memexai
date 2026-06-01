@@ -1,0 +1,96 @@
+---
+title: Coding Agent Onboarding
+description: Let a coding agent set up MemexAI from a public setup file.
+---
+
+The fastest way to try MemexAI in an existing AI app is to hand your coding agent one public instruction file:
+
+```text
+Setup MemexAI by following https://memexai.space/setup.md
+```
+
+That file is written for coding agents. It tells them how to inspect your app, choose the right SDK adapter, start the local MemexAI service, wire tools into your model call, add the MemexAI prompt block, and verify that memory works.
+
+## What the agent will ask
+
+The setup file asks the agent to confirm two decisions before editing code:
+
+| Question | Recommended answer |
+| --- | --- |
+| Agent mode or Raw tool mode? | Agent mode |
+| Set up local Docker Compose? | Yes |
+
+Agent mode exposes the higher-level memory tools:
+
+- `memory_memorize`
+- `memory_search`
+
+Raw tool mode is for advanced integrations and debugging. It may expose file-level tools such as `memory_list`, `memory_read`, `memory_write`, and `memory_patch`.
+
+## What the agent will detect
+
+The agent inspects your app before changing it:
+
+- package manager and runtime
+- TypeScript, JavaScript, or Python project shape
+- installed agent SDK
+- model call entrypoint
+- existing environment variables
+
+For Vercel AI SDK projects, it uses `@memexai/sdk` and `@memexai/sdk/adapters/vercel-ai`. The agent binds MemexAI tools to your model call and adds the prompt block returned by `memory.getPromptBlock()` to the system prompt.
+
+## Local service flow
+
+For local development, the setup file points the agent at MemexAI service mode:
+
+1. Check `http://localhost:8080/health`.
+2. If it is already healthy, reuse it.
+3. If not, check `.env` for `GEMINI_API_KEY`.
+4. Ask you for the Gemini key or ask you to place it in `.env`.
+5. Start Docker Compose.
+6. Verify `/health`.
+7. Open the admin UI.
+
+The local defaults are:
+
+```text
+MEMEX_API_KEY=dev-agent-key
+MEMEX_ADMIN_SECRET=dev-admin-secret
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+## Success criteria
+
+The setup is not done when packages are installed. It is done when the agent can run a two-turn test:
+
+```text
+Remember that I prefer quiet neighborhoods near parks.
+```
+
+Then:
+
+```text
+What kind of neighborhood do I prefer?
+```
+
+A successful setup stores the durable preference on the first turn and recalls it on the second turn. The model call should use Gemini from `.env`, include MemexAI tools, and include the MemexAI prompt block or equivalent system prompt section.
+
+## Admin follow-up
+
+After the service is running, open:
+
+```text
+http://localhost:8080/admin
+```
+
+The admin UI lets you inspect files, revisions, access logs, and user memory. Use it to confirm which memories were written and how the agent used them.
+
+Useful next docs:
+
+- [Containerized Service](/docs/quickstart/docker-service)
+- [Memory Tools](/docs/concepts/memory-tools)
+- [Shared Memory](/docs/concepts/shared-memory)
+- [Scopes](/docs/concepts/scopes)
+- [Revisions](/docs/concepts/revisions)
+- [Access Logs](/docs/concepts/access-logs)
+- [Background Dreaming](/docs/operations/dreaming)

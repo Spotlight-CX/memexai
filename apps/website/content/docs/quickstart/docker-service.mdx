@@ -5,6 +5,12 @@ description: Run MemexAI as a separate service, then connect over TypeScript, Py
 
 The containerized service path is the recommended default. Your application does not need database credentials; it connects to MemexAI over HTTP with the TypeScript SDK, Python SDK, or through MCP over SSE/stdio.
 
+If you want a coding agent to do the setup inside your app, start with [Coding Agent Onboarding](/docs/quickstart/agent-onboarding) or paste this into your agent:
+
+```text
+Setup MemexAI by following https://memexai.space/setup.md
+```
+
 ## Compose file
 
 ```yaml

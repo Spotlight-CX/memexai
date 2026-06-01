@@ -136,6 +136,34 @@ export default function HomePage() {
 
       <section className="section">
         <Reveal>
+          <div className="section-kicker">Coding agent setup</div>
+          <h2>Give your coding agent one public setup file.</h2>
+          <p className="section-lede">
+            MemexAI ships an agent-readable onboarding guide at <code>memexai.space/setup.md</code>. Paste this command
+            into your coding agent and let it inspect your app, choose the right SDK adapter, wire memory tools, and run
+            a real memorize/recall check.
+          </p>
+          <div className="agent-command-panel" aria-label="Coding agent setup command">
+            <div className="agent-command-header">
+              <span>Copy into your coding agent</span>
+              <Terminal size={16} aria-hidden />
+            </div>
+            <pre>Setup MemexAI by following https://memexai.space/setup.md</pre>
+          </div>
+          <div className="hero-actions">
+            <Link className="site-button site-button-primary" href="/docs/quickstart/agent-onboarding" data-analytics-event="cta_clicked" data-analytics-label="home_agent_onboarding">
+              Read agent onboarding
+              <ArrowRight size={17} aria-hidden />
+            </Link>
+            <a className="site-button site-button-secondary" href="https://memexai.space/setup.md" data-analytics-event="cta_clicked" data-analytics-label="home_setup_md">
+              Open setup.md
+            </a>
+          </div>
+        </Reveal>
+      </section>
+
+      <section className="section">
+        <Reveal>
           <div className="section-kicker">Why AI products churn users</div>
           <h2>The AI starts fresh every session. Users re-explain everything. Eventually they stop.</h2>
           <p className="section-lede">

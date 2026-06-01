@@ -1,5 +1,5 @@
 {
   "title": "Quickstart",
   "defaultOpen": true,
-  "pages": ["docker-service", "direct-postgres"]
+  "pages": ["agent-onboarding", "docker-service", "direct-postgres"]
 }

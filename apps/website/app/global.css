@@ -468,6 +468,36 @@ body {
   line-height: 1.15;
 }
 
+.agent-command-panel {
+  max-width: 760px;
+  overflow: hidden;
+  border: 1px solid rgba(8, 127, 91, 0.24);
+  border-radius: 8px;
+  margin-top: 26px;
+  background: var(--site-code);
+  box-shadow: 0 18px 48px rgba(16, 22, 20, 0.12);
+}
+
+.agent-command-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 14px;
+  color: #8fb5a3;
+  font-size: 12px;
+}
+
+.agent-command-panel pre {
+  overflow-x: auto;
+  margin: 0;
+  padding: 18px;
+  color: #d8f6e7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 .text-link {
   display: inline-flex;
   align-items: center;
