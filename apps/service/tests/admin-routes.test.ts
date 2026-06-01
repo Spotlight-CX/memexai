@@ -146,12 +146,55 @@ function createAdminDb() {
         }
       }
 
+      if (sql.includes("JOIN mx_access_log l") && sql.includes("length(f.content_text) AS size")) {
+        return {
+          rows: [{
+            physical_path: "users/user_123/profile.md",
+            size: "1200",
+            count: "10",
+            last_seen_at: new Date("2026-05-09T08:05:00Z"),
+          }],
+        }
+      }
+
       if (sql.includes("FROM mx_revision") && sql.includes("HAVING COUNT(*) > 1")) {
         return {
           rows: [{
             physical_path: "users/user_123/profile.md",
             count: "3",
             last_seen_at: new Date("2026-05-09T08:05:00Z"),
+          }],
+        }
+      }
+
+      if (sql.includes("FROM mx_access_log a") && sql.includes("related_path")) {
+        return {
+          rows: [{
+            source_path: "users/user_123/profile.md",
+            related_path: "users/user_123/preferences.md",
+            count: "6",
+            last_seen_at: new Date("2026-05-09T08:07:00Z"),
+          }],
+        }
+      }
+
+      if (sql.includes("physical_path LIKE 'shared/%'")) {
+        return {
+          rows: [{
+            physical_path: "shared/user-memory.md",
+            size: "0",
+            count: "9",
+            last_seen_at: new Date("2026-05-09T08:08:00Z"),
+          }],
+        }
+      }
+
+      if (sql.includes("operation IN ('search', 'smart_read')") && sql.includes("GROUP BY user_id")) {
+        return {
+          rows: [{
+            user_id: "user_123",
+            count: "7",
+            last_seen_at: new Date("2026-05-09T08:09:00Z"),
           }],
         }
       }
@@ -311,6 +354,22 @@ describe("admin routes", () => {
     expect(response.json().topReadFiles[0]).toMatchObject({ physicalPath: "users/user_123/profile.md", count: 4 })
     expect(response.json().rewrittenFiles[0]).toMatchObject({ count: 3 })
     expect(response.json().rarelyReadFiles[0]).toMatchObject({ physicalPath: "users/user_123/unused.md" })
+  })
+
+  test("returns schema observability signals", async () => {
+    const app = buildServer({ db: createAdminDb() as never, config })
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/admin/observability/schema-signals",
+      headers: adminHeaders,
+    })
+    await app.close()
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().hotLargeFiles[0]).toMatchObject({ physicalPath: "users/user_123/profile.md", size: 1200, count: 10 })
+    expect(response.json().coHitFiles[0]).toMatchObject({ relatedPath: "users/user_123/preferences.md", count: 6 })
+    expect(response.json().sharedUsage[0]).toMatchObject({ physicalPath: "shared/user-memory.md", count: 9 })
+    expect(response.json().searchHeavyUsers[0]).toMatchObject({ userId: "user_123", count: 7 })
   })
 
   test("does not expose admin mutation routes", async () => {

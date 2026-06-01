@@ -149,6 +149,31 @@ export type UserMemoryObservability = {
   recentEvents: ObservabilityEvent[]
 }
 
+export type SchemaFileSignal = {
+  physicalPath: string
+  size: number | null
+  count: number
+  lastSeenAt: string | null
+}
+
+export type ObservabilitySchemaSignals = {
+  hotLargeFiles: SchemaFileSignal[]
+  coldFiles: SchemaFileSignal[]
+  coHitFiles: Array<{
+    sourcePath: string
+    relatedPath: string
+    count: number
+    lastSeenAt: string | null
+  }>
+  rewriteChurn: SchemaFileSignal[]
+  sharedUsage: SchemaFileSignal[]
+  searchHeavyUsers: Array<{
+    userId: string | null
+    count: number
+    lastSeenAt: string | null
+  }>
+}
+
 export type Pagination = {
   limit: number
   offset: number

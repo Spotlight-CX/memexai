@@ -487,6 +487,114 @@ export async function getUserMemoryObservability(db: Db, input: ObservabilityFil
   }
 }
 
+export async function getObservabilitySchemaSignals(db: Db, input: ObservabilityFilters = {}) {
+  const access = buildAccessWhere(input)
+  const values = access.values
+  const accessWhere = prefixWhere(access.where, "l")
+
+  const [
+    { rows: hotRows },
+    { rows: coldRows },
+    { rows: coHitRows },
+    { rows: churnRows },
+    { rows: sharedRows },
+    { rows: searchRows },
+  ] = await Promise.all([
+    db.query<SchemaFileSignalRow>(
+      `
+        SELECT f.physical_path, length(f.content_text) AS size, COUNT(l.id) AS count, MAX(l.created_at) AS last_seen_at
+        FROM mx_file f
+        JOIN mx_access_log l ON l.physical_path = f.physical_path
+        ${accessWhere ? `${accessWhere} AND` : "WHERE"} l.operation = 'read'
+        GROUP BY f.physical_path, f.content_text
+        ORDER BY COUNT(l.id) DESC, length(f.content_text) DESC
+        LIMIT 8
+      `,
+      values,
+    ),
+    db.query<SchemaFileSignalRow>(
+      `
+        SELECT f.physical_path, length(f.content_text) AS size, COUNT(l.id) AS count, MAX(l.created_at) AS last_seen_at
+        FROM mx_file f
+        LEFT JOIN mx_access_log l ON l.physical_path = f.physical_path AND l.operation = 'read'
+        GROUP BY f.physical_path, f.content_text, f.updated_at
+        HAVING COUNT(l.id) = 0
+        ORDER BY f.updated_at ASC
+        LIMIT 8
+      `,
+    ),
+    db.query<{
+      source_path: string
+      related_path: string
+      count: string
+      last_seen_at: Date | null
+    }>(
+      `
+        SELECT a.physical_path AS source_path, b.physical_path AS related_path, COUNT(*) AS count, MAX(a.created_at) AS last_seen_at
+        FROM mx_access_log a
+        JOIN mx_access_log b ON b.tool_call_id = a.tool_call_id
+          AND b.physical_path <> a.physical_path
+          AND b.tool_call_id IS NOT NULL
+        GROUP BY a.physical_path, b.physical_path
+        ORDER BY count DESC, last_seen_at DESC
+        LIMIT 8
+      `,
+    ),
+    db.query<SchemaFileSignalRow>(
+      `
+        SELECT physical_path, 0 AS size, COUNT(*) AS count, MAX(created_at) AS last_seen_at
+        FROM mx_revision
+        GROUP BY physical_path
+        HAVING COUNT(*) > 2
+        ORDER BY count DESC, last_seen_at DESC
+        LIMIT 8
+      `,
+    ),
+    db.query<SchemaFileSignalRow>(
+      `
+        SELECT physical_path, 0 AS size, COUNT(*) AS count, MAX(created_at) AS last_seen_at
+        FROM mx_access_log
+        WHERE physical_path LIKE 'shared/%'
+        GROUP BY physical_path
+        ORDER BY count DESC, last_seen_at DESC
+        LIMIT 8
+      `,
+    ),
+    db.query<{
+      user_id: string | null
+      count: string
+      last_seen_at: Date | null
+    }>(
+      `
+        SELECT user_id, COUNT(*) AS count, MAX(created_at) AS last_seen_at
+        FROM mx_access_log
+        WHERE operation IN ('search', 'smart_read')
+        GROUP BY user_id
+        ORDER BY count DESC, last_seen_at DESC
+        LIMIT 8
+      `,
+    ),
+  ])
+
+  return {
+    hotLargeFiles: hotRows.map(toSchemaFileSignal),
+    coldFiles: coldRows.map(toSchemaFileSignal),
+    coHitFiles: coHitRows.map((row) => ({
+      sourcePath: row.source_path,
+      relatedPath: row.related_path,
+      count: toNumber(row.count),
+      lastSeenAt: row.last_seen_at,
+    })),
+    rewriteChurn: churnRows.map(toSchemaFileSignal),
+    sharedUsage: sharedRows.map(toSchemaFileSignal),
+    searchHeavyUsers: searchRows.map((row) => ({
+      userId: row.user_id,
+      count: toNumber(row.count),
+      lastSeenAt: row.last_seen_at,
+    })),
+  }
+}
+
 type FileCountRow = {
   physical_path: string
   count: string
@@ -496,6 +604,22 @@ type FileCountRow = {
 function toFileCount(row: FileCountRow) {
   return {
     physicalPath: row.physical_path,
+    count: toNumber(row.count),
+    lastSeenAt: row.last_seen_at,
+  }
+}
+
+type SchemaFileSignalRow = {
+  physical_path: string
+  size: string | number | null
+  count: string
+  last_seen_at: Date | null
+}
+
+function toSchemaFileSignal(row: SchemaFileSignalRow) {
+  return {
+    physicalPath: row.physical_path,
+    size: nullableNumber(row.size),
     count: toNumber(row.count),
     lastSeenAt: row.last_seen_at,
   }
@@ -545,6 +669,15 @@ function addDateFilter(filters: string[], values: unknown[], column: string, op:
 function shiftPlaceholders(sql: string, offset: number): string {
   if (!offset) return sql
   return sql.replace(/\$(\d+)/g, (_match, value) => `$${Number(value) + offset}`)
+}
+
+function prefixWhere(where: string, alias: string): string {
+  return where
+    .replaceAll("physical_path", `${alias}.physical_path`)
+    .replaceAll("created_at", `${alias}.created_at`)
+    .replaceAll("user_id", `${alias}.user_id`)
+    .replaceAll("operation", `${alias}.operation`)
+    .replaceAll("actor", `${alias}.actor`)
 }
 
 function bucketExpr(bucket: string | undefined) {

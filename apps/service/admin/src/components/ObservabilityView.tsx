@@ -25,6 +25,7 @@ import type {
   ObservabilityBucket,
   ObservabilityEvent,
   ObservabilityFileCount,
+  ObservabilitySchemaSignals,
   ObservabilitySummary,
   ObservabilityTopFile,
   UserMemoryObservability,
@@ -62,6 +63,7 @@ export function ObservabilityView({ secret }: { secret: string }) {
   const timeseries = useAdminData<{ buckets: ObservabilityBucket[] }>(`/v1/admin/observability/timeseries?${query}&bucket=${filters.range === "30d" ? "day" : "hour"}`, secret)
   const topFiles = useAdminData<{ files: ObservabilityTopFile[] }>(`/v1/admin/observability/top-files?${query}&limit=10`, secret)
   const events = useAdminData<{ events: ObservabilityEvent[] }>(`/v1/admin/observability/events?${query}&limit=50`, secret)
+  const schemaSignals = useAdminData<ObservabilitySchemaSignals>(`/v1/admin/observability/schema-signals?${query}`, secret)
   const userMemory = useAdminData<UserMemoryObservability>(
     filters.userId.trim() ? `/v1/admin/observability/user?${query}` : null,
     secret,
@@ -73,10 +75,11 @@ export function ObservabilityView({ secret }: { secret: string }) {
       queryClient.invalidateQueries({ queryKey: adminQueryKey(`/v1/admin/observability/timeseries?${query}&bucket=${filters.range === "30d" ? "day" : "hour"}`) }),
       queryClient.invalidateQueries({ queryKey: adminQueryKey(`/v1/admin/observability/top-files?${query}&limit=10`) }),
       queryClient.invalidateQueries({ queryKey: adminQueryKey(`/v1/admin/observability/events?${query}&limit=50`) }),
+      queryClient.invalidateQueries({ queryKey: adminQueryKey(`/v1/admin/observability/schema-signals?${query}`) }),
     ])
   }
 
-  const error = summary.error ?? timeseries.error ?? topFiles.error ?? events.error ?? userMemory.error
+  const error = summary.error ?? timeseries.error ?? topFiles.error ?? events.error ?? schemaSignals.error ?? userMemory.error
   const summaryData = summary.data
   const buckets = timeseries.data?.buckets ?? []
   const files = topFiles.data?.files ?? []
@@ -175,11 +178,70 @@ export function ObservabilityView({ secret }: { secret: string }) {
           </Panel>
         </Box>
 
+        <SchemaSignalsPanel
+          data={schemaSignals.data}
+          onOpenFile={(path) => navigate(`/files?path=${encodeURIComponent(path)}`)}
+        />
+
         <Panel title="Event Stream" subtitle="Sanitized local observation events.">
           <EventTable events={eventRows} />
         </Panel>
       </Stack>
     </ScrollArea>
+  )
+}
+
+function SchemaSignalsPanel({ data, onOpenFile }: {
+  data: ObservabilitySchemaSignals | null
+  onOpenFile: (path: string) => void
+}) {
+  return (
+    <Panel title="Schema Signals" subtitle="Signals for splitting, merging, linking, or rewriting memory guidance.">
+      <Box
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+          gap: 12,
+        }}
+      >
+        <SignalList title="Hot large files" rows={(data?.hotLargeFiles ?? []).map((row) => ({ path: row.physicalPath, count: row.count, detail: row.size ? `${row.size} chars` : "" }))} onOpenFile={onOpenFile} />
+        <SignalList title="Cold files" rows={(data?.coldFiles ?? []).map((row) => ({ path: row.physicalPath, count: row.count, detail: "no reads" }))} onOpenFile={onOpenFile} />
+        <SignalList title="High rewrite churn" rows={(data?.rewriteChurn ?? []).map((row) => ({ path: row.physicalPath, count: row.count, detail: "revisions" }))} onOpenFile={onOpenFile} />
+        <SignalList title="Shared files hit rate" rows={(data?.sharedUsage ?? []).map((row) => ({ path: row.physicalPath, count: row.count, detail: "hits" }))} onOpenFile={onOpenFile} />
+        <SignalList title="Frequently co-hit files" rows={(data?.coHitFiles ?? []).map((row) => ({ path: row.sourcePath, count: row.count, detail: row.relatedPath }))} onOpenFile={onOpenFile} />
+        <SignalList title="Search-heavy users" rows={(data?.searchHeavyUsers ?? []).map((row) => ({ path: row.userId ?? "unknown user", count: row.count, detail: "search/smart-read calls", isUser: true }))} />
+      </Box>
+    </Panel>
+  )
+}
+
+function SignalList({ title, rows, onOpenFile }: {
+  title: string
+  rows: Array<{ path: string; count: number; detail: string; isUser?: boolean }>
+  onOpenFile?: (path: string) => void
+}) {
+  return (
+    <Paper withBorder radius="sm" p="sm" bg="gray.0">
+      <Text size="xs" fw={650} c="dimmed" tt="uppercase" style={{ letterSpacing: "0.04em" }}>{title}</Text>
+      <Stack gap={6} mt="xs">
+        {rows.length ? rows.map((row) => (
+          <UnstyledButton
+            key={`${row.path}-${row.detail}`}
+            onClick={() => !row.isUser && onOpenFile?.(row.path)}
+            disabled={row.isUser || !onOpenFile}
+            style={{ width: "100%" }}
+          >
+            <Group gap="xs" justify="space-between" wrap="nowrap">
+              <Box style={{ minWidth: 0, flex: 1 }}>
+                <Code style={{ maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis" }}>{row.path}</Code>
+                {row.detail ? <Text size="xs" c="dimmed" truncate>{row.detail}</Text> : null}
+              </Box>
+              <Badge size="xs" variant="light">{row.count}</Badge>
+            </Group>
+          </UnstyledButton>
+        )) : <Text size="xs" c="dimmed">No signal yet.</Text>}
+      </Stack>
+    </Paper>
   )
 }
 

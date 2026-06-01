@@ -4,6 +4,7 @@ import { getAdminFile, listAdminAccessLogs, listAdminDreamUsers, listAdminFiles,
 import { handleConfigureChat } from "./admin-configure"
 import {
   getObservabilitySummary,
+  getObservabilitySchemaSignals,
   getObservabilityTimeseries,
   getUserMemoryObservability,
   listObservabilityEvents,
@@ -289,6 +290,9 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
   })
   app.get("/v1/admin/observability/events", { preHandler: adminAuth }, async (request) => {
     return listObservabilityEvents(db, parseObservabilityQuery(request.query))
+  })
+  app.get("/v1/admin/observability/schema-signals", { preHandler: adminAuth }, async (request) => {
+    return getObservabilitySchemaSignals(db, parseObservabilityQuery(request.query))
   })
   app.get("/v1/admin/observability/user", { preHandler: adminAuth }, async (request) => {
     return getUserMemoryObservability(db, parseObservabilityQuery(request.query))
