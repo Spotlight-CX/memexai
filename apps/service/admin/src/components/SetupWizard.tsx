@@ -39,7 +39,26 @@ const STABILITY_OPTIONS = [
 ]
 
 type Step = 0 | 1 | 2 | 3 | 4
-type GeneratedFile = { path: string; content: string }
+type GeneratedFile = {
+  path: string
+  content: string
+  purpose?: string
+  memorySchemaRole?: string
+}
+type SetupExample = {
+  userMessage: string
+  shouldStore: boolean
+  reason: string
+  targetFile: string | null
+  memoryLines: string[]
+}
+type SetupExplanation = {
+  summary: string
+  schemaGuidance: string
+  examples: SetupExample[]
+  sharedMemoryIdeas: string[]
+  rawToolNote: string
+}
 
 const OPTION_SELECTED_STYLE = {
   borderRadius: 8,
@@ -64,6 +83,7 @@ export function SetupWizard({ secret, onComplete }: { secret: string; onComplete
   const [extra, setExtra] = useState("")
   const [questionIndex, setQuestionIndex] = useState(0)
   const [generatedFiles, setGeneratedFiles] = useState<GeneratedFile[]>([])
+  const [explanation, setExplanation] = useState<SetupExplanation | null>(null)
   const [expandedFile, setExpandedFile] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [applying, setApplying] = useState(false)
@@ -82,11 +102,12 @@ export function SetupWizard({ secret, onComplete }: { secret: string; onComplete
       const res = await fetch("/v1/admin/setup-generate", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-memex-admin-secret": secret },
-        body: JSON.stringify({ productDescription, domain, userInfoCategories, extra: extra || undefined }),
+        body: JSON.stringify({ productDescription, domain, userInfoCategories, stability, extra: extra || undefined }),
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body?.error?.message ?? "Generation failed")
       setGeneratedFiles(body.files)
+      setExplanation(body.explanation ?? null)
       setStep(3)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Generation failed")
@@ -299,27 +320,108 @@ export function SetupWizard({ secret, onComplete }: { secret: string; onComplete
   if (step === 3) {
     return (
       <Box h="100%" style={{ overflowY: "auto" }} p="xl">
-        <Stack maw={680} mx="auto" gap="xl">
+        <Stack maw={860} mx="auto" gap="xl">
           <Stack gap="xs">
             <Text size="xs" c="gray.5" fw={500}>Step 3 of 3 — Review</Text>
-            <Title order={3} fw={600}>Here's your memory configuration</Title>
+            <Title order={3} fw={600}>Review the proposed memory schema</Title>
             <Text size="sm" c="gray.6">
-              Review the files that will be created or updated, then apply all.
+              MemexAI used your product answers to draft the shared files agents will read before managing user memory.
             </Text>
           </Stack>
+
+          {explanation && (
+            <Stack gap="md">
+              <Paper withBorder p="lg" radius="md">
+                <Stack gap="xs">
+                  <Text size="sm" fw={700}>How this schema works</Text>
+                  <Text size="sm" c="gray.7" style={{ lineHeight: 1.6 }}>{explanation.summary}</Text>
+                  <Text size="sm" c="gray.7" style={{ lineHeight: 1.6 }}>{explanation.schemaGuidance}</Text>
+                </Stack>
+              </Paper>
+
+              <Paper withBorder p="lg" radius="md">
+                <Stack gap="md">
+                  <Stack gap={4}>
+                    <Text size="sm" fw={700}>Example conversations and storage outcomes</Text>
+                    <Text size="xs" c="gray.6">
+                      These examples show what an agent should store, where it should go, and what should be ignored.
+                    </Text>
+                  </Stack>
+                  {explanation.examples.map((example, index) => (
+                    <Box
+                      key={`${example.userMessage}-${index}`}
+                      p="md"
+                      style={{
+                        border: "1px solid var(--mantine-color-gray-2)",
+                        borderRadius: 8,
+                        background: example.shouldStore ? "var(--mantine-color-green-0)" : "var(--mantine-color-gray-0)",
+                      }}
+                    >
+                      <Stack gap="xs">
+                        <Group justify="space-between" align="flex-start">
+                          <Text size="sm" fw={600} style={{ lineHeight: 1.45 }}>"{example.userMessage}"</Text>
+                          <Text size="xs" fw={700} c={example.shouldStore ? "green.7" : "gray.6"}>
+                            {example.shouldStore ? "store" : "do not store"}
+                          </Text>
+                        </Group>
+                        <Text size="xs" c="gray.7" style={{ lineHeight: 1.55 }}>{example.reason}</Text>
+                        {example.targetFile && (
+                          <Text size="xs" c="gray.7">
+                            Target file: <Text span ff="monospace">{example.targetFile}</Text>
+                          </Text>
+                        )}
+                        {example.memoryLines.length > 0 && (
+                          <Box
+                            p="sm"
+                            style={{
+                              background: "rgba(255,255,255,0.75)",
+                              borderRadius: 6,
+                              fontFamily: "monospace",
+                              fontSize: 12,
+                              whiteSpace: "pre-wrap",
+                            }}
+                          >
+                            {example.memoryLines.join("\n")}
+                          </Box>
+                        )}
+                      </Stack>
+                    </Box>
+                  ))}
+                </Stack>
+              </Paper>
+
+              <Paper withBorder p="lg" radius="md">
+                <Stack gap="sm">
+                  <Text size="sm" fw={700}>What admins can do with shared memory</Text>
+                  <Stack gap={6}>
+                    {explanation.sharedMemoryIdeas.map((idea, index) => (
+                      <Text key={index} size="sm" c="gray.7" style={{ lineHeight: 1.5 }}>- {idea}</Text>
+                    ))}
+                  </Stack>
+                  <Text size="xs" c="gray.6" style={{ lineHeight: 1.5 }}>{explanation.rawToolNote}</Text>
+                </Stack>
+              </Paper>
+            </Stack>
+          )}
 
           <Stack gap="md">
             {generatedFiles.map((file) => (
               <Paper key={file.path} withBorder p="md" radius="md">
                 <Stack gap="sm">
                   <Group justify="space-between">
-                    <Text size="sm" fw={600} ff="monospace">{file.path}</Text>
+                    <Stack gap={2}>
+                      <Text size="sm" fw={600} ff="monospace">{file.path}</Text>
+                      {file.purpose && <Text size="xs" c="gray.6">{file.purpose}</Text>}
+                    </Stack>
                     <UnstyledButton
                       onClick={() => setExpandedFile(expandedFile === file.path ? null : file.path)}
                     >
                       <Text size="xs" c="blue.6">{expandedFile === file.path ? "hide" : "preview"}</Text>
                     </UnstyledButton>
                   </Group>
+                  {file.memorySchemaRole && (
+                    <Text size="xs" c="gray.7" style={{ lineHeight: 1.5 }}>{file.memorySchemaRole}</Text>
+                  )}
                   {expandedFile === file.path && (
                     <Box
                       p="sm"
@@ -354,25 +456,60 @@ export function SetupWizard({ secret, onComplete }: { secret: string; onComplete
 
   return (
     <Box h="100%" display="flex" style={{ alignItems: "center", justifyContent: "center" }}>
-      <Stack align="center" gap="xl" maw={480} px="lg">
+      <Stack align="center" gap="xl" maw={620} px="lg">
         <Stack gap="xs" align="center">
           <Title order={2} fw={600}>All set!</Title>
           <Text c="gray.6" ta="center" size="sm">
-            Agents will now use your memory configuration. You can refine it anytime from the Configure tab.
+            Agents will now read these shared files before managing user memory. Next, inspect the files or simulate a user memory flow.
           </Text>
         </Stack>
-        <Paper withBorder p="md" style={{ textAlign: "center", width: "100%" }}>
-          <Text size="sm" fw={500} mb={4}>Community / Support</Text>
-          <Text size="sm" c="dimmed" mb={8}>Have a question or want to share feedback?</Text>
-          <Anchor
-            href="https://join.slack.com/t/memexaispace/shared_invite/zt-3yy24alf6-t1wRQsErf09JViHww_qlGw"
-            target="_blank"
-            size="sm"
-          >
-            Join us on Slack →
-          </Anchor>
+
+        <Group grow w="100%" align="stretch">
+          <Paper withBorder p="md" radius="md">
+            <Stack gap="xs">
+              <Text size="sm" fw={700}>See files</Text>
+              <Text size="xs" c="gray.6">Open the generated shared files and edit them as your memory policy evolves.</Text>
+              <Button size="xs" onClick={onComplete}>Open files</Button>
+            </Stack>
+          </Paper>
+          <Paper withBorder p="md" radius="md">
+            <Stack gap="xs">
+              <Text size="sm" fw={700}>Simulate memory</Text>
+              <Text size="xs" c="gray.6">Use the playground to try memorize and recall against a demo user.</Text>
+              <Button size="xs" variant="light" onClick={() => { window.location.href = "/admin/playground" }}>
+                Open playground
+              </Button>
+            </Stack>
+          </Paper>
+        </Group>
+
+        <Paper withBorder p="md" radius="md" w="100%">
+          <Stack gap="xs">
+            <Text size="sm" fw={700}>Advanced</Text>
+            <Text size="xs" c="gray.6">
+              Use revisions and access logs to see how memory is being used. Set up Dreams when user memory starts growing and needs background cleanup.
+            </Text>
+            <Group gap="xs">
+              <Button size="xs" variant="subtle" onClick={() => { window.location.href = "/admin/dreams" }}>
+                Set up dreaming
+              </Button>
+              <Anchor
+                href="https://memexai.space/docs/concepts/access-logs"
+                target="_blank"
+                size="xs"
+              >
+                Access log docs
+              </Anchor>
+              <Anchor
+                href="https://memexai.space/docs/operations/dreaming"
+                target="_blank"
+                size="xs"
+              >
+                Dreaming docs
+              </Anchor>
+            </Group>
+          </Stack>
         </Paper>
-        <Button onClick={onComplete}>Go to admin →</Button>
       </Stack>
     </Box>
   )
