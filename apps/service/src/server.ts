@@ -5,6 +5,7 @@ import { handleConfigureChat } from "./admin-configure"
 import {
   getObservabilitySummary,
   getObservabilityTimeseries,
+  getUserMemoryObservability,
   listObservabilityEvents,
   listObservabilityTopFiles,
   recordObservationEvent,
@@ -288,6 +289,9 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
   })
   app.get("/v1/admin/observability/events", { preHandler: adminAuth }, async (request) => {
     return listObservabilityEvents(db, parseObservabilityQuery(request.query))
+  })
+  app.get("/v1/admin/observability/user", { preHandler: adminAuth }, async (request) => {
+    return getUserMemoryObservability(db, parseObservabilityQuery(request.query))
   })
   app.get("/v1/admin/dream/config", { preHandler: adminAuth }, async () => {
     const { rows } = await db.query<{ key: string; value: string; description: string | null; updated_at: Date }>(

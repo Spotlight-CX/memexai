@@ -41,7 +41,7 @@ function createAdminDb() {
         }
       }
 
-      if (sql.includes("FROM mx_file")) {
+      if (sql.includes("FROM mx_file") && !sql.includes("FROM mx_file f")) {
         return {
           rows: [{
             id: "file_1",
@@ -57,7 +57,7 @@ function createAdminDb() {
         return { rows: [{ total: "1" }] }
       }
 
-      if (sql.includes("FROM mx_revision")) {
+      if (sql.includes("FROM mx_revision") && !sql.includes("HAVING COUNT(*) > 1")) {
         return {
           rows: [{
             id: "rev_1",
@@ -90,7 +90,7 @@ function createAdminDb() {
         }
       }
 
-      if (sql.includes("FROM mx_observation_event") && sql.includes("percentile_cont")) {
+      if (sql.includes("FROM mx_observation_event") && sql.includes("percentile_cont") && !sql.includes("failed_calls")) {
         return {
           rows: [{
             tool_calls: "12",
@@ -112,6 +112,65 @@ function createAdminDb() {
             writes: "2",
             searches: "1",
             smart_reads: "2",
+          }],
+        }
+      }
+
+      if (sql.includes("COUNT(DISTINCT physical_path) FILTER")) {
+        return {
+          rows: [{
+            files_read: "2",
+            files_written: "1",
+            searches: "3",
+          }],
+        }
+      }
+
+      if (sql.includes("FROM mx_access_log") && sql.includes("GROUP BY physical_path") && sql.includes("operation = 'read'")) {
+        return {
+          rows: [{
+            physical_path: "users/user_123/profile.md",
+            count: "4",
+            last_seen_at: new Date("2026-05-09T08:03:00Z"),
+          }],
+        }
+      }
+
+      if (sql.includes("FROM mx_access_log") && sql.includes("GROUP BY physical_path") && sql.includes("operation IN ('write', 'patch')")) {
+        return {
+          rows: [{
+            physical_path: "users/user_123/profile.md",
+            count: "2",
+            last_seen_at: new Date("2026-05-09T08:04:00Z"),
+          }],
+        }
+      }
+
+      if (sql.includes("FROM mx_revision") && sql.includes("HAVING COUNT(*) > 1")) {
+        return {
+          rows: [{
+            physical_path: "users/user_123/profile.md",
+            count: "3",
+            last_seen_at: new Date("2026-05-09T08:05:00Z"),
+          }],
+        }
+      }
+
+      if (sql.includes("FROM mx_file f") && sql.includes("HAVING COUNT(l.id) = 0")) {
+        return {
+          rows: [{
+            physical_path: "users/user_123/unused.md",
+            created_at: new Date("2026-05-09T08:06:00Z"),
+            read_count: "0",
+          }],
+        }
+      }
+
+      if (sql.includes("COUNT(*) FILTER (WHERE status = 'error') AS failed_calls")) {
+        return {
+          rows: [{
+            failed_calls: "1",
+            p95_ms: "420",
           }],
         }
       }
@@ -236,6 +295,22 @@ describe("admin routes", () => {
     expect(topFiles.json().files[0]).toMatchObject({ physicalPath: "users/user_123/profile.md", totalHits: 5 })
     expect(events.statusCode).toBe(200)
     expect(events.json().events[0]).toMatchObject({ eventType: "tool_execution", toolName: "memory_search" })
+  })
+
+  test("returns user memory observability data", async () => {
+    const app = buildServer({ db: createAdminDb() as never, config })
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/admin/observability/user?userId=user_123",
+      headers: adminHeaders,
+    })
+    await app.close()
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().summary).toMatchObject({ filesRead: 2, filesWritten: 1, failedCalls: 1, p95Ms: 420 })
+    expect(response.json().topReadFiles[0]).toMatchObject({ physicalPath: "users/user_123/profile.md", count: 4 })
+    expect(response.json().rewrittenFiles[0]).toMatchObject({ count: 3 })
+    expect(response.json().rarelyReadFiles[0]).toMatchObject({ physicalPath: "users/user_123/unused.md" })
   })
 
   test("does not expose admin mutation routes", async () => {

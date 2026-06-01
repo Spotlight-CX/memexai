@@ -355,6 +355,152 @@ export async function listObservabilityEvents(db: Db, input: ObservabilityFilter
   }
 }
 
+export async function getUserMemoryObservability(db: Db, input: ObservabilityFilters = {}) {
+  const userId = input.userId?.trim()
+  if (!userId) {
+    return {
+      userId: null,
+      summary: { filesRead: 0, filesWritten: 0, searches: 0, failedCalls: 0, p95Ms: null },
+      topReadFiles: [],
+      topWrittenFiles: [],
+      rewrittenFiles: [],
+      rarelyReadFiles: [],
+      recentEvents: [],
+    }
+  }
+
+  const scoped = { ...input, userId }
+  const access = buildAccessWhere(scoped)
+  const event = buildObservationWhere(scoped)
+
+  const [
+    { rows: summaryRows },
+    { rows: readRows },
+    { rows: writeRows },
+    { rows: churnRows },
+    { rows: rareRows },
+    { rows: failureRows },
+    eventRows,
+  ] = await Promise.all([
+    db.query<{
+      files_read: string
+      files_written: string
+      searches: string
+    }>(
+      `
+        SELECT
+          COUNT(DISTINCT physical_path) FILTER (WHERE operation = 'read') AS files_read,
+          COUNT(DISTINCT physical_path) FILTER (WHERE operation IN ('write', 'patch')) AS files_written,
+          COUNT(*) FILTER (WHERE operation IN ('search', 'smart_read')) AS searches
+        FROM mx_access_log
+        ${access.where}
+      `,
+      access.values,
+    ),
+    db.query<FileCountRow>(
+      `
+        SELECT physical_path, COUNT(*) AS count, MAX(created_at) AS last_seen_at
+        FROM mx_access_log
+        ${access.where} ${access.where ? "AND" : "WHERE"} operation = 'read'
+        GROUP BY physical_path
+        ORDER BY count DESC, last_seen_at DESC
+        LIMIT 8
+      `,
+      access.values,
+    ),
+    db.query<FileCountRow>(
+      `
+        SELECT physical_path, COUNT(*) AS count, MAX(created_at) AS last_seen_at
+        FROM mx_access_log
+        ${access.where} ${access.where ? "AND" : "WHERE"} operation IN ('write', 'patch')
+        GROUP BY physical_path
+        ORDER BY count DESC, last_seen_at DESC
+        LIMIT 8
+      `,
+      access.values,
+    ),
+    db.query<FileCountRow>(
+      `
+        SELECT physical_path, COUNT(*) AS count, MAX(created_at) AS last_seen_at
+        FROM mx_revision
+        WHERE user_id = $1
+        GROUP BY physical_path
+        HAVING COUNT(*) > 1
+        ORDER BY count DESC, last_seen_at DESC
+        LIMIT 8
+      `,
+      [userId],
+    ),
+    db.query<{
+      physical_path: string
+      created_at: Date
+      read_count: string
+    }>(
+      `
+        SELECT f.physical_path, f.created_at, COUNT(l.id) AS read_count
+        FROM mx_file f
+        LEFT JOIN mx_access_log l ON l.physical_path = f.physical_path AND l.operation = 'read'
+        WHERE f.physical_path LIKE $1
+        GROUP BY f.physical_path, f.created_at
+        HAVING COUNT(l.id) = 0
+        ORDER BY f.created_at DESC
+        LIMIT 8
+      `,
+      [`users/${userId}/%`],
+    ),
+    db.query<{
+      failed_calls: string
+      p95_ms: string | number | null
+    }>(
+      `
+        SELECT
+          COUNT(*) FILTER (WHERE status = 'error') AS failed_calls,
+          percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) FILTER (WHERE duration_ms IS NOT NULL) AS p95_ms
+        FROM mx_observation_event
+        ${event.where}
+      `,
+      event.values,
+    ),
+    listObservabilityEvents(db, { ...scoped, limit: 8 }),
+  ])
+
+  const summary = summaryRows[0]
+  const failures = failureRows[0]
+  return {
+    userId,
+    summary: {
+      filesRead: toNumber(summary?.files_read),
+      filesWritten: toNumber(summary?.files_written),
+      searches: toNumber(summary?.searches),
+      failedCalls: toNumber(failures?.failed_calls),
+      p95Ms: nullableNumber(failures?.p95_ms),
+    },
+    topReadFiles: readRows.map(toFileCount),
+    topWrittenFiles: writeRows.map(toFileCount),
+    rewrittenFiles: churnRows.map(toFileCount),
+    rarelyReadFiles: rareRows.map((row) => ({
+      physicalPath: row.physical_path,
+      count: toNumber(row.read_count),
+      lastSeenAt: row.created_at,
+    })),
+    recentEvents: eventRows.events,
+  }
+}
+
+type FileCountRow = {
+  physical_path: string
+  count: string
+  last_seen_at: Date | null
+}
+
+function toFileCount(row: FileCountRow) {
+  return {
+    physicalPath: row.physical_path,
+    count: toNumber(row.count),
+    lastSeenAt: row.last_seen_at,
+  }
+}
+
 function buildObservationWhere(input: ObservabilityFilters) {
   const values: unknown[] = []
   const filters: string[] = []

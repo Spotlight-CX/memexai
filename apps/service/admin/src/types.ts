@@ -127,6 +127,28 @@ export type ObservabilityEvent = {
   createdAt: string
 }
 
+export type ObservabilityFileCount = {
+  physicalPath: string
+  count: number
+  lastSeenAt: string | null
+}
+
+export type UserMemoryObservability = {
+  userId: string | null
+  summary: {
+    filesRead: number
+    filesWritten: number
+    searches: number
+    failedCalls: number
+    p95Ms: number | null
+  }
+  topReadFiles: ObservabilityFileCount[]
+  topWrittenFiles: ObservabilityFileCount[]
+  rewrittenFiles: ObservabilityFileCount[]
+  rarelyReadFiles: ObservabilityFileCount[]
+  recentEvents: ObservabilityEvent[]
+}
+
 export type Pagination = {
   limit: number
   offset: number

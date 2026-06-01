@@ -24,8 +24,10 @@ import { adminQueryKey, useAdminData } from "../hooks"
 import type {
   ObservabilityBucket,
   ObservabilityEvent,
+  ObservabilityFileCount,
   ObservabilitySummary,
   ObservabilityTopFile,
+  UserMemoryObservability,
 } from "../types"
 import { formatDate, relativeTime } from "../utils"
 import { ErrorText } from "./TableViews"
@@ -60,6 +62,10 @@ export function ObservabilityView({ secret }: { secret: string }) {
   const timeseries = useAdminData<{ buckets: ObservabilityBucket[] }>(`/v1/admin/observability/timeseries?${query}&bucket=${filters.range === "30d" ? "day" : "hour"}`, secret)
   const topFiles = useAdminData<{ files: ObservabilityTopFile[] }>(`/v1/admin/observability/top-files?${query}&limit=10`, secret)
   const events = useAdminData<{ events: ObservabilityEvent[] }>(`/v1/admin/observability/events?${query}&limit=50`, secret)
+  const userMemory = useAdminData<UserMemoryObservability>(
+    filters.userId.trim() ? `/v1/admin/observability/user?${query}` : null,
+    secret,
+  )
 
   const refresh = async () => {
     await Promise.all([
@@ -70,7 +76,7 @@ export function ObservabilityView({ secret }: { secret: string }) {
     ])
   }
 
-  const error = summary.error ?? timeseries.error ?? topFiles.error ?? events.error
+  const error = summary.error ?? timeseries.error ?? topFiles.error ?? events.error ?? userMemory.error
   const summaryData = summary.data
   const buckets = timeseries.data?.buckets ?? []
   const files = topFiles.data?.files ?? []
@@ -123,6 +129,14 @@ export function ObservabilityView({ secret }: { secret: string }) {
           <MetricCard label="Read/write" value={summaryData?.ratios.readWriteRatio === null ? "n/a" : `${formatDecimal(summaryData?.ratios.readWriteRatio)} : 1`} />
         </SimpleGrid>
 
+        {filters.userId.trim() ? (
+          <UserMemoryPanel
+            data={userMemory.data}
+            userId={filters.userId.trim()}
+            onOpenFile={(path) => navigate(`/files?path=${encodeURIComponent(path)}`)}
+          />
+        ) : null}
+
         <Box
           style={{
             display: "grid",
@@ -166,6 +180,63 @@ export function ObservabilityView({ secret }: { secret: string }) {
         </Panel>
       </Stack>
     </ScrollArea>
+  )
+}
+
+function UserMemoryPanel({ data, userId, onOpenFile }: {
+  data: UserMemoryObservability | null
+  userId: string
+  onOpenFile: (path: string) => void
+}) {
+  const summary = data?.summary
+  return (
+    <Panel title={`User: ${userId}`} subtitle="How this user's memory is being read, written, searched, and revised.">
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} spacing="xs" mb="md">
+        <MetricCard label="Files read" value={formatNumber(summary?.filesRead)} />
+        <MetricCard label="Files written" value={formatNumber(summary?.filesWritten)} />
+        <MetricCard label="Searches" value={formatNumber(summary?.searches)} />
+        <MetricCard label="Failed calls" value={formatNumber(summary?.failedCalls)} tone={(summary?.failedCalls ?? 0) > 0 ? "red" : "green"} />
+        <MetricCard label="p95 latency" value={formatMs(summary?.p95Ms)} />
+      </SimpleGrid>
+      <Box
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 12,
+        }}
+      >
+        <FileCountList title="Top read files" files={data?.topReadFiles ?? []} onOpenFile={onOpenFile} />
+        <FileCountList title="Top written files" files={data?.topWrittenFiles ?? []} onOpenFile={onOpenFile} />
+        <FileCountList title="Repeated rewrites" files={data?.rewrittenFiles ?? []} onOpenFile={onOpenFile} />
+        <FileCountList title="Created, rarely read" files={data?.rarelyReadFiles ?? []} onOpenFile={onOpenFile} />
+      </Box>
+      <Box mt="md">
+        <Text size="sm" fw={650} mb={6}>Recent user tool calls</Text>
+        <EventTable events={data?.recentEvents ?? []} compact />
+      </Box>
+    </Panel>
+  )
+}
+
+function FileCountList({ title, files, onOpenFile }: {
+  title: string
+  files: ObservabilityFileCount[]
+  onOpenFile: (path: string) => void
+}) {
+  return (
+    <Paper withBorder radius="sm" p="sm" bg="gray.0">
+      <Text size="xs" fw={650} c="dimmed" tt="uppercase" style={{ letterSpacing: "0.04em" }}>{title}</Text>
+      <Stack gap={6} mt="xs">
+        {files.length ? files.map((file) => (
+          <UnstyledButton key={file.physicalPath} onClick={() => onOpenFile(file.physicalPath)} style={{ width: "100%" }}>
+            <Group gap="xs" justify="space-between" wrap="nowrap">
+              <Code style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{file.physicalPath}</Code>
+              <Badge size="xs" variant="light">{file.count}</Badge>
+            </Group>
+          </UnstyledButton>
+        )) : <Text size="xs" c="dimmed">No matching files.</Text>}
+      </Stack>
+    </Paper>
   )
 }
 
