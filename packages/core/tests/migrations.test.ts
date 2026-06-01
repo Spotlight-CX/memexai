@@ -63,7 +63,7 @@ describe("runMigrations", () => {
   })
 
   test("skips already-applied migrations", async () => {
-    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql"])
+    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql", "006_observation_events.sql"])
 
     await runMigrations(db)
 
@@ -86,6 +86,26 @@ describe("runMigrations", () => {
     expect(client.query.mock.calls).toContainEqual([
       "INSERT INTO mx_migration (id) VALUES ($1)",
       ["005_dream_tables.sql"],
+    ])
+  })
+
+  test("includes observation event migration", async () => {
+    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql"])
+
+    await runMigrations(db)
+
+    const migrationSql = client.query.mock.calls
+      .map(([sql]) => sql)
+      .filter((sql): sql is string => typeof sql === "string")
+      .join("\n")
+
+    expect(migrationSql).toContain("CREATE TABLE IF NOT EXISTS mx_observation_event")
+    expect(migrationSql).toContain("attributes JSONB NOT NULL DEFAULT '{}'::jsonb")
+    expect(migrationSql).toContain("trace_id TEXT")
+    expect(migrationSql).toContain("CREATE INDEX IF NOT EXISTS mx_observation_event_trace_idx")
+    expect(client.query.mock.calls).toContainEqual([
+      "INSERT INTO mx_migration (id) VALUES ($1)",
+      ["006_observation_events.sql"],
     ])
   })
 })
