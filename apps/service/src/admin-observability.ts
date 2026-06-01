@@ -82,6 +82,7 @@ export type ObservabilityFilters = {
   from?: string
   to?: string
   userId?: string
+  normalizedPath?: string
   physicalPath?: string
   toolName?: string
   operation?: string
@@ -260,7 +261,7 @@ export async function listObservabilityTopFiles(db: Db, input: ObservabilityFilt
   const limit = clampInt(input.limit, 20, 1, 100)
   const values = [...access.values, limit]
   const { rows } = await db.query<{
-    physical_path: string
+    normalized_path: string
     reads: string
     writes: string
     searches: string
@@ -272,7 +273,7 @@ export async function listObservabilityTopFiles(db: Db, input: ObservabilityFilt
   }>(
     `
       SELECT
-        l.physical_path,
+        ${normalizedPathExpr("l.physical_path")} AS normalized_path,
         COUNT(*) FILTER (WHERE l.operation = 'read') AS reads,
         COUNT(*) FILTER (WHERE l.operation IN ('write', 'patch')) AS writes,
         COUNT(*) FILTER (WHERE l.operation = 'search') AS searches,
@@ -283,8 +284,8 @@ export async function listObservabilityTopFiles(db: Db, input: ObservabilityFilt
         MAX(l.created_at) AS last_accessed_at
       FROM mx_access_log l
       LEFT JOIN mx_file f ON f.physical_path = l.physical_path
-      ${access.where.replaceAll("physical_path", "l.physical_path").replaceAll("created_at", "l.created_at").replaceAll("user_id", "l.user_id").replaceAll("operation", "l.operation").replaceAll("actor", "l.actor")}
-      GROUP BY l.physical_path
+      ${prefixWhere(access.where, "l")}
+      GROUP BY normalized_path
       ORDER BY total_hits DESC, last_accessed_at DESC NULLS LAST
       LIMIT $${values.length}
     `,
@@ -293,7 +294,8 @@ export async function listObservabilityTopFiles(db: Db, input: ObservabilityFilt
 
   return {
     files: rows.map((row) => ({
-      physicalPath: row.physical_path,
+      physicalPath: row.normalized_path,
+      normalizedPath: row.normalized_path,
       reads: toNumber(row.reads),
       writes: toNumber(row.writes),
       searches: toNumber(row.searches),
@@ -302,6 +304,191 @@ export async function listObservabilityTopFiles(db: Db, input: ObservabilityFilt
       uniqueUsers: toNumber(row.unique_users),
       size: nullableNumber(row.size),
       lastAccessedAt: row.last_accessed_at,
+    })),
+  }
+}
+
+export async function getObservabilityTree(db: Db, input: ObservabilityFilters = {}) {
+  const access = buildAccessWhere(input)
+  const accessWhere = prefixWhere(access.where, "l")
+  const revision = buildRevisionWhere(input)
+  const event = buildObservationWhere({ ...input, normalizedPath: undefined })
+  const eventValues = [...event.values]
+  const eventFilters = [prefixWhere(event.where, "e").replace(/^WHERE /, "")]
+    .filter(Boolean)
+  if (input.normalizedPath?.trim()) {
+    eventValues.push(input.normalizedPath.trim())
+    eventFilters.push(`${normalizedPathExpr("COALESCE(e.physical_path, l.physical_path)")} = $${eventValues.length}`)
+  }
+  const eventWhere = eventFilters.length ? `WHERE ${eventFilters.join(" AND ")}` : ""
+  const fileWhere = buildFileWhere(input)
+
+  const [
+    { rows: accessRows },
+    { rows: revisionRows },
+    { rows: eventRows },
+    { rows: fileRows },
+  ] = await Promise.all([
+    db.query<TreeAccessRow>(
+      `
+        SELECT
+          ${normalizedPathExpr("l.physical_path")} AS normalized_path,
+          COUNT(*) FILTER (WHERE l.operation = 'read') AS reads,
+          COUNT(*) FILTER (WHERE l.operation IN ('write', 'patch')) AS writes,
+          COUNT(*) FILTER (WHERE l.operation = 'search') AS searches,
+          COUNT(*) FILTER (WHERE l.operation = 'smart_read') AS smart_reads,
+          COUNT(*) AS total_hits,
+          COUNT(DISTINCT l.user_id) FILTER (WHERE l.user_id IS NOT NULL) AS unique_users,
+          ARRAY_AGG(DISTINCT l.user_id) FILTER (WHERE l.user_id IS NOT NULL) AS user_ids,
+          MAX(length(f.content_text)) AS size,
+          MAX(l.created_at) AS last_accessed_at
+        FROM mx_access_log l
+        LEFT JOIN mx_file f ON f.physical_path = l.physical_path
+        ${accessWhere}
+        GROUP BY normalized_path
+      `,
+      access.values,
+    ),
+    db.query<{ normalized_path: string; revisions: string; last_revised_at: Date | null }>(
+      `
+        SELECT
+          ${normalizedPathExpr("physical_path")} AS normalized_path,
+          COUNT(*) AS revisions,
+          MAX(created_at) AS last_revised_at
+        FROM mx_revision
+        ${revision.where}
+        GROUP BY normalized_path
+      `,
+      revision.values,
+    ),
+    db.query<{ normalized_path: string; errors: string; p95_ms: string | number | null }>(
+      `
+        SELECT
+          ${normalizedPathExpr("COALESCE(e.physical_path, l.physical_path)")} AS normalized_path,
+          COUNT(*) FILTER (WHERE e.status = 'error') AS errors,
+          percentile_cont(0.95) WITHIN GROUP (ORDER BY e.duration_ms) FILTER (WHERE e.duration_ms IS NOT NULL) AS p95_ms
+        FROM mx_observation_event e
+        LEFT JOIN mx_access_log l ON l.tool_call_id = e.tool_call_id AND l.tool_call_id IS NOT NULL
+        ${eventWhere}
+        GROUP BY normalized_path
+      `,
+      eventValues,
+    ),
+    db.query<{ normalized_path: string; files: string; new_files: string; updated_files: string; stale_files: string }>(
+      `
+        SELECT
+          ${normalizedPathExpr("physical_path")} AS normalized_path,
+          COUNT(*) AS files,
+          COUNT(*) FILTER (WHERE created_at >= now() - interval '7 days') AS new_files,
+          COUNT(*) FILTER (WHERE updated_at >= now() - interval '7 days') AS updated_files,
+          COUNT(*) FILTER (WHERE updated_at < now() - interval '30 days') AS stale_files
+        FROM mx_file
+        ${fileWhere.where}
+        GROUP BY normalized_path
+      `,
+      fileWhere.values,
+    ),
+  ])
+
+  return buildTreeResponse(accessRows, revisionRows, eventRows, fileRows)
+}
+
+export async function getObservabilityTreeNode(db: Db, normalizedPath: string, input: ObservabilityFilters = {}) {
+  const scoped = { ...input, normalizedPath }
+  const tree = await getObservabilityTree(db, scoped)
+  const node = tree.nodes.find((item) => item.normalizedPath === normalizedPath) ?? tree.selectedNode ?? null
+  const access = buildAccessWhere(scoped)
+  const accessWhere = prefixWhere(access.where, "l")
+  const bucket = bucketExpr(input.bucket)
+
+  const [
+    { rows: concreteRows },
+    { rows: scopeRows },
+    { rows: coHitRows },
+    { rows: activityRows },
+  ] = await Promise.all([
+    db.query<{ physical_path: string; hits: string; last_accessed_at: Date | null }>(
+      `
+        SELECT l.physical_path, COUNT(*) AS hits, MAX(l.created_at) AS last_accessed_at
+        FROM mx_access_log l
+        ${accessWhere}
+        GROUP BY l.physical_path
+        ORDER BY hits DESC, last_accessed_at DESC
+        LIMIT 10
+      `,
+      access.values,
+    ),
+    db.query<{ user_id: string | null; hits: string; last_accessed_at: Date | null }>(
+      `
+        SELECT l.user_id, COUNT(*) AS hits, MAX(l.created_at) AS last_accessed_at
+        FROM mx_access_log l
+        ${accessWhere}
+        GROUP BY l.user_id
+        ORDER BY hits DESC, last_accessed_at DESC
+        LIMIT 10
+      `,
+      access.values,
+    ),
+    db.query<{ normalized_path: string; count: string; last_seen_at: Date | null }>(
+      `
+        SELECT ${normalizedPathExpr("other.physical_path")} AS normalized_path, COUNT(*) AS count, MAX(other.created_at) AS last_seen_at
+        FROM mx_access_log base
+        JOIN mx_access_log other ON other.tool_call_id = base.tool_call_id
+          AND other.tool_call_id IS NOT NULL
+          AND other.physical_path <> base.physical_path
+        ${prefixWhere(access.where, "base")}
+        GROUP BY normalized_path
+        ORDER BY count DESC, last_seen_at DESC
+        LIMIT 8
+      `,
+      access.values,
+    ),
+    db.query<{
+      bucket_start: Date
+      reads: string
+      writes: string
+      searches: string
+      smart_reads: string
+    }>(
+      `
+        SELECT
+          ${bucket.replaceAll("created_at", "l.created_at")} AS bucket_start,
+          COUNT(*) FILTER (WHERE l.operation = 'read') AS reads,
+          COUNT(*) FILTER (WHERE l.operation IN ('write', 'patch')) AS writes,
+          COUNT(*) FILTER (WHERE l.operation = 'search') AS searches,
+          COUNT(*) FILTER (WHERE l.operation = 'smart_read') AS smart_reads
+        FROM mx_access_log l
+        ${accessWhere}
+        GROUP BY 1
+        ORDER BY 1 ASC
+      `,
+      access.values,
+    ),
+  ])
+
+  return {
+    node,
+    topConcretePaths: concreteRows.map((row) => ({
+      physicalPath: row.physical_path,
+      count: toNumber(row.hits),
+      lastSeenAt: row.last_accessed_at,
+    })),
+    topScopes: scopeRows.map((row) => ({
+      userId: row.user_id,
+      count: toNumber(row.hits),
+      lastSeenAt: row.last_accessed_at,
+    })),
+    coHitNodes: coHitRows.map((row) => ({
+      normalizedPath: row.normalized_path,
+      count: toNumber(row.count),
+      lastSeenAt: row.last_seen_at,
+    })),
+    activity: activityRows.map((row) => ({
+      bucketStart: row.bucket_start,
+      reads: toNumber(row.reads),
+      writes: toNumber(row.writes),
+      searches: toNumber(row.searches),
+      smartReads: toNumber(row.smart_reads),
     })),
   }
 }
@@ -826,11 +1013,224 @@ type SchemaFileSignalRow = {
 
 function toSchemaFileSignal(row: SchemaFileSignalRow) {
   return {
-    physicalPath: row.physical_path,
+    physicalPath: normalizeMemoryPath(row.physical_path),
     size: nullableNumber(row.size),
     count: toNumber(row.count),
     lastSeenAt: row.last_seen_at,
   }
+}
+
+type TreeAccessRow = {
+  normalized_path: string
+  reads: string
+  writes: string
+  searches: string
+  smart_reads: string
+  total_hits: string
+  unique_users: string
+  user_ids: string[] | null
+  size: string | number | null
+  last_accessed_at: Date | null
+}
+
+type TreeNodeMetric = {
+  normalizedPath: string
+  label: string
+  parentPath: string | null
+  kind: "folder" | "file"
+  depth: number
+  reads: number
+  writes: number
+  searches: number
+  smartReads: number
+  totalHits: number
+  uniqueUsers: number
+  revisions: number
+  files: number
+  size: number | null
+  p95Ms: number | null
+  errors: number
+  newFiles: number
+  updatedFiles: number
+  staleFiles: number
+  lastAccessedAt: Date | null
+  badges: string[]
+}
+
+function buildTreeResponse(
+  accessRows: TreeAccessRow[],
+  revisionRows: Array<{ normalized_path: string; revisions: string; last_revised_at: Date | null }>,
+  eventRows: Array<{ normalized_path: string; errors: string; p95_ms: string | number | null }>,
+  fileRows: Array<{ normalized_path: string; files: string; new_files: string; updated_files: string; stale_files: string }>,
+) {
+  const nodes = new Map<string, TreeNodeMetric>()
+  const userSets = new Map<string, Set<string>>()
+
+  const ensureNode = (normalizedPath: string, kind: "folder" | "file") => {
+    const clean = normalizedPath.replace(/\/$/, "")
+    const existing = nodes.get(clean)
+    if (existing) {
+      if (kind === "file") existing.kind = "file"
+      return existing
+    }
+    const parts = clean.split("/").filter(Boolean)
+    const node: TreeNodeMetric = {
+      normalizedPath: clean,
+      label: parts.at(-1) ?? clean,
+      parentPath: parts.length > 1 ? parts.slice(0, -1).join("/") : null,
+      kind,
+      depth: Math.max(0, parts.length - 1),
+      reads: 0,
+      writes: 0,
+      searches: 0,
+      smartReads: 0,
+      totalHits: 0,
+      uniqueUsers: 0,
+      revisions: 0,
+      files: 0,
+      size: null,
+      p95Ms: null,
+      errors: 0,
+      newFiles: 0,
+      updatedFiles: 0,
+      staleFiles: 0,
+      lastAccessedAt: null,
+      badges: [],
+    }
+    nodes.set(clean, node)
+    if (node.parentPath) ensureNode(node.parentPath, "folder")
+    return node
+  }
+
+  const addUsers = (path: string, users: string[] | null | undefined) => {
+    if (!users?.length) return
+    const userSet = userSets.get(path) ?? new Set<string>()
+    for (const user of users) userSet.add(user)
+    userSets.set(path, userSet)
+    const node = nodes.get(path)
+    if (node) node.uniqueUsers = userSet.size
+  }
+
+  for (const row of accessRows) {
+    const normalizedPath = row.normalized_path
+    const leaf = ensureNode(normalizedPath, "file")
+    leaf.reads += toNumber(row.reads)
+    leaf.writes += toNumber(row.writes)
+    leaf.searches += toNumber(row.searches)
+    leaf.smartReads += toNumber(row.smart_reads)
+    leaf.totalHits += toNumber(row.total_hits)
+    addUsers(normalizedPath, row.user_ids)
+    leaf.size = nullableNumber(row.size)
+    leaf.lastAccessedAt = maxDate(leaf.lastAccessedAt, row.last_accessed_at)
+
+    for (const parent of ancestorPaths(normalizedPath)) {
+      const node = ensureNode(parent, "folder")
+      node.reads += toNumber(row.reads)
+      node.writes += toNumber(row.writes)
+      node.searches += toNumber(row.searches)
+      node.smartReads += toNumber(row.smart_reads)
+      node.totalHits += toNumber(row.total_hits)
+      addUsers(parent, row.user_ids)
+      node.lastAccessedAt = maxDate(node.lastAccessedAt, row.last_accessed_at)
+    }
+  }
+
+  for (const row of revisionRows) {
+    for (const path of [row.normalized_path, ...ancestorPaths(row.normalized_path)]) {
+      const node = ensureNode(path, path === row.normalized_path ? "file" : "folder")
+      node.revisions += toNumber(row.revisions)
+    }
+  }
+
+  for (const row of eventRows) {
+    if (!row.normalized_path) continue
+    for (const path of [row.normalized_path, ...ancestorPaths(row.normalized_path)]) {
+      const node = ensureNode(path, path === row.normalized_path ? "file" : "folder")
+      node.errors += toNumber(row.errors)
+      node.p95Ms = maxNullable(node.p95Ms, nullableNumber(row.p95_ms))
+    }
+  }
+
+  for (const row of fileRows) {
+    for (const path of [row.normalized_path, ...ancestorPaths(row.normalized_path)]) {
+      const node = ensureNode(path, path === row.normalized_path ? "file" : "folder")
+      node.files += toNumber(row.files)
+      node.newFiles += toNumber(row.new_files)
+      node.updatedFiles += toNumber(row.updated_files)
+      node.staleFiles += toNumber(row.stale_files)
+    }
+  }
+
+  const nodeList = [...nodes.values()]
+    .filter((node) => node.normalizedPath)
+    .map((node) => ({ ...node, badges: badgesForNode(node) }))
+    .sort((a, b) => {
+      if (a.parentPath !== b.parentPath) return String(a.parentPath ?? "").localeCompare(String(b.parentPath ?? ""))
+      if (a.kind !== b.kind) return a.kind === "folder" ? -1 : 1
+      return b.totalHits - a.totalHits || a.label.localeCompare(b.label)
+    })
+
+  const hotFiles = nodeList.filter((node) => node.kind === "file" && node.totalHits > 0).sort((a, b) => b.totalHits - a.totalHits)
+  const coldFiles = nodeList.filter((node) => node.kind === "file" && node.totalHits === 0 && node.files > 0)
+  const highChurn = nodeList.filter((node) => node.kind === "file" && node.revisions > 2).sort((a, b) => b.revisions - a.revisions)
+  const hotLargeFiles = hotFiles.filter((node) => (node.size ?? 0) >= 1000)
+  const searchHeavy = nodeList.filter((node) => node.searches + node.smartReads > 0).sort((a, b) => (b.searches + b.smartReads) - (a.searches + a.smartReads))
+  const sharedUsage = nodeList.filter((node) => node.kind === "file" && node.normalizedPath.startsWith("shared/") && node.totalHits > 0).sort((a, b) => b.totalHits - a.totalHits)
+
+  return {
+    nodes: nodeList,
+    summary: {
+      hotFiles: hotFiles.length,
+      coldFiles: coldFiles.length,
+      highChurn: highChurn.length,
+      hotLargeFiles: hotLargeFiles.length,
+      searchHeavy: searchHeavy.length,
+      revisions: nodeList.filter((node) => node.depth === 0).reduce((sum, node) => sum + node.revisions, 0),
+      newFiles: nodeList.filter((node) => node.depth === 0).reduce((sum, node) => sum + node.newFiles, 0),
+      updatedFiles: nodeList.filter((node) => node.depth === 0).reduce((sum, node) => sum + node.updatedFiles, 0),
+      staleFiles: nodeList.filter((node) => node.depth === 0).reduce((sum, node) => sum + node.staleFiles, 0),
+    },
+    hygiene: {
+      hotFiles: hotFiles.slice(0, 8),
+      coldFiles: coldFiles.slice(0, 8),
+      highChurn: highChurn.slice(0, 8),
+      hotLargeFiles: hotLargeFiles.slice(0, 8),
+      searchHeavy: searchHeavy.slice(0, 8),
+      sharedUsage: sharedUsage.slice(0, 8),
+    },
+    selectedNode: nodeList[0] ?? null,
+  }
+}
+
+function badgesForNode(node: TreeNodeMetric): string[] {
+  const badges: string[] = []
+  if (node.totalHits >= 10) badges.push("hot")
+  if (node.errors > 0 || (node.p95Ms ?? 0) >= 1000) badges.push("risk")
+  if (node.revisions > 2) badges.push("churn")
+  if ((node.size ?? 0) >= 1000 && node.totalHits > 0) badges.push("large")
+  if (node.totalHits === 0 && node.files > 0) badges.push("cold")
+  return badges
+}
+
+function ancestorPaths(path: string): string[] {
+  const parts = path.split("/").filter(Boolean)
+  const ancestors: string[] = []
+  for (let index = parts.length - 1; index > 0; index -= 1) {
+    ancestors.push(parts.slice(0, index).join("/"))
+  }
+  return ancestors
+}
+
+function maxDate(a: Date | null, b: Date | null): Date | null {
+  if (!a) return b
+  if (!b) return a
+  return a > b ? a : b
+}
+
+function maxNullable(a: number | null, b: number | null): number | null {
+  if (a === null) return b
+  if (b === null) return a
+  return Math.max(a, b)
 }
 
 function buildObservationWhere(input: ObservabilityFilters) {
@@ -853,10 +1253,34 @@ function buildAccessWhere(input: ObservabilityFilters) {
   addDateFilter(filters, values, "created_at", ">=", input.from)
   addDateFilter(filters, values, "created_at", "<=", input.to)
   addTextFilter(filters, values, "user_id", input.userId)
+  addNormalizedPathFilter(filters, values, "physical_path", input.normalizedPath)
   addTextFilter(filters, values, "physical_path", input.physicalPath)
   addTextFilter(filters, values, "operation", input.operation)
   addTextFilter(filters, values, "actor", input.actor)
   addAccessObservationFilter(filters, values, input)
+  return { where: filters.length ? `WHERE ${filters.join(" AND ")}` : "", values }
+}
+
+function buildRevisionWhere(input: ObservabilityFilters) {
+  const values: unknown[] = []
+  const filters: string[] = []
+  addDateFilter(filters, values, "created_at", ">=", input.from)
+  addDateFilter(filters, values, "created_at", "<=", input.to)
+  addTextFilter(filters, values, "user_id", input.userId)
+  addNormalizedPathFilter(filters, values, "physical_path", input.normalizedPath)
+  addTextFilter(filters, values, "actor", input.actor)
+  return { where: filters.length ? `WHERE ${filters.join(" AND ")}` : "", values }
+}
+
+function buildFileWhere(input: ObservabilityFilters) {
+  const values: unknown[] = []
+  const filters: string[] = []
+  addTextFilter(filters, values, "physical_path", input.physicalPath)
+  addNormalizedPathFilter(filters, values, "physical_path", input.normalizedPath)
+  if (input.userId?.trim()) {
+    values.push(`users/${input.userId.trim()}/%`)
+    filters.push(`physical_path LIKE $${values.length}`)
+  }
   return { where: filters.length ? `WHERE ${filters.join(" AND ")}` : "", values }
 }
 
@@ -865,6 +1289,13 @@ function addTextFilter(filters: string[], values: unknown[], column: string, val
   if (!trimmed) return
   values.push(trimmed)
   filters.push(`${column} = $${values.length}`)
+}
+
+function addNormalizedPathFilter(filters: string[], values: unknown[], column: string, value: string | undefined) {
+  const trimmed = value?.trim()
+  if (!trimmed) return
+  values.push(trimmed)
+  filters.push(`${normalizedPathExpr(column)} = $${values.length}`)
 }
 
 function addObservationPathFilter(filters: string[], values: unknown[], value: string | undefined) {
@@ -918,6 +1349,20 @@ function prefixWhere(where: string, alias: string): string {
     qualified = qualified.replace(new RegExp(`(?<![.\\w])${column}\\b`, "g"), `${alias}.${column}`)
   }
   return qualified
+}
+
+function normalizedPathExpr(column: string): string {
+  return `CASE
+    WHEN ${column} = '*' THEN 'activity/search'
+    WHEN ${column} LIKE 'users/%/%' THEN 'users/' || substring(${column} from '^users/[^/]+/(.*)$')
+    ELSE ${column}
+  END`
+}
+
+function normalizeMemoryPath(path: string): string {
+  if (path === "*") return "activity/search"
+  const match = path.match(/^users\/[^/]+\/(.+)$/)
+  return match ? `users/${match[1]}` : path
 }
 
 function bucketExpr(bucket: string | undefined) {

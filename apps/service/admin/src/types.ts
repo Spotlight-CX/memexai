@@ -101,6 +101,7 @@ export type ObservabilityBucket = {
 
 export type ObservabilityTopFile = {
   physicalPath: string
+  normalizedPath?: string
   reads: number
   writes: number
   searches: number
@@ -109,6 +110,68 @@ export type ObservabilityTopFile = {
   uniqueUsers: number
   size: number | null
   lastAccessedAt: string | null
+}
+
+export type ObservabilityTreeNode = {
+  normalizedPath: string
+  label: string
+  parentPath: string | null
+  kind: "folder" | "file"
+  depth: number
+  reads: number
+  writes: number
+  searches: number
+  smartReads: number
+  totalHits: number
+  uniqueUsers: number
+  revisions: number
+  files: number
+  size: number | null
+  p95Ms: number | null
+  errors: number
+  newFiles: number
+  updatedFiles: number
+  staleFiles: number
+  lastAccessedAt: string | null
+  badges: string[]
+}
+
+export type ObservabilityTree = {
+  nodes: ObservabilityTreeNode[]
+  selectedNode: ObservabilityTreeNode | null
+  summary: {
+    hotFiles: number
+    coldFiles: number
+    highChurn: number
+    hotLargeFiles: number
+    searchHeavy: number
+    revisions: number
+    newFiles: number
+    updatedFiles: number
+    staleFiles: number
+  }
+  hygiene: {
+    hotFiles: ObservabilityTreeNode[]
+    coldFiles: ObservabilityTreeNode[]
+    highChurn: ObservabilityTreeNode[]
+    hotLargeFiles: ObservabilityTreeNode[]
+    searchHeavy: ObservabilityTreeNode[]
+    sharedUsage: ObservabilityTreeNode[]
+  }
+}
+
+export type ObservabilityTreeNodeDetail = {
+  node: ObservabilityTreeNode | null
+  topConcretePaths: ObservabilityFileCount[]
+  topScopes: Array<{ userId: string | null; count: number; lastSeenAt: string | null }>
+  coHitNodes: Array<{ normalizedPath: string; count: number; lastSeenAt: string | null }>
+  activity: Array<{
+    bucketStart: string
+    reads: number
+    writes: number
+    searches: number
+    smartReads: number
+  }>
 }
 
 export type ObservabilityEvent = {

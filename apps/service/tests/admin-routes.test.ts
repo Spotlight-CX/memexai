@@ -14,6 +14,10 @@ const adminHeaders = { "x-memex-admin-secret": "admin-secret" }
 function createAdminDb() {
   return {
     query: vi.fn(async (sql: string, values?: unknown[]) => {
+      if (sql.includes("FROM mx_access_log l") && sql.includes("mx_observation_event") && sql.includes("mx_access_log.tool_call_id")) {
+        throw new Error("unaliased mx_access_log reference in aliased access query")
+      }
+
       if (sql.includes("WITH user_files AS")) {
         expect(sql).not.toContain("split_part(mx_file.physical_path")
         if (values?.[0] === "%user_4%" && values?.[1] === 50) {
@@ -29,7 +33,7 @@ function createAdminDb() {
         return { rows: [{ user_id: "user_123", file_count: "2", last_write_at: new Date("2026-05-09T08:00:00Z"), last_read_at: null }] }
       }
 
-      if (sql.includes("FROM mx_file") && sql.includes("WHERE physical_path = $1") && !sql.includes("LIKE $2")) {
+      if (sql.includes("FROM mx_file") && sql.includes("WHERE physical_path = $1") && !sql.includes("LIKE $2") && !sql.includes("AS normalized_path")) {
         return {
           rows: [{
             id: "file_1",
@@ -41,7 +45,7 @@ function createAdminDb() {
         }
       }
 
-      if (sql.includes("FROM mx_file") && !sql.includes("FROM mx_file f")) {
+      if (sql.includes("FROM mx_file") && !sql.includes("FROM mx_file f") && !sql.includes("AS normalized_path")) {
         return {
           rows: [{
             id: "file_1",
@@ -57,7 +61,7 @@ function createAdminDb() {
         return { rows: [{ total: "1" }] }
       }
 
-      if (sql.includes("FROM mx_revision") && !sql.includes("HAVING COUNT(*) > 1") && !sql.includes("file_access")) {
+      if (sql.includes("FROM mx_revision") && !sql.includes("HAVING COUNT(*) > 1") && !sql.includes("file_access") && !sql.includes("AS normalized_path")) {
         return {
           rows: [{
             id: "rev_1",
@@ -90,7 +94,86 @@ function createAdminDb() {
         }
       }
 
-      if (sql.includes("FROM mx_observation_event") && sql.includes("percentile_cont") && !sql.includes("failed_calls") && !sql.includes("file_access")) {
+      if (sql.includes("AS normalized_path") && sql.includes("COUNT(*) AS total_hits")) {
+        return {
+          rows: [{
+            normalized_path: "users/profile.md",
+            reads: "4",
+            writes: "1",
+            searches: "0",
+            smart_reads: "0",
+            total_hits: "5",
+            unique_users: "2",
+            user_ids: ["user_123", "user_456"],
+            size: "1200",
+            last_accessed_at: new Date("2026-05-09T08:03:00Z"),
+          }],
+        }
+      }
+
+      if (sql.includes("AS normalized_path") && sql.includes("COUNT(*) AS revisions")) {
+        return {
+          rows: [{
+            normalized_path: "users/profile.md",
+            revisions: "3",
+            last_revised_at: new Date("2026-05-09T08:05:00Z"),
+          }],
+        }
+      }
+
+      if (sql.includes("AS normalized_path") && sql.includes("COUNT(*) FILTER (WHERE e.status = 'error')")) {
+        return {
+          rows: [{
+            normalized_path: "users/profile.md",
+            errors: "1",
+            p95_ms: "420",
+          }],
+        }
+      }
+
+      if (sql.includes("AS normalized_path") && sql.includes("COUNT(*) AS files")) {
+        return {
+          rows: [{
+            normalized_path: "users/profile.md",
+            files: "2",
+            new_files: "1",
+            updated_files: "2",
+            stale_files: "0",
+          }],
+        }
+      }
+
+      if (sql.includes("AS normalized_path") && sql.includes("FROM mx_access_log base")) {
+        return {
+          rows: [{
+            normalized_path: "users/preferences.md",
+            count: "6",
+            last_seen_at: new Date("2026-05-09T08:07:00Z"),
+          }],
+        }
+      }
+
+      if (sql.includes("SELECT l.physical_path, COUNT(*) AS hits")) {
+        return {
+          rows: [{
+            physical_path: "users/user_123/profile.md",
+            hits: "5",
+            last_accessed_at: new Date("2026-05-09T08:03:00Z"),
+          }],
+        }
+      }
+
+      if (sql.includes("SELECT l.user_id, COUNT(*) AS hits")) {
+        return {
+          rows: [{
+            user_id: "user_123",
+            hits: "5",
+            last_accessed_at: new Date("2026-05-09T08:03:00Z"),
+          }],
+        }
+      }
+
+      if (sql.includes("FROM mx_observation_event") && sql.includes("percentile_cont") && !sql.includes("failed_calls") && !sql.includes("file_access") && !sql.includes("AS normalized_path")) {
         return {
           rows: [{
             tool_calls: "12",
@@ -272,12 +355,14 @@ function createAdminDb() {
         return {
           rows: [{
             physical_path: "users/user_123/profile.md",
+            normalized_path: "users/profile.md",
             reads: "4",
             writes: "1",
             searches: "0",
             smart_reads: "0",
             total_hits: "5",
             unique_users: "1",
+            user_ids: ["user_123"],
             size: "9",
             last_accessed_at: new Date("2026-05-09T08:03:00Z"),
           }],
@@ -394,6 +479,7 @@ describe("admin routes", () => {
     const summary = await app.inject({ method: "GET", url: "/v1/admin/observability/summary?userId=user_123", headers: adminHeaders })
     const timeseries = await app.inject({ method: "GET", url: "/v1/admin/observability/timeseries?bucket=hour", headers: adminHeaders })
     const topFiles = await app.inject({ method: "GET", url: "/v1/admin/observability/top-files?limit=10", headers: adminHeaders })
+    const filteredTopFiles = await app.inject({ method: "GET", url: "/v1/admin/observability/top-files?toolName=memory_read&status=success", headers: adminHeaders })
     const events = await app.inject({ method: "GET", url: "/v1/admin/observability/events?limit=10", headers: adminHeaders })
     await app.close()
 
@@ -403,9 +489,27 @@ describe("admin routes", () => {
     expect(timeseries.statusCode).toBe(200)
     expect(timeseries.json().buckets[0]).toMatchObject({ reads: 4, p95Ms: 300 })
     expect(topFiles.statusCode).toBe(200)
-    expect(topFiles.json().files[0]).toMatchObject({ physicalPath: "users/user_123/profile.md", totalHits: 5 })
+    expect(topFiles.json().files[0]).toMatchObject({ physicalPath: "users/profile.md", normalizedPath: "users/profile.md", totalHits: 5 })
+    expect(filteredTopFiles.statusCode).toBe(200)
+    expect(filteredTopFiles.json().files[0]).toMatchObject({ normalizedPath: "users/profile.md" })
     expect(events.statusCode).toBe(200)
     expect(events.json().events[0]).toMatchObject({ eventType: "tool_execution", toolName: "memory_search" })
+  })
+
+  test("returns aggregate observability tree data", async () => {
+    const app = buildServer({ db: createAdminDb() as never, config })
+    const tree = await app.inject({ method: "GET", url: "/v1/admin/observability/tree", headers: adminHeaders })
+    const node = await app.inject({ method: "GET", url: "/v1/admin/observability/tree-node?path=users%2Fprofile.md", headers: adminHeaders })
+    await app.close()
+
+    expect(tree.statusCode).toBe(200)
+    expect(tree.json().nodes[0]).toMatchObject({ normalizedPath: "users", kind: "folder", totalHits: 5 })
+    expect(tree.json().nodes.some((item: any) => item.normalizedPath === "users/profile.md")).toBe(true)
+    expect(tree.json().summary).toMatchObject({ hotFiles: 1, revisions: 3, newFiles: 1 })
+    expect(node.statusCode).toBe(200)
+    expect(node.json().node).toMatchObject({ normalizedPath: "users/profile.md" })
+    expect(node.json().topConcretePaths[0]).toMatchObject({ physicalPath: "users/user_123/profile.md", count: 5 })
+    expect(node.json().coHitNodes[0]).toMatchObject({ normalizedPath: "users/preferences.md", count: 6 })
   })
 
   test("returns user memory observability data", async () => {
@@ -434,7 +538,7 @@ describe("admin routes", () => {
     await app.close()
 
     expect(response.statusCode).toBe(200)
-    expect(response.json().hotLargeFiles[0]).toMatchObject({ physicalPath: "users/user_123/profile.md", size: 1200, count: 10 })
+    expect(response.json().hotLargeFiles[0]).toMatchObject({ physicalPath: "users/profile.md", size: 1200, count: 10 })
     expect(response.json().coHitFiles[0]).toMatchObject({ relatedPath: "users/user_123/preferences.md", count: 6 })
     expect(response.json().sharedUsage[0]).toMatchObject({ physicalPath: "shared/user-memory.md", count: 9 })
     expect(response.json().searchHeavyUsers[0]).toMatchObject({ userId: "user_123", count: 7 })

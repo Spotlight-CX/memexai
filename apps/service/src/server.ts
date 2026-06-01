@@ -7,6 +7,8 @@ import {
   getObservabilitySummary,
   getObservabilitySchemaSignals,
   getObservabilityTimeseries,
+  getObservabilityTree,
+  getObservabilityTreeNode,
   getUserMemoryObservability,
   listObservabilityEvents,
   listObservabilityTopFiles,
@@ -294,6 +296,16 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
   app.get("/v1/admin/observability/top-files", { preHandler: adminAuth }, async (request) => {
     return listObservabilityTopFiles(db, parseObservabilityQuery(request.query))
   })
+  app.get("/v1/admin/observability/tree", { preHandler: adminAuth }, async (request) => {
+    return getObservabilityTree(db, parseObservabilityQuery(request.query))
+  })
+  app.get("/v1/admin/observability/tree-node", { preHandler: adminAuth }, async (request) => {
+    const query = request.query as { path?: string }
+    if (!query.path) {
+      throw new HttpError(400, "PATH_REQUIRED", "path is required")
+    }
+    return getObservabilityTreeNode(db, query.path, parseObservabilityQuery(request.query))
+  })
   app.get("/v1/admin/observability/events", { preHandler: adminAuth }, async (request) => {
     return listObservabilityEvents(db, parseObservabilityQuery(request.query))
   })
@@ -504,6 +516,7 @@ function parseObservabilityQuery(query: unknown): ObservabilityFilters {
     from: input.from,
     to: input.to,
     userId: input.userId,
+    normalizedPath: input.normalizedPath ?? input.path,
     physicalPath: input.physicalPath,
     toolName: input.toolName,
     operation: input.operation,
