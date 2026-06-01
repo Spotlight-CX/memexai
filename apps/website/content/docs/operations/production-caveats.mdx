@@ -1,0 +1,62 @@
+---
+title: Production Considerations
+description: Honest early-stage limits to review before deploying MemexAI in production.
+---
+
+MemexAI's core loop is working: agents can write durable memory, the prompt block can inject that memory into later turns, and operators can inspect files, revisions, and access logs in Postgres-backed deployments.
+
+Before using MemexAI in production, review these known constraints and decide which ones matter for your app's risk profile.
+
+## Concurrent writes
+
+`memory_write` currently uses last-write-wins semantics. Any patch flow that rewrites a file should be treated the same at the file level. If two agents write the same memory file at the same time, the later write can overwrite the earlier one without an optimistic-lock conflict.
+
+For many early deployments this is acceptable because memory writes happen inside one user session or one service worker. If your app can run multiple agents against the same `user/` path concurrently, route writes through one worker, use narrower file paths, or add application-level serialization around high-value files.
+
+Optimistic locking is on the post-launch hardening list.
+
+## Revision and access log growth
+
+MemexAI keeps a revision snapshot for every write and an access-log row for reads and writes. That audit trail is one of the main reasons to use MemexAI, but it also means storage grows with traffic.
+
+The service includes a manual admin prune endpoint for old revisions:
+
+```http
+POST /v1/admin/revisions/prune
+```
+
+Send `{ "olderThanDays": 90 }` with your admin secret to delete matching `mx_revision` rows. The admin UI also exposes this from the Revisions view.
+
+This removes old revision snapshots only. Current file contents and access logs remain until your application deletes or prunes them separately. `mx_access_log` does not yet have an automatic retention policy.
+
+Automated retention and retention settings in the admin UI are on the roadmap.
+
+## Search language support
+
+The built-in fallback search uses Postgres full-text search. It is useful for English-like keyword search and simple durable memory recall, but it is not semantic search and it does not guarantee strong recall across all languages, paraphrases, or domain-specific phrasing.
+
+If recall quality is critical, configure model-backed `memory_search`, keep memory files clear and explicit, and test your app's real queries. Hybrid vector and Postgres full-text search is a roadmap item.
+
+## Dreaming token cost
+
+Dreaming is optional background consolidation. When enabled, it reads a bounded set of user memory files and asks a model to merge duplicates, resolve direct contradictions, and keep long-running files readable.
+
+The current implementation has per-run caps for files, input characters, and writes, plus cadence and grace-period controls. It does not yet enforce a per-user daily token or character budget across dream cycles.
+
+Start with dreaming disabled or conservative. Dreaming attempts to consolidate duplicates and contradictions; it does not guarantee perfect memory quality. Enable it for a small population first, inspect dream-agent revisions, and widen cadence only after the cost and quality are clear.
+
+## Security boundary
+
+MemexAI scopes memory by `userId`, but it does not authenticate your end user. In service mode, your backend supplies the `userId` when it calls MemexAI. Treat that value as trusted server-side identity, not a browser-controlled field.
+
+For details, see [User ID Trust Model](/docs/operations/trust-model).
+
+## Correction workflow
+
+Wrong memory should be treated as product data, not a model mystery. Operators can open a file, edit the durable record, and rely on the normal revision trail to preserve what changed and why.
+
+For details, see [Correction Workflow](/docs/operations/correction-workflow).
+
+## What we're working on
+
+The public [roadmap](/roadmap) tracks production-hardening work including optimistic locking, automated retention, per-user dreaming budgets, per-file dreaming exclusions, PII hooks, and richer memory provenance.

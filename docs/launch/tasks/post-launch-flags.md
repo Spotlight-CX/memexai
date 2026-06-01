@@ -1,7 +1,7 @@
 # Post-Launch Product Roadmap Flags
 **Priority:** P4
 **Type:** docs
-**Status:** [ ] not started
+**Status:** [x] done
 
 ## What
 Log four product-level issues that are not PH-blocking but should enter the product roadmap after launch. Each item has the relevant file path so an engineer can pick it up without additional research.
@@ -31,3 +31,7 @@ Log four product-level issues that are not PH-blocking but should enter the prod
 ## Done when
 - All 4 items are listed with file references and a 1-sentence fix description
 - This file is referenced in the product roadmap or GitHub issues after launch
+
+## Verification
+- All 4 flags are documented above with problem, fix, and file references.
+- Added the 4 flags to the public roadmap as Next production-hardening items.

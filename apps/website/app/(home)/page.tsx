@@ -63,7 +63,7 @@ export default function HomePage() {
             <div className="hero-actions">
               <Link className="site-button site-button-primary" href="/docs/quickstart/docker-service" data-analytics-event="cta_clicked" data-analytics-label="home_start_with_docker">
                 <BookOpen size={17} aria-hidden />
-                Start with Docker
+                Try the 90-second proof
                 <ArrowRight size={17} aria-hidden />
               </Link>
               <a className="site-button site-button-secondary" href="https://github.com/Spotlight-CX/memexai" data-analytics-event="cta_clicked" data-analytics-label="home_github">
@@ -179,7 +179,10 @@ export default function HomePage() {
         <Reveal stagger className="comparison">
           <div className="comparison-panel muted-panel">
             <h3>Without MemexAI</h3>
-            <p>User returns. AI starts fresh. User re-explains preferences, situation, goals. Day 7 retention drops.</p>
+            <p>
+              User returns. AI starts fresh. User re-explains preferences, situation, goals. Trust drops when the product
+              keeps starting from zero.
+            </p>
             <pre>{`session 1: user explains context\nsession 2: AI starts fresh\nsession 3: user explains again\nday 7: user stops coming back`}</pre>
           </div>
           <div className="comparison-panel strong-panel">
@@ -221,7 +224,7 @@ export default function HomePage() {
         <Reveal stagger className="comparison">
           <div className="comparison-panel muted-panel">
             <h3>Chat-log retrieval</h3>
-            <p>Store everything, embed chunks, retrieve similar fragments, hope the right old detail appears.</p>
+            <p>Capture conversations, retrieve similar fragments, and hope the right old detail appears.</p>
             <pre>{`store every message\n→ embed chunks\n→ retrieve old text\n→ answer from fragments`}</pre>
           </div>
           <div className="comparison-panel strong-panel">

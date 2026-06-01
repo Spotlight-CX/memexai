@@ -1,0 +1,71 @@
+---
+title: Correction Workflow
+description: How to inspect, edit, and verify a wrong memory in MemexAI.
+---
+
+Wrong memory should be fixed at the record layer. MemexAI stores durable memory as inspectable files, so an operator can correct the source that future prompt blocks and memory searches will read.
+
+## 1. Find the memory
+
+Open the admin UI at `/admin`, choose the affected user, and inspect the Files view. User-scoped memory appears under physical paths like:
+
+```txt
+users/{userId}/profile.md
+users/{userId}/preferences.md
+users/{userId}/projects/current.md
+```
+
+If you know the agent-visible path, translate `user/profile.md` to `users/{userId}/profile.md`.
+
+## 2. Check the trail
+
+Before editing, review:
+
+- The current file content
+- Recent revisions for that file
+- Access logs showing which tool read or wrote it
+- The actor and reason fields, when present
+
+This helps separate a model misunderstanding from a stale or incorrect durable record.
+
+## 3. Edit the file
+
+Use the admin UI editor or the admin file endpoint:
+
+```http
+PUT /v1/admin/files/users/{userId}/profile.md
+```
+
+Include the corrected content and a short reason such as `corrected user neighborhood preference after support review`.
+
+Edits create normal `mx_revision` rows, so the previous content remains visible in revision history.
+
+For deletion or privacy requests, do not rely on editing alone. Delete or purge matching rows from `mx_file`, `mx_revision`, and `mx_access_log` according to your retention policy.
+
+## 4. Verify the next prompt block
+
+Fetch the prompt block for the user:
+
+```http
+GET /v1/prompt-block?userId={userId}
+```
+
+Confirm the corrected memory appears and the wrong fact no longer appears in the injected context.
+
+## 5. Run a two-turn check
+
+Ask the agent a question that depends on the corrected memory. Check that the corrected fact is present in context and used by the agent without requiring the user to restate it. Treat failures as prompt or tooling regressions to investigate.
+
+For higher-risk products, keep a small regression script with the exact correction scenario so the team can rerun it after changes to prompts, adapters, or memory tooling.
+
+## When to delete instead of edit
+
+Delete or blank a memory file when the fact should no longer be retained at all. Edit when the fact is still useful but wrong, stale, or too vague.
+
+If your app has compliance deletion requirements, handle account-level deletion in your application workflow and include MemexAI's `mx_file`, `mx_revision`, and `mx_access_log` data in that process.
+
+## Dreaming interactions
+
+Dreaming writes through normal memory tools and creates normal revisions. If you correct memory while dreaming is enabled, inspect the next dream-agent revision for that user. Pause dreaming for that user during sensitive manual review if needed.
+
+See [Background Dreaming](/docs/operations/dreaming) for pause controls.

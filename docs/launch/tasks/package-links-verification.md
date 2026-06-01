@@ -1,7 +1,7 @@
 # Verify All Package Links Are Live
 **Priority:** P0
 **Type:** code
-**Status:** [ ] not started
+**Status:** [-] skipped / HITL
 
 ## What
 Verify that npm, PyPI, and Docker Hub package links in the README resolve to real, current published packages. Version numbers should match the latest code. A broken badge or stale version on launch day is an immediate credibility gap — an infra engineer will check these within 30 seconds of reading the README.
@@ -22,3 +22,6 @@ Verify that npm, PyPI, and Docker Hub package links in the README resolve to rea
 - Every npm/PyPI/Docker badge in README links to a real published artifact
 - Published versions are not more than 2 weeks behind the repo's latest tag or `main`
 - GitHub URL resolves to a public repo
+
+## Tracker Note
+Skipped for this pass as a human-in-the-loop publishing/package verification task. It still needs a launch owner to verify live npm, PyPI, Docker Hub, and public GitHub artifacts after publishing.

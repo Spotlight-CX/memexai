@@ -6,11 +6,13 @@
 [![Docker](https://img.shields.io/docker/pulls/soorajshankar/memexai?color=064e3b)](https://hub.docker.com/r/soorajshankar/memexai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-064e3b.svg)](LICENSE)
 
-Memory that changes your agent's next response, backed by Postgres.
+Memory made available to your agent's next response, backed by Postgres.
 
-Agents forget because most memory never makes it back into the next model call, or it lives in chat history, prompt glue, or app-specific tables no one can inspect. MemexAI gives agents a closed loop: store durable memory, inject it into the next turn, verify the response changed, and inspect the record behind it.
+Agents forget because most memory never makes it back into the next model call, or it lives in chat history, prompt glue, or app-specific tables no one can inspect. MemexAI gives agents a closed loop: store durable memory, make it available to the next turn, verify the answer, and inspect the record behind it.
 
-No vector database required. No hidden memory blob. Just Postgres.
+No vector database required. No hidden memory blob. Just your Postgres.
+
+Storage stays in your Postgres. If you enable model-backed memorize/search or dreaming, selected memory text is sent to your configured model provider.
 
 ## What It Solves
 
@@ -25,23 +27,23 @@ MemexAI stores memory as scoped Markdown-like files in Postgres and exposes a pr
 
 ## How It Is Different
 
-Many memory systems are optimized for chat-log retrieval:
+Many memory systems start from captured conversations and optimize extraction plus retrieval over that history:
 
 ```text
 store every message -> embed chunks -> retrieve similar past chunks -> answer
 ```
 
-That is useful, but it is closer to RAG over conversation history than durable memory. MemexAI is built around a different loop:
+That is useful, but MemexAI's bias is different:
 
 ```text
-conversation happens -> agent writes durable memory -> prompt block injects context -> next response changes -> humans inspect why
+conversation happens -> agent writes durable memory -> prompt block makes context available -> humans inspect why
 ```
 
 MemexAI does not store every session as memory. Raw conversation logs can live in your app, warehouse, or audit store. MemexAI is for the smaller working set an agent should actually use later: user profile facts, preferences, timelines, commitments, project notes, decisions, and source-backed updates.
 
 **Tradeoff:** smaller context, human-readable memory, editable records, revision history, access logs, simple Postgres operations, no separate vector infrastructure — at the cost of ingestion quality. If the agent fails to write a durable fact, later recall cannot recover it unless you replay raw logs.
 
-Systems like mem0, Zep, and Supermemory are often strongest when the task is "find the relevant old chat chunk." MemexAI is strongest when the task is "maintain a clean, inspectable system of record that agents and humans can both use."
+mem0 and Zep are strong when you want managed or graph/vector-backed memory extraction and retrieval. MemexAI is strongest when the memory record itself must be directly editable, auditable, and Postgres-native.
 
 ## Two Integration Paths
 
@@ -72,6 +74,8 @@ Both paths use the same scoped paths, revision history, and access logs.
 ## Quick Start: Docker Service
 
 The service path is the best default for teams and production apps. Your app talks to an HTTP API; it never needs database credentials.
+
+The fastest proof should take about 90 seconds on a clean machine: start the Docker stack, run the demo agent with one preference, open the admin UI, and ask a second question that can use the stored memory. No app integration required.
 
 Create a `compose.yml`:
 
@@ -356,7 +360,7 @@ user/profile.md  -> users/{userId}/profile.md
 shared/index.md  -> shared/index.md
 ```
 
-The model never receives raw physical paths and cannot escape into another user's memory. See [docs/scopes.md](docs/scopes.md).
+The model never receives raw physical paths. Core path validation maps virtual paths to the current `userId` scope; your backend must treat `userId` as trusted server-side identity. See [docs/scopes.md](docs/scopes.md).
 
 ## Admin UI
 
@@ -379,9 +383,11 @@ Most durable agent memory is not a nearest-neighbor problem. It is structured re
 - Which shared file explains this workflow?
 - What changed, and who changed it?
 
-Postgres gives MemexAI durable storage, full-text search, migrations, access control boundaries, and audit tables in one place. BM25 is enough for deterministic candidate discovery. When a model is configured, MemexAI can resolve over memory files agentically, with bounded reads and cited source paths.
+Postgres gives MemexAI durable storage, full-text search, migrations, access control boundaries, and audit tables in one place. Postgres full-text ranking is enough for deterministic candidate discovery. When a model is configured, MemexAI can resolve over memory files agentically, with bounded reads and cited source paths.
 
 ## Comparison
+
+This table describes the default product bias. Managed offerings and optional graph/vector backends vary.
 
 |  | mem0 OSS | Zep | MemexAI |
 |---|---|---|---|
@@ -437,7 +443,7 @@ bun run demo:agent -- --smoke
 
 ## Status
 
-Early stage. The core loop works: Postgres-backed files, scoped agent tools, prompt-block injection, BM25 search, model-backed memorize/search, revisions, access logs, SDKs, and admin UI.
+Early stage. The core loop works: Postgres-backed files, scoped agent tools, prompt-block injection, Postgres full-text search, model-backed memorize/search, revisions, access logs, SDKs, and admin UI.
 
 ## Community
 

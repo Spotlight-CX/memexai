@@ -30,6 +30,30 @@ const shipped = [
 
 const nextFeatures: RoadmapInterestFeature[] = [
   {
+    id: 'optimistic-locking',
+    title: 'Optimistic locking for memory files',
+    stage: 'Next',
+    text: 'Add file versions and expectedVersion writes so concurrent agents can detect conflicts instead of silently last-write-wins on high-value memory files.',
+  },
+  {
+    id: 'revision-retention',
+    title: 'Automated retention policies',
+    stage: 'Next',
+    text: 'Move beyond manual revision pruning with configurable retention for mx_revision and mx_access_log, including admin UI controls for teams that need bounded storage growth.',
+  },
+  {
+    id: 'dreaming-budgets',
+    title: 'Per-user dreaming budgets',
+    stage: 'Next',
+    text: 'Track daily background consolidation spend per user and skip dream cycles once the configured budget is exhausted.',
+  },
+  {
+    id: 'dreaming-exclusions',
+    title: 'Per-file dreaming exclusions',
+    stage: 'Next',
+    text: 'Let operators mark sensitive or hand-curated memory files as excluded from background dreaming without relying only on global path rules.',
+  },
+  {
     id: 'sidecar-memory-writes',
     title: 'Sidecar memory writes',
     stage: 'Next',

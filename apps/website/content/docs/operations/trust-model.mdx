@@ -1,0 +1,69 @@
+---
+title: User ID Trust Model
+description: How MemexAI treats userId, API keys, admin secrets, and memory isolation boundaries.
+---
+
+MemexAI isolates private memory by `userId`, but it does not authenticate your end user. Your application is responsible for deciding which user is active and passing the correct server-side identifier to MemexAI.
+
+## The core rule
+
+Never let an untrusted browser or client choose the `userId` directly.
+
+In service mode, call MemexAI from your backend after your app has authenticated the user:
+
+```ts
+const session = await requireSession(request)
+
+const memory = memex.forUser({
+  userId: session.user.id,
+  actor: "support-assistant",
+})
+```
+
+The `userId` should come from your session, auth provider, tenant resolver, or job runner. It should not come from a raw request body field such as `{ "userId": "..." }` unless your backend has validated that the caller is allowed to act for that user.
+
+## What MemexAI enforces
+
+MemexAI translates virtual paths into physical paths:
+
+| Virtual path | Physical path | Agent access |
+| --- | --- | --- |
+| `user/profile.md` | `users/{userId}/profile.md` | read and write |
+| `shared/policy.md` | `shared/policy.md` | read-only for agents |
+
+Agents do not see physical paths. They work with `user/` and `shared/` paths, and MemexAI validates writes so agent tools cannot write into `shared/`.
+
+## What your app enforces
+
+Your app owns:
+
+- End-user authentication
+- Tenant and workspace authorization
+- Which backend jobs may act for a user
+- Which admin users can view or edit memory
+- Whether memory should be deleted for account closure or compliance requests
+
+Use separate MemexAI deployments, separate databases, or your own database controls if tenants require hard isolation. MemexAI's built-in boundary is path scoping by trusted `userId`, not a tenant authorization layer.
+
+## Service API keys and admin secrets
+
+Agent routes require `Authorization: Bearer <MEMEX_API_KEY>`. Keep this key server-side.
+
+Admin routes require an admin secret header. The service accepts `x-memex-admin-secret` and `x-admin-secret` for compatibility with docs and curl examples.
+
+Do not expose the admin secret to untrusted browsers. If you serve admin workflows publicly, put them behind your own authentication and proxy admin API calls server-side.
+
+## Shared memory
+
+`shared/` memory is global guidance. It is useful for policies, tool instructions, and product-level behavior guides. Because agents can read it for every user, avoid placing user-private or tenant-private facts in `shared/` unless that is intentional.
+
+## Operational checklist
+
+- Derive `userId` from authenticated server-side state.
+- Use stable internal IDs, not emails or names, for user memory paths.
+- Keep agent API keys and admin secrets outside client bundles.
+- Use separate keys per environment or service, rotate them through your secret manager, and log which internal principal performed admin actions before exposing admin workflows.
+- Review admin access before exposing `/admin` in a public environment.
+- Document your deletion and correction path before storing regulated data.
+
+See [Production Considerations](/docs/operations/production-caveats) for the broader launch-time caveats.

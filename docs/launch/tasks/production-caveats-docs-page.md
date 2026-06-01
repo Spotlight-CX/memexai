@@ -1,7 +1,7 @@
 # Create Public Production Caveats Docs Page
 **Priority:** P1
 **Type:** docs
-**Status:** [ ] not started
+**Status:** [x] done
 
 ## What
 Create a public-facing docs page at `apps/website/content/docs/operations/production-caveats.mdx`. This mirrors `gtm/product-hunt-launch/production-caveats.md` but is written for a public technical audience. The reply bank links to docs when the infra engineer asks hard questions — if the page doesn't exist at launch, the reply falls flat.
@@ -44,3 +44,9 @@ Link to roadmap.
 - Page appears in the docs sidebar under Operations
 - Page is navigable locally (`bun run dev` → `/docs/operations/production-caveats`)
 - All 4 gaps from the internal doc are covered with honest language
+
+## Verification
+- Created `apps/website/content/docs/operations/production-caveats.mdx`.
+- Added the page to `apps/website/content/docs/operations/meta.json`.
+- Covered concurrent writes, revision/access-log growth, search language support, and dreaming token cost.
+- Linked to the trust-model, correction-workflow, and roadmap pages for follow-through.

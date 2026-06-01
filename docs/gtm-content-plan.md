@@ -6,7 +6,7 @@ Last updated: 2026-05-26
 
 The market is moving from "memory as retrieval" to "memory as operational context." Long-horizon agents do not only need a larger context window; they need a durable, inspectable place to accumulate experience, instructions, corrections, and environment-specific knowledge across sessions.
 
-MemexAI should own the position: memory that changes the next agent response, with an inspectable record product teams can edit, audit, and use as part of the agent's behavioral control plane.
+MemexAI should own the position: memory made available to the next agent response, with an inspectable record product teams can edit, audit, and use as part of the agent's behavioral control plane.
 
 ## Research anchors
 
@@ -32,7 +32,18 @@ Assets:
   - "A long-horizon agent is not one prompt. It is a trajectory. Memory is how the trajectory survives."
   - "The bottleneck is not only context length. It is whether the next session knows what the last session learned."
 
-### 2. Stop running evals only on prompts
+### 2. Background dreaming makes memory maintainable
+
+Hypothesis: teams do not only need memory capture; they need a maintenance loop that keeps durable memory readable after many sessions. Dreaming should be a top launch pillar because it makes the file-backed memory story feel alive without hiding the audit trail.
+
+Assets:
+- Product page: "Dreaming" as the background synthesis loop for duplicates, contradictions, and fragmented user notes.
+- Roadmap: move memory health and compaction into shipped/absorbed status because dreaming now covers the first version of that work.
+- Social hooks:
+  - "Memory that only grows is another log. Memory that dreams can stay useful."
+  - "The agent writes during the session. Dreaming cleans up after the session goes quiet."
+
+### 3. Stop running evals only on prompts
 
 Hypothesis: many teams overfit prompt evals while the production behavior is shaped by memory state, tool guides, shared policies, and retrieval traces.
 
@@ -43,7 +54,7 @@ Assets:
   - "Your prompt is not the whole system prompt anymore. Your memory is part of the behavior."
   - "If an agent reads shared/AGENTS.md before acting, eval the memory too."
 
-### 3. Inspectable memory is the trust surface
+### 4. Inspectable memory is the trust surface
 
 Hypothesis: memory becomes product data once it affects UX. Product data needs inspection, correction, revision history, and access logs.
 
@@ -54,7 +65,7 @@ Assets:
   - "If a memory changes the answer, a human should be able to open it."
   - "Wrong memory is not a model mystery. It is an operational record."
 
-### 4. Prompt injection is the product moment
+### 5. Prompt injection is the product moment
 
 Hypothesis: storage is not the felt value of memory. Returning users only experience memory when the next model call receives the right behavioral context and produces a different answer.
 
@@ -62,7 +73,7 @@ Assets:
 - Docs: "Prompt block" concept page and quickstart snippets using `memory.getSystemPrompt(...)`.
 - Homepage and launch video: two-turn proof showing memory written on turn one and used on turn two.
 - Social hooks:
-  - "Memory is only valuable when it changes the next answer."
+  - "Memory is only valuable when it can shape the next answer."
   - "Tools store memory. The prompt block makes it part of behavior."
 
 ## Execution order
@@ -79,3 +90,5 @@ Assets:
 - Use "memory files," "revision history," "access logs," "shared guidance," "scoped user memory," and "Postgres-native" consistently.
 - Use "prompt block," "next response," and "two-turn proof" when explaining the product moment.
 - Keep canonical URLs on `https://memexai.space`.
+- Keep the "your Postgres" guardrail explicit: MemexAI runs on a database the team controls; it is not a managed black-box memory service.
+- In launch comments, promise a concrete 90-second proof: Docker up, write one memory, inspect the file, then ask a second question that changes because the memory exists.
