@@ -471,7 +471,10 @@ export async function retrieveMemoryContext(db: Db, ctx: ToolContext, options: {
   if (seedPhysicalPaths.length > 0) {
     const inboundLinks = await getInboundLinksForPaths(db, seedPhysicalPaths)
     const unvisitedSources = [...new Set(inboundLinks.map((l) => l.sourcePath))].filter(
-      (p) => !visited.has(p),
+      (p) => {
+        const vp = physicalToVirtual(p, ctx)
+        return vp !== null && !visited.has(vp)
+      },
     )
 
     if (unvisitedSources.length > 0) {
@@ -484,11 +487,10 @@ export async function retrieveMemoryContext(db: Db, ctx: ToolContext, options: {
       )
 
       for (const file of inboundFiles) {
-        if (visited.has(file.physical_path)) continue
-        visited.add(file.physical_path)
-
         const virtualPath = physicalToVirtual(file.physical_path, ctx)
         if (!virtualPath) continue
+        if (visited.has(virtualPath)) continue
+        visited.add(virtualPath)
 
         const link = inboundLinks.find((l) => l.sourcePath === file.physical_path)
         const seedCandidate = link

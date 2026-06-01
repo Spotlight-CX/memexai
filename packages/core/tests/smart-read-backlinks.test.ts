@@ -174,18 +174,21 @@ describe("backward expansion edge cases", () => {
     expect(reasons).not.toContain("inbound_link")
   })
 
-  test("inbound file already found via forward traversal is not duplicated", async () => {
-    // A → B (forward), C → A (backward, C also found in BM25)
+  test("file reachable via both forward and inbound keeps reason=linked (forward wins)", async () => {
+    // A → B (forward), B → A (backward link). Forward traversal runs first and claims B.
+    // Backward expansion finds B as inbound to A, but B is already in visited — skip it.
+    // B should appear exactly once with reason=linked.
     const files = [
       seedRow("users/u1/a.md", "# A\n[[user/b.md]]", 0.9),
-      seedRow("users/u1/b.md", "# B — links to A too\n[[user/a.md]]", 0.5),
+      fileRow("users/u1/b.md", "# B\n[[user/a.md]]"),
     ]
     const backlinks = [backlinkRow("users/u1/b.md", "users/u1/a.md")]
     const db = createMockDb(files, backlinks)
     const result = await executeMemorySmartRead(db, { query: "test", maxChars: 40_000 }, CTX)
 
-    // b.md should appear exactly once
     expect(result.filesIncluded.filter((p) => p === "user/b.md")).toHaveLength(1)
+    const bMeta = result.filesIncludedMeta.find((m) => m.path === "user/b.md")!
+    expect(bMeta.reason).toBe("linked")
   })
 
   test("character budget respected — inbound files omitted when over budget", async () => {
