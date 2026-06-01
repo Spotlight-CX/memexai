@@ -2,6 +2,7 @@ import type { Db } from "./db"
 import { MemexError } from "./errors"
 import { newId } from "./ids"
 import { assertWritableVirtualPath, physicalToVirtual, prefixToPhysical, virtualToPhysical, type ToolContext } from "./paths"
+import { getInboundLinksForPaths, syncBacklinks } from "./backlinks"
 import { appendLinesAfterHeading, replaceExactText } from "./text-patch"
 import { listArgsSchema, memorizeArgsSchema, patchArgsSchema, readArgsSchema, searchArgsSchema, smartReadArgsSchema, writeArgsSchema } from "./schemas"
 import { type ToolName } from "./tool-definitions"
@@ -202,6 +203,7 @@ export async function executeMemoryWrite(db: Db, args: unknown, ctx: ToolContext
   await storePreparedEmbedding(db, file.id, preparedEmbedding)
   await insertRevision(db, { fileId: file.id, physicalPath, operation: "write", content, reason, ctx })
   await logAccess(db, { fileId: file.id, physicalPath, operation: "write", ctx })
+  await syncBacklinks(db, physicalPath, content, ctx)
 
   return {
     path,
@@ -240,6 +242,7 @@ export async function executeMemoryPatch(db: Db, args: unknown, ctx: ToolContext
       reason: parsed.reason,
       ctx,
     })
+    await syncBacklinks(db, physicalPath, result.content, ctx)
   }
   await logAccess(db, { fileId: file.id, physicalPath, operation: "patch", ctx })
 
@@ -255,7 +258,7 @@ type SmartReadRow = FileRow & {
   rank?: number
 }
 
-type MemoryContextReason = "query_match" | "recency" | "linked"
+type MemoryContextReason = "query_match" | "recency" | "linked" | "inbound_link"
 
 type MemoryContextFile = {
   path: string
@@ -312,6 +315,7 @@ export function extractMemoryLinks(content: string): string[] {
   return [...links]
 }
 
+
 function rowToMemoryContextFile(row: SmartReadRow, ctx: ToolContext, index: number, reason: MemoryContextReason): MemoryContextFile | null {
   const path = physicalToVirtual(row.physical_path, ctx)
   if (!path) return null
@@ -365,6 +369,7 @@ function rankMemoryContextFiles(files: MemoryContextFile[]): MemoryContextFile[]
 }
 
 function reasonPriority(reason: MemoryContextReason): number {
+  // "linked" ranked last; query_match, recency, inbound_link all compete by score
   return reason === "linked" ? 1 : 0
 }
 
@@ -452,6 +457,64 @@ export async function retrieveMemoryContext(db: Db, ctx: ToolContext, options: {
     }
   }
 
+  // Backward expansion: for each depth-0 seed, also include files that link TO it.
+  const seedPhysicalPaths = [...candidatesByPath.values()]
+    .filter((c) => c.depth === 0)
+    .flatMap((c) => {
+      try {
+        return [virtualToPhysical(c.path, ctx)]
+      } catch {
+        return []
+      }
+    })
+
+  if (seedPhysicalPaths.length > 0) {
+    const inboundLinks = await getInboundLinksForPaths(db, seedPhysicalPaths)
+    const unvisitedSources = [...new Set(inboundLinks.map((l) => l.sourcePath))].filter(
+      (p) => !visited.has(p),
+    )
+
+    if (unvisitedSources.length > 0) {
+      const { rows: inboundFiles } = await db.query<FileRow>(
+        `SELECT id, physical_path, content_text, created_at, updated_at
+         FROM mx_file
+         WHERE physical_path = ANY($1::TEXT[])
+           AND (physical_path LIKE $2 OR physical_path LIKE 'shared/%')`,
+        [unvisitedSources, `users/${ctx.userId}/%`],
+      )
+
+      for (const file of inboundFiles) {
+        if (visited.has(file.physical_path)) continue
+        visited.add(file.physical_path)
+
+        const virtualPath = physicalToVirtual(file.physical_path, ctx)
+        if (!virtualPath) continue
+
+        const link = inboundLinks.find((l) => l.sourcePath === file.physical_path)
+        const seedCandidate = link
+          ? [...candidatesByPath.values()].find((c) => {
+              try {
+                return virtualToPhysical(c.path, ctx) === link.targetPath
+              } catch {
+                return false
+              }
+            })
+          : undefined
+
+        candidatesByPath.set(virtualPath, {
+          path: virtualPath,
+          content: file.content_text,
+          updatedAt: new Date(file.updated_at),
+          score: (seedCandidate?.score ?? 0.5) * 0.5,
+          reason: "inbound_link",
+          linkedFrom: seedCandidate?.path,
+          depth: 1,
+          order: candidatesByPath.size,
+        })
+      }
+    }
+  }
+
   const included: MemoryContextFile[] = []
   const omitted: string[] = []
   let usedChars = 0
@@ -493,6 +556,14 @@ export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolCon
     filesIncludedMeta: context.filesIncludedMeta,
     truncated: context.omitted.length > 0,
   }
+}
+
+type SearchRow = {
+  physical_path: string
+  snippet: string
+  rank: number
+  importance_score: number
+  updated_at: Date
 }
 
 export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}): Promise<MemorySearchResult> {
@@ -815,22 +886,54 @@ export async function executeMemoryConsolidate(
 
 async function executeMemorySearchBm25(db: Db, input: { query: string; limit?: number; prefix?: string }, ctx: ToolContext) {
   const { query, limit = 10, prefix } = input
-  const results = await bm25Search(db, { query, limit, scope: searchScope(ctx, prefix) })
+  const values: unknown[] = [query]
+  let visibilityWhere = "(physical_path LIKE $2 OR physical_path LIKE 'shared/%')"
+  values.push(`users/${ctx.userId}/%`)
+
+  if (prefix) {
+    const physicalPrefix = prefixToPhysical(prefix, ctx)
+    if (!physicalPrefix) throw new MemexError("INVALID_PATH", "prefix is required")
+    visibilityWhere = "(physical_path = $2 OR physical_path LIKE $3)"
+    values.length = 1
+    values.push(physicalPrefix, `${physicalPrefix.endsWith("/") ? physicalPrefix : `${physicalPrefix}/`}%`)
+  }
+  values.push(limit)
+
+  const { rows } = await db.query<SearchRow>(
+    `
+      WITH q AS (SELECT plainto_tsquery('english', $1) AS query)
+      SELECT
+        physical_path,
+        ts_headline('english', content_text, q.query, 'MaxFragments=2, MinWords=4, MaxWords=24') AS snippet,
+        ts_rank_cd(search_vector, q.query) AS rank,
+        COALESCE(importance_score, 0) AS importance_score,
+        updated_at
+      FROM mx_file, q
+      WHERE ${visibilityWhere}
+        AND search_vector @@ q.query
+      ORDER BY rank DESC, importance_score DESC, updated_at DESC
+      LIMIT $${values.length}
+    `,
+    values,
+  )
 
   const logPath = prefix ? prefixToPhysical(prefix, ctx) : "*"
   await logAccess(db, { physicalPath: logPath ?? "*", operation: "search", ctx })
 
   return {
     query,
-    results: results.map((result) => ({
-      path: result.path,
-      snippet: result.snippet,
-      rank: result.bm25Score ?? result.score,
-      matchReason: "lexical" as const,
-      bm25Rank: result.bm25Rank,
-      bm25Score: result.bm25Score,
-      updatedAt: result.updatedAt,
-    })),
+    results: rows.flatMap((row) => {
+      const path = physicalToVirtual(row.physical_path, ctx)
+      if (!path) return []
+      return [{
+        path,
+        snippet: row.snippet,
+        rank: Number(row.rank),
+        matchReason: "lexical" as const,
+        importanceScore: Number(row.importance_score),
+        updatedAt: row.updated_at,
+      }]
+    }),
     truncated: false,
   }
 }
