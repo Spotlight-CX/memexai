@@ -53,15 +53,15 @@ export default function HomePage() {
           <div>
             <div className="eyebrow">
               <Database size={15} aria-hidden />
-              Memory that changes the next answer
+              Memory your team can inspect
             </div>
-            <h1>Your agent&apos;s next response should change because memory exists.</h1>
+            <h1>Inspectable memory for AI agents</h1>
             <p className="hero-copy">
-              MemexAI gives your AI product a closed memory loop: store durable user context, inject it into the next
-              model call, verify the answer changed, and inspect the Postgres-backed record behind it.
+              MemexAI treats AI memory as product data: durable user context your team can inspect, correct, and review
+              in Postgres before it changes the next model call.
             </p>
             <div className="hero-actions">
-              <Link className="site-button site-button-primary" href="/docs" data-analytics-event="cta_clicked" data-analytics-label="home_start_with_docker">
+              <Link className="site-button site-button-primary" href="/docs/quickstart/docker-service" data-analytics-event="cta_clicked" data-analytics-label="home_start_with_docker">
                 <BookOpen size={17} aria-hidden />
                 Start with Docker
                 <ArrowRight size={17} aria-hidden />

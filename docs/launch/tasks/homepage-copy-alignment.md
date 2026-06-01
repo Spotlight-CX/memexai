@@ -1,7 +1,7 @@
 # Align Homepage Hero to Launch Tagline
 **Priority:** P0
 **Type:** copy-update
-**Status:** [ ] not started
+**Status:** [x] done
 
 ## What
 Read the current hero section of `memexai.space` (in `apps/website/`). Verify the headline and subhead match the launch tagline and thesis. If the homepage still has older or generic copy, update it to match. PH traffic landing on a mismatched hero is a silent conversion killer — visitors expect the page to confirm the promise they clicked on.
@@ -20,3 +20,9 @@ Target copy:
 - Subhead includes "product data" or "inspect / correct / review" framing
 - Primary CTA links to the Docker quickstart or `setup.md`
 - `bun run build` passes with no type errors after the change
+
+## Verification
+- Updated homepage headline to `Inspectable memory for AI agents`.
+- Updated subhead to frame memory as product data the team can inspect, correct, and review in Postgres.
+- Updated primary CTA to `/docs/quickstart/docker-service`.
+- Ran `bun run build:website` successfully.

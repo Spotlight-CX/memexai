@@ -5,7 +5,7 @@ Full pre-launch task list. Find the first `[ ]` row by Priority, open the linked
 | Priority | Status | Type | Task | File |
 |---|---|---|---|---|
 | P0 | [ ] | code | Verify end-to-end Docker install path | [install-dry-run.md](install-dry-run.md) |
-| P0 | [ ] | copy-update | Align homepage hero to launch tagline | [homepage-copy-alignment.md](homepage-copy-alignment.md) |
+| P0 | [x] | copy-update | Align homepage hero to launch tagline | [homepage-copy-alignment.md](homepage-copy-alignment.md) |
 | P0 | [ ] | code | Verify all npm/PyPI/Docker package links are live | [package-links-verification.md](package-links-verification.md) |
 | P0 | [ ] | docs | Capture 6 gallery-ready admin UI screenshots | [gtm/product-hunt-launch/tasks/admin-ui-screenshots.md](../../gtm/product-hunt-launch/tasks/admin-ui-screenshots.md) |
 | P1 | [ ] | code | Add revision prune endpoint + admin UI button | [revision-prune-endpoint.md](revision-prune-endpoint.md) |
