@@ -37,7 +37,7 @@ The agent inspects your app before changing it:
 - model call entrypoint
 - existing environment variables
 
-For Vercel AI SDK projects, it uses `@memexai/sdk` and `@memexai/sdk/adapters/vercel-ai`. The agent binds MemexAI tools to your model call and adds the prompt block returned by `memory.getPromptBlock()` to the system prompt.
+For Vercel AI SDK projects, it uses `@memexai/sdk` and `@memexai/sdk/adapters/vercel-ai`. The agent binds MemexAI tools to your model call and uses `memory.getSystemPrompt(...)` so the MemexAI prompt block is included in the system prompt.
 
 If your SDK does not have a first-party MemexAI adapter yet, the agent should still use your existing language/model SDK when it supports custom tools. Direct HTTP calls are the last reserve. The normal fallback is SDK-native custom tools backed by MemexAI's HTTP contract: fetch schemas from `/v1/tools`, add the prompt block from `/v1/prompt-block`, and execute model tool calls through `/v1/tools/:toolName/execute`.
 
@@ -75,7 +75,7 @@ Then:
 What kind of neighborhood do I prefer?
 ```
 
-A successful setup stores the durable preference on the first turn and recalls it on the second turn. The model call should use Gemini from `.env`, include MemexAI tools, and include the MemexAI prompt block or equivalent system prompt section.
+A successful setup stores the durable preference on the first turn and recalls it on the second turn. The model call should use Gemini from `.env`, include MemexAI tools, and include the MemexAI prompt block or equivalent system prompt section. Storage alone is not success; the second answer should change because memory was injected.
 
 ## Admin follow-up
 

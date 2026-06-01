@@ -57,6 +57,11 @@ export class MemexUser {
     return this.memex.getPromptBlock(this.ctx)
   }
 
+  async getSystemPrompt(basePrompt: string): Promise<string> {
+    const promptBlock = await this.getPromptBlock()
+    return [basePrompt.trim(), promptBlock].filter(Boolean).join("\n\n")
+  }
+
   async list(prefix?: string) {
     return this.memex.executeTool<{ files: { path: string; size: number; updatedAt: Date }[] }>(
       "memory_list",

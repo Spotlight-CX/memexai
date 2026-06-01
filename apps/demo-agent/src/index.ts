@@ -97,17 +97,15 @@ export async function runLiveAgent(input: {
   const modelConfig = createModelConfig(env, input.modelFactory, input.googleModelFactory)
 
   const { userId, memory } = createDemoMemory(env, input.fetchImpl)
-  const promptBlock = await memory.getPromptBlock()
+  const system = await buildSystemPrompt(memory, [
+    "You are a concise MemexAI demo agent.",
+    "Use MemexAI memory tools whenever the user asks you to remember or retrieve durable memory.",
+  ].join("\n"))
   const runGenerateText = input.generate ?? generateText
 
   const result = await runGenerateText({
     model: modelConfig.model,
-    system: [
-      "You are a concise MemexAI demo agent.",
-      "Use MemexAI memory tools whenever the user asks you to remember or retrieve durable memory.",
-      "",
-      promptBlock,
-    ].join("\n"),
+    system,
     prompt: input.prompt,
     tools: memory.createAgenticToolset(),
     stopWhen: stepCountIs(5),
@@ -165,17 +163,15 @@ export async function runLiveAgentDirect(input: {
 
   const { memex, userId, user } = input.memexOverride ?? createDirectMemory(env, modelConfig.model)
   await memex.migrate()
-  const promptBlock = await user.getPromptBlock()
+  const system = await buildSystemPrompt(user, [
+    "You are a concise MemexAI demo agent (direct Postgres mode).",
+    "Use MemexAI memory tools whenever the user asks you to remember or retrieve durable memory.",
+  ].join("\n"))
   const runGenerateText = input.generate ?? generateText
 
   const result = await runGenerateText({
     model: modelConfig.model,
-    system: [
-      "You are a concise MemexAI demo agent (direct Postgres mode).",
-      "Use MemexAI memory tools whenever the user asks you to remember or retrieve durable memory.",
-      "",
-      promptBlock,
-    ].join("\n"),
+    system,
     prompt: input.prompt,
     tools: user.createAgenticToolset(),
     stopWhen: stepCountIs(5),
@@ -217,6 +213,11 @@ function requireEnv(env: Env, key: string) {
   const value = env[key]
   if (!value) throw new Error(`${key} is required`)
   return value
+}
+
+async function buildSystemPrompt(memory: { getPromptBlock: () => Promise<string> }, basePrompt: string): Promise<string> {
+  const promptBlock = await memory.getPromptBlock()
+  return [basePrompt.trim(), promptBlock].filter(Boolean).join("\n\n")
 }
 
 function createModelConfig(env: Env, openaiFactory?: OpenAIModelFactory, googleFactory?: GoogleModelFactory) {

@@ -1,9 +1,9 @@
 ---
 title: How MemexAI Works
-description: The mental model for memory files, tool calls, Postgres storage, and later recall.
+description: The mental model for memory files, tool calls, prompt injection, and later recall.
 ---
 
-MemexAI gives an AI agent a small memory surface it can read and update. The memory is stored as scoped files in Postgres, not as a hidden model state or a vector-only blob.
+MemexAI gives an AI agent a small memory surface it can read and update, plus a prompt block that puts stored memory back into the next model call. The memory is stored as scoped files in Postgres, not as a hidden model state or a vector-only blob.
 
 ## The loop
 
@@ -13,7 +13,8 @@ conversation happens
 -> MemexAI validates the request
 -> virtual paths are translated to physical paths
 -> Postgres stores files, revisions, and access logs
--> a later session searches or reads the memory
+-> the next model call includes the MemexAI prompt block
+-> a later response searches or reads memory and changes behavior
 ```
 
 The agent only sees virtual paths like `user/profile.md` and `shared/policy.md`. MemexAI translates those paths before touching the database and enforces isolation in code.
@@ -31,6 +32,12 @@ MemexAI stores the durable working set an agent should carry forward:
 - shared guidance and policies
 
 Raw chat transcripts can still live in your app, warehouse, or audit system. MemexAI is for the smaller memory record the agent should actually use later.
+
+## Prompt block
+
+Tools alone are not enough. If the model can write memory but never receives memory guidance on the next call, users still experience a forgetful agent. Use `memory.getSystemPrompt(basePrompt)` or add `await memory.getPromptBlock()` to your system prompt on every agent call.
+
+The prompt block tells the model how to use MemexAI tools and includes shared memory files plus the user's `user/index.md` when present. It is the bridge between stored memory and changed behavior.
 
 ## Runtime paths
 
@@ -63,6 +70,7 @@ After the adapter receives a tool call, MemexAI still runs the same validation, 
 ## Related concepts
 
 - [Memory tools](/docs/concepts/memory-tools)
+- [Prompt block](/docs/concepts/prompt-block)
 - [Memory scopes](/docs/concepts/scopes)
 - [Revision history](/docs/concepts/revisions)
 - [Access logs](/docs/concepts/access-logs)

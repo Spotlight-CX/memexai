@@ -43,6 +43,15 @@ describe("MemexAI SDK — prompt-block", () => {
       }),
     )
   })
+
+  test("builds a system prompt with the MemexAI prompt block", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ promptBlock: "<memexai_memory />" }))
+    const memory = createClient(fetchMock).forUser({ userId: "user_123", actor: "assistant" })
+
+    await expect(memory.getSystemPrompt("You are helpful.")).resolves.toBe(
+      "You are helpful.\n\n<memexai_memory />",
+    )
+  })
 })
 
 describe("MemexAI SDK — file operations", () => {

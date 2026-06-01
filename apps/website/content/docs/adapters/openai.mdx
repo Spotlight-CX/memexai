@@ -9,6 +9,7 @@ The OpenAI adapter is available in `@memexai/sdk` for the service mode. It retur
 
 - Use this page with the [containerized service](/docs/quickstart/docker-service) and `@memexai/sdk`.
 - Read [How MemexAI works](/docs/concepts/how-it-works) for the tool-call-to-Postgres flow.
+- Read [Prompt block](/docs/concepts/prompt-block) to understand why memory must be included in the system prompt.
 - Read [Memory tools](/docs/concepts/memory-tools) to choose agentic tools or raw file tools.
 - Read [Memory scopes](/docs/concepts/scopes) before writing paths like `user/profile.md`.
 
@@ -28,9 +29,11 @@ import { createOpenAITools } from '@memexai/sdk/adapters/openai'
 const openai = new OpenAI()
 const memex = new MemexAI({ url: 'http://localhost:8080', apiKey: process.env.MEMEX_API_KEY! })
 const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
+const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
 const { definitions, execute } = createOpenAITools(memory)
 
 const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+  { role: 'system', content: system },
   { role: 'user', content: 'Remember that I prefer concise answers.' },
 ]
 
@@ -77,3 +80,5 @@ Returns `{ definitions, execute }`.
 - `execute({ name, arguments, toolCallId? })` — executes a tool call and returns the result. The `toolCallId` links the execution to the correct revision and access log entry.
 
 The `arguments` field can be either a JSON string (as the OpenAI API returns it) or a pre-parsed object — `normalizeArguments` handles both cases automatically.
+
+The adapter only supplies tools. Use `memory.getSystemPrompt(...)` or `memory.getPromptBlock()` so the stored memory can influence the next response.

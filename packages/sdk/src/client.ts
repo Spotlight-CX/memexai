@@ -104,6 +104,11 @@ export class MemexMemory {
     return result.promptBlock
   }
 
+  async getSystemPrompt(basePrompt: string): Promise<string> {
+    const promptBlock = await this.getPromptBlock()
+    return [basePrompt.trim(), promptBlock].filter(Boolean).join("\n\n")
+  }
+
   async listFiles(input: ListFilesInput = {}): Promise<{ files: MemoryFile[] }> {
     return this.client.executeTool({
       name: "memory_list",

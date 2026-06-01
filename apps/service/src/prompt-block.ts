@@ -27,7 +27,8 @@ export async function buildPromptBlock(db: Db, ctx: ToolContext): Promise<string
 
   return [
     "<memexai_memory>",
-    "You have access to MemexAI memory.",
+    "You have access to MemexAI memory. Use it to make later responses reflect durable memory from prior turns and sessions.",
+    "Tools alone do not make memory useful: retrieve relevant memory before answering when stored context could change the response.",
     "Prefer the agentic memory tools: memory_memorize to remember durable facts, and memory_search to retrieve memory.",
     "MemexAI handles file bookkeeping for agentic tools. Use virtual paths only if raw tools are explicitly provided.",
     "Writable user memory lives under user/**. Shared memory lives under shared/** and is read-only.",

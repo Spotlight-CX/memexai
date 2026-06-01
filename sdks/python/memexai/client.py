@@ -87,6 +87,11 @@ class MemexAIMemory:
         result = await self.client.request(f"/v1/prompt-block?{urlencode(params)}")
         return result["promptBlock"]
 
+    async def get_system_prompt(self, base_prompt: str) -> str:
+        prompt_block = await self.get_prompt_block()
+        parts = [base_prompt.strip(), prompt_block]
+        return "\n\n".join(part for part in parts if part)
+
     async def list_files(self, prefix: Optional[str] = None) -> Dict[str, Any]:
         args = {}
         if prefix:

@@ -9,6 +9,7 @@ The Anthropic SDK adapter is available in `@memexai/core` for direct Postgres mo
 
 - Use this page when your app runs [direct Postgres mode](/docs/architecture#advanced-direct-postgres-runtime-mode).
 - Read [How MemexAI works](/docs/concepts/how-it-works) for the tool-call-to-Postgres flow.
+- Read [Prompt block](/docs/concepts/prompt-block) to understand why memory must be included in the system prompt.
 - Read [Memory tools](/docs/concepts/memory-tools) to choose agentic tools or raw file tools.
 - Read [Memory scopes](/docs/concepts/scopes) before writing paths like `user/profile.md`.
 
@@ -31,6 +32,7 @@ await memex.migrate()
 
 const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
 const tools = createAnthropicTools(memory)
+const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
 
 const messages: Anthropic.MessageParam[] = [
   { role: 'user', content: 'Remember that I prefer concise answers.' },
@@ -40,6 +42,7 @@ while (true) {
   const response = await anthropic.messages.create({
     model: 'claude-opus-4-7',
     max_tokens: 1024,
+    system,
     tools,
     messages,
   })
@@ -75,3 +78,5 @@ Returns an array of `AnthropicTool` objects ready to pass to `anthropic.messages
 ### `handleAnthropicToolCall(toolName, toolInput, target, ctx?, toolUseId?)`
 
 Executes a single tool use block and returns the result. Pass the `tool_use` block's `id` as `toolUseId` to link revisions and access logs to the specific call.
+
+The adapter only supplies tools. Use `memory.getSystemPrompt(...)` or `memory.getPromptBlock()` so the stored memory can influence the next response.

@@ -34,7 +34,8 @@ async def build_prompt_block(db: DbPool, ctx: RequestContext) -> str:
 
     parts = [
         "<memexai_memory>",
-        "You have access to MemexAI memory.",
+        "You have access to MemexAI memory. Use it to make later responses reflect durable memory from prior turns and sessions.",
+        "Tools alone do not make memory useful: retrieve relevant memory before answering when stored context could change the response.",
         "Prefer the agentic memory tools: memory_memorize to remember durable facts, and memory_search to retrieve memory.",
         "MemexAI handles file bookkeeping for agentic tools. Use virtual paths only if raw tools are explicitly provided.",
         "Writable user memory lives under user/**. Shared memory lives under shared/** and is read-only.",
@@ -98,6 +99,10 @@ class MemexUser:
 
     async def get_prompt_block(self) -> str:
         return await self.memex.get_prompt_block(self.ctx)
+
+    async def get_system_prompt(self, base_prompt: str) -> str:
+        prompt_block = await self.get_prompt_block()
+        return "\n\n".join(part for part in [base_prompt.strip(), prompt_block] if part)
 
     async def list_files(self, prefix: Optional[str] = None) -> Dict[str, Any]:
         args = {}

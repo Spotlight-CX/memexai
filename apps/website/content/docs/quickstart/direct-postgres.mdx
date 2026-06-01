@@ -28,10 +28,11 @@ const memex = createMemex({
 await memex.migrate()
 
 const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
+const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
 
 const result = await generateText({
   model: google('gemini-2.5-flash'),
-  system: 'You are a helpful assistant with durable memory.',
+  system,
   prompt: 'Remember that I prefer quiet neighborhoods near good schools.',
   tools: memory.createAgenticToolset(),
   stopWhen: stepCountIs(5),

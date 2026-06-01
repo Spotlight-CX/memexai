@@ -21,7 +21,7 @@ const features = [
   {
     icon: Database,
     title: 'Memory as files',
-    text: 'Durable facts live in scoped Markdown-like files. Agents can read them. Humans can inspect and fix them.',
+    text: 'Durable facts live in scoped Markdown-like files that feed the next prompt block. Agents use them. Humans can inspect and fix them.',
   },
   {
     icon: FileClock,
@@ -38,8 +38,9 @@ const features = [
 const loop = [
   'Conversation happens',
   'Agent writes only durable memory',
-  'Files stay inspectable',
-  'Search recalls targeted records later',
+  'Prompt block injects context',
+  'Next response changes',
+  'Humans inspect why',
 ];
 
 export default function HomePage() {
@@ -52,12 +53,12 @@ export default function HomePage() {
           <div>
             <div className="eyebrow">
               <Database size={15} aria-hidden />
-              Persistent user memory for AI products
+              Memory that changes the next answer
             </div>
-            <h1>Your users shouldn&apos;t have to re-introduce themselves every session.</h1>
+            <h1>Your agent&apos;s next response should change because memory exists.</h1>
             <p className="hero-copy">
-              MemexAI gives your AI product taste memory — a persistent, inspectable model of who each user is. No GPU,
-              no vector store. Structured files in Postgres your team can read, edit, and trust.
+              MemexAI gives your AI product a closed memory loop: store durable user context, inject it into the next
+              model call, verify the answer changed, and inspect the Postgres-backed record behind it.
             </p>
             <div className="hero-actions">
               <Link className="site-button site-button-primary" href="/docs" data-analytics-event="cta_clicked" data-analytics-label="home_start_with_docker">
@@ -90,7 +91,7 @@ export default function HomePage() {
             <div className="terminal">
               <div className="terminal-header">
                 <span>agent.ts</span>
-                <span>memory_memorize</span>
+                <span>getSystemPrompt</span>
               </div>
               <div className="terminal-body">
                 <div>
@@ -98,6 +99,9 @@ export default function HomePage() {
                   <span className="accent">&quot;user_123&quot;</span> {'}'})
                 </div>
                 <br />
+                <div>
+                  <span className="dim">const</span> system = <span className="dim">await</span> memory.getSystemPrompt(...)
+                </div>
                 <div>
                   <span className="dim">await</span> memory.memorize(
                 </div>
@@ -107,8 +111,8 @@ export default function HomePage() {
                 <div>)</div>
                 <br />
                 <div className="dim"># user returns next session</div>
-                <div className="dim"># AI already knows: preferences,</div>
-                <div className="dim"># friction, goals — no re-intro needed</div>
+                <div className="dim"># system prompt includes MemexAI memory</div>
+                <div className="dim"># answer is personalized from turn one</div>
               </div>
             </div>
 
@@ -141,7 +145,7 @@ export default function HomePage() {
           <p className="section-lede">
             MemexAI ships an agent-readable onboarding guide at <code>memexai.space/setup.md</code>. Paste this command
             into your coding agent and let it inspect your app, choose the right SDK adapter, wire memory tools, and run
-            a real memorize/recall check.
+            a real two-turn proof: write memory, inject context, and verify the next answer changes.
           </p>
           <div className="agent-command-panel" aria-label="Coding agent setup command">
             <div className="agent-command-header">
@@ -168,8 +172,8 @@ export default function HomePage() {
           <h2>The AI starts fresh every session. Users re-explain everything. Eventually they stop.</h2>
           <p className="section-lede">
             Not because your product lacks features. Because the AI doesn&apos;t know who they are. MemexAI maintains the
-            memory your AI should carry forward — preferences, friction points, identity signals — across sessions, models,
-            and devices.
+            memory your AI should carry forward — preferences, friction points, identity signals — and injects it into
+            the next response across sessions, models, and devices.
           </p>
         </Reveal>
         <Reveal stagger className="comparison">
@@ -195,7 +199,7 @@ export default function HomePage() {
           <h2>Most memory systems retrieve the past. MemexAI maintains what should survive.</h2>
           <p className="section-lede">
             Raw transcripts can live in your app, warehouse, or audit store. MemexAI owns the smaller working set your
-            agent should actually carry forward: preferences, commitments, decisions, timelines, project notes, and
+            agent should actually use later: preferences, commitments, decisions, timelines, project notes, and
             source-backed updates.
           </p>
         </Reveal>
@@ -222,8 +226,8 @@ export default function HomePage() {
           </div>
           <div className="comparison-panel strong-panel">
             <h3>MemexAI</h3>
-            <p>Let the agent write only durable facts into files that humans can inspect, edit, and audit.</p>
-            <pre>{`observe a session\n→ write durable memory\n→ maintain files\n→ recall targeted records`}</pre>
+            <p>Let the agent write durable facts, inject the right context, and leave humans a record they can inspect.</p>
+            <pre>{`observe a session\n→ write durable memory\n→ inject prompt context\n→ answer from the record`}</pre>
           </div>
         </Reveal>
       </section>
@@ -278,8 +282,8 @@ export default function HomePage() {
           <div className="section-kicker">What stays simple</div>
           <h2>A memory system should be legible before it is clever.</h2>
           <p className="section-lede">
-            MemexAI is deliberately conservative: Postgres, files, revisions, access logs, and a small set of tools. The
-            point is not to ship every memory feature. The point is to make memory dependable.
+            MemexAI is deliberately conservative: prompt-block injection, Postgres, files, revisions, access logs, and a
+            small set of tools. The point is not to ship every memory feature. The point is to make memory dependable.
           </p>
         </Reveal>
         <Reveal stagger className="feature-grid">
@@ -301,8 +305,8 @@ export default function HomePage() {
           <div className="section-kicker">Trust surface</div>
           <h2>If a memory is wrong, you should be able to open it and fix it.</h2>
           <p className="section-lede">
-            Memory is not just model context. It is an operational record. The admin UI shows what was remembered, when it
-            changed, who touched it, and which reads happened later.
+            Memory is not just storage. It is behavioral context with an operational record. The admin UI shows what was
+            remembered, when it changed, who touched it, and which reads happened later.
           </p>
           <div className="trust-list">
             <div>
@@ -330,8 +334,8 @@ export default function HomePage() {
           <div className="path-panel">
             <Boxes size={24} aria-hidden />
             <h3>Agentic tools</h3>
-            <p>Give the model `memory_memorize` and `memory_search`; MemexAI handles the file bookkeeping.</p>
-            <pre>{`const tools = memory.createAgenticToolset()\n// memory_memorize, memory_search`}</pre>
+            <p>Give the model the prompt block plus `memory_memorize` and `memory_search`; MemexAI handles the file bookkeeping.</p>
+            <pre>{`const system = await memory.getSystemPrompt(...)\nconst tools = memory.createAgenticToolset()`}</pre>
           </div>
           <div className="path-panel">
             <Terminal size={24} aria-hidden />
@@ -373,7 +377,7 @@ export default function HomePage() {
             <h2>Give your agent memory your team can trust.</h2>
             <p className="section-lede">
               Drop MemexAI into your stack with MCP, Python, TypeScript, or standard Postgres. Start with the simple loop:
-              remember durable facts, inspect the files, search them later.
+              store memory, inject context, verify the next answer, and inspect why.
             </p>
             <div className="hero-actions">
               <Link className="site-button site-button-primary" href="/docs" data-analytics-event="cta_clicked" data-analytics-label="home_view_docs">

@@ -1,0 +1,59 @@
+---
+title: Prompt Block
+description: Make stored memory part of the system prompt so the next response can change.
+---
+
+Stored memory only matters when it reaches the next model call. MemexAI's prompt block is the bridge between the Postgres-backed memory record and the agent's behavior.
+
+## Use the helper
+
+For most TypeScript integrations, compose your system prompt with `getSystemPrompt`:
+
+```ts
+const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
+
+const result = await generateText({
+  model,
+  system: await memory.getSystemPrompt(
+    'You are a helpful assistant with durable user memory.',
+  ),
+  prompt: userMessage,
+  tools: memory.createAgenticToolset(),
+  stopWhen: stepCountIs(5),
+})
+```
+
+This keeps the base product prompt and the MemexAI memory instructions together. The same underlying memory section is available through `memory.getPromptBlock()` if your framework needs manual message assembly.
+
+## What it contains
+
+The prompt block tells the model:
+
+- that it has access to MemexAI memory
+- when to use `memory_memorize` and `memory_search`
+- which virtual paths are writable or read-only
+- never to use physical database paths
+- shared memory files visible to all users
+- the current user's `user/index.md` when present
+
+## Two-turn proof
+
+Use this as the integration check:
+
+```txt
+Turn 1: Remember that I prefer quiet neighborhoods near parks.
+Turn 2: What kind of neighborhood do I prefer?
+```
+
+A successful integration stores the preference on turn one, includes the MemexAI prompt block on turn two, and answers with the quiet-neighborhood preference without the user repeating it. The admin UI should then show the memory file, revision, and later access log.
+
+## Common failure mode
+
+Passing tools without the prompt block can create a misleading demo: the agent may store memory, but the next response is still generic because the model was not instructed to retrieve and use it. Treat `tools` plus `system` as the pair that makes memory useful.
+
+## Related concepts
+
+- [How MemexAI works](/docs/concepts/how-it-works)
+- [Memory tools](/docs/concepts/memory-tools)
+- [Shared memory](/docs/concepts/shared-memory)
+- [Access logs](/docs/concepts/access-logs)

@@ -126,4 +126,13 @@ describe("MemexUser", () => {
     const logArgs = logCall?.[1] as unknown[]
     expect(logArgs).toContain("call_abc")
   })
+
+  test("getSystemPrompt() includes the MemexAI prompt block", async () => {
+    const memex = new Memex(createMockDb())
+    const user = memex.forUser({ userId: "u1", actor: "agent" })
+
+    await expect(user.getSystemPrompt("You are helpful.")).resolves.toContain(
+      "You are helpful.\n\n<memexai_memory>",
+    )
+  })
 })

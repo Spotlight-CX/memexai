@@ -73,10 +73,11 @@ const memex = new MemexAI({
 })
 
 const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
+const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
 
 const result = await generateText({
   model: createGoogleGenerativeAI()('gemini-2.5-flash'),
-  system: 'You are a helpful assistant with durable memory.',
+  system,
   prompt: 'Remember that I prefer quiet neighborhoods near good schools.',
   tools: memory.createAgenticToolset(),
   stopWhen: stepCountIs(5),
@@ -84,6 +85,8 @@ const result = await generateText({
 
 console.log(result.text)
 ```
+
+`memory.getSystemPrompt(...)` adds the MemexAI prompt block to your base prompt. Without that prompt block or an equivalent system section, the tools can store memory, but the next response may not be conditioned on it.
 
 ## Connect with the Python SDK
 

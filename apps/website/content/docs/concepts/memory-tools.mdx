@@ -17,8 +17,11 @@ Agentic tools give the model a smaller surface:
 Use this mode for assistants, copilots, support agents, and product agents where the model should remember useful facts without managing file paths itself.
 
 ```ts
+const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
 const tools = memory.createAgenticToolset()
 ```
+
+Pass both values to the model. `memory_memorize` stores durable facts, `memory_search` retrieves relevant files, and the prompt block tells the model when memory should influence the next response.
 
 In service mode, `memory_memorize` needs an LLM configured on the service with `GEMINI_API_KEY` or `OPENAI_API_KEY`. Without a service model, `memory_search` can still use Postgres full-text search, but `memory_memorize` cannot decide what to write.
 
@@ -60,6 +63,7 @@ Pass framework tool call IDs through adapter handlers when available. That links
 ## Related concepts
 
 - [How MemexAI works](/docs/concepts/how-it-works)
+- [Prompt block](/docs/concepts/prompt-block)
 - [Memory scopes](/docs/concepts/scopes)
 - [Revision history](/docs/concepts/revisions)
 - [Access logs](/docs/concepts/access-logs)

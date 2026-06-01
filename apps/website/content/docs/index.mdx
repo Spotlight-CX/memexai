@@ -1,9 +1,9 @@
 ---
 title: MemexAI Docs
-description: Persistent memory for AI agents, backed by Postgres.
+description: Memory that changes your agent's next response, backed by Postgres.
 ---
 
-MemexAI gives agents durable memory without hiding everything in chat history, prompt glue, or a separate vector store. Memory is stored as scoped Markdown-like files in Postgres, with revisions, access logs, search, and an admin UI.
+MemexAI gives agents durable memory that can actually influence the next response. It stores memory as scoped Markdown-like files in Postgres, injects the right context through a prompt block, and gives teams revisions, access logs, search, and an admin UI.
 
 ## Start with the service
 
@@ -30,12 +30,15 @@ Use this for embedded deployments, local experiments, or environments where shar
 
 ### Agentic tools
 
-Use this for most assistants. The model gets two tools and MemexAI handles file bookkeeping.
+Use this for most assistants. The model gets two tools, and your system prompt gets the MemexAI prompt block.
 
 ```ts
+const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
 const tools = memory.createAgenticToolset()
 // memory_memorize, memory_search
 ```
+
+Pass both `system` and `tools` into your model call. Tools store and retrieve memory; the prompt block is what makes stored memory available to the next answer.
 
 ### Raw tools
 
@@ -64,8 +67,9 @@ Drop Memex into the framework you already use.
 User memory stores per-user facts, preferences, and project state. Shared memory stores global guidance that every agent can read, such as tool rules, product policies, escalation criteria, and evaluation rubrics.
 
 <Cards>
-  <Card title="How MemexAI works" href="/docs/concepts/how-it-works" description="Understand the loop from model tool call to memory files, Postgres, revisions, and later recall." />
+  <Card title="How MemexAI works" href="/docs/concepts/how-it-works" description="Understand the loop from model tool call to memory files, prompt injection, revisions, and later recall." />
   <Card title="Memory tools" href="/docs/concepts/memory-tools" description="Choose between two agentic tools and the raw file-level tool set." />
+  <Card title="Prompt block" href="/docs/concepts/prompt-block" description="Make stored memory part of the system prompt so the next response can change." />
   <Card title="Shared memory as behavior guide" href="/docs/concepts/shared-memory" description="Use shared memory files as durable tool guidance, policies, and behavior instructions for agents." />
   <Card title="Why memory evals matter" href="/blog/stop-running-evals-only-on-prompts" description="Evaluate the memory state and memory writes, not only the prompt text." />
 </Cards>

@@ -9,6 +9,7 @@ LangChain adapters are available for both the TypeScript and Python SDKs.
 
 - Choose [service mode or direct Postgres mode](/docs/architecture).
 - Read [How MemexAI works](/docs/concepts/how-it-works) for the tool-call-to-Postgres flow.
+- Read [Prompt block](/docs/concepts/prompt-block) to understand why memory must be included in the system prompt.
 - Read [Memory tools](/docs/concepts/memory-tools) to choose agentic tools or raw file tools.
 - Read [Memory scopes](/docs/concepts/scopes) before writing paths like `user/profile.md`.
 
@@ -38,10 +39,11 @@ import { ChatPromptTemplate } from '@langchain/core/prompts'
 const memex = new MemexAI({ url: 'http://localhost:8080', apiKey: process.env.MEMEX_API_KEY! })
 const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
 const tools = createLangChainTools(memory)
+const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
 
 const llm = new ChatGoogleGenerativeAI({ model: 'gemini-2.5-flash' })
 const prompt = ChatPromptTemplate.fromMessages([
-  ['system', 'You are a helpful assistant with durable memory.'],
+  ['system', system],
   ['human', '{input}'],
   ['placeholder', '{agent_scratchpad}'],
 ])
@@ -64,7 +66,10 @@ await memex.migrate()
 
 const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
 const tools = createLangChainTools(memory)
+const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
 ```
+
+Use `system` in the LangChain prompt template alongside the tools.
 
 ---
 
@@ -88,10 +93,11 @@ from langchain_core.prompts import ChatPromptTemplate
 memex = MemexAI(url="http://localhost:8080", api_key="dev-agent-key")
 user = memex.for_user("user_123", actor="assistant")
 tools = get_langchain_tools(user)
+system = await user.get_system_prompt("You are a helpful assistant with durable user memory.")
 
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
 prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a helpful assistant with durable memory."),
+    ("system", system),
     ("human", "{input}"),
     ("placeholder", "{agent_scratchpad}"),
 ])

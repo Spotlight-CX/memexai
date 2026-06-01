@@ -6,7 +6,7 @@ Last updated: 2026-05-26
 
 The market is moving from "memory as retrieval" to "memory as operational context." Long-horizon agents do not only need a larger context window; they need a durable, inspectable place to accumulate experience, instructions, corrections, and environment-specific knowledge across sessions.
 
-MemexAI should own the position: memory that product teams can inspect, edit, audit, and use as part of the agent's behavioral control plane.
+MemexAI should own the position: memory that changes the next agent response, with an inspectable record product teams can edit, audit, and use as part of the agent's behavioral control plane.
 
 ## Research anchors
 
@@ -54,6 +54,17 @@ Assets:
   - "If a memory changes the answer, a human should be able to open it."
   - "Wrong memory is not a model mystery. It is an operational record."
 
+### 4. Prompt injection is the product moment
+
+Hypothesis: storage is not the felt value of memory. Returning users only experience memory when the next model call receives the right behavioral context and produces a different answer.
+
+Assets:
+- Docs: "Prompt block" concept page and quickstart snippets using `memory.getSystemPrompt(...)`.
+- Homepage and launch video: two-turn proof showing memory written on turn one and used on turn two.
+- Social hooks:
+  - "Memory is only valuable when it changes the next answer."
+  - "Tools store memory. The prompt block makes it part of behavior."
+
 ## Execution order
 
 1. Ship blog index plus two deep posts.
@@ -66,4 +77,5 @@ Assets:
 
 - Avoid claiming MemexAI is categorically better than Mem0 or Zep. The credible claim is narrower: MemexAI is better when the memory record must be inspectable, editable, auditable, and easy to self-host in Postgres.
 - Use "memory files," "revision history," "access logs," "shared guidance," "scoped user memory," and "Postgres-native" consistently.
+- Use "prompt block," "next response," and "two-turn proof" when explaining the product moment.
 - Keep canonical URLs on `https://memexai.space`.

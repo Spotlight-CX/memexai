@@ -47,11 +47,11 @@ const memex = createMemex({
 await memex.migrate()
 
 const memory = memex.forUser({ userId: 'demo_user', actor: 'assistant' })
-await memory.writeFile({
-  path: 'user/profile.md',
-  content: '# Profile\n\n- Prefers quiet neighborhoods.',
-  reason: 'captured user preference',
-})
+await memory.write(
+  'user/profile.md',
+  '# Profile\n\n- Prefers quiet neighborhoods.',
+  'captured user preference',
+)
 
 await memex.end()
 ```
@@ -59,9 +59,12 @@ await memex.end()
 ## Toolsets
 
 ```ts
+const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
 const agenticTools = memory.createAgenticToolset()
 const rawTools = memory.createRawToolset()
 ```
+
+Use `system` in your model call alongside the toolset. For lower-level control, `memory.getPromptBlock()` returns only the MemexAI memory section so you can compose the final system prompt yourself.
 
 ## Framework adapters
 

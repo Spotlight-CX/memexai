@@ -125,10 +125,13 @@ const memory = memex.forUser({
 })
 
 const tools = createVercelAITools(memory${o})
+const system = await memory.getSystemPrompt(
+  "You are a helpful assistant with durable user memory.",
+)
 
 const result = await generateText({
   model: createGoogleGenerativeAI()("gemini-2.5-flash"),
-  system: "You are a helpful assistant with durable memory.",
+  system,
   prompt: ${$r(l)},
   tools,
   stopWhen: stepCountIs(5),

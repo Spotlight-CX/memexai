@@ -133,6 +133,70 @@ describe("demo agent CLI", () => {
     expect(generateInput.tools.memory_search.inputSchema).toBeDefined()
   })
 
+  test("two-turn proof sends prompt-block memory and tools on a fresh follow-up call", async () => {
+    const promptBlocks = [
+      "<memexai_memory>\nNo files yet.\n</memexai_memory>",
+      [
+        "<memexai_memory>",
+        '<user_index path="user/index.md">',
+        "- user/profile.md: Prefers quiet neighborhoods near parks.",
+        "</user_index>",
+        "</memexai_memory>",
+      ].join("\n"),
+    ]
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = String(url)
+      if (href.includes("/v1/prompt-block")) {
+        return jsonResponse({ promptBlock: promptBlocks.shift() })
+      }
+      return createFetchMock()(url, init)
+    })
+    const generate = vi
+      .fn()
+      .mockImplementationOnce(async (input: { system: string; prompt: string; tools: Record<string, unknown> }) => {
+        expect(input.prompt).toBe("Remember that I prefer quiet neighborhoods near parks.")
+        expect(input.system).toContain("No files yet.")
+        expect(input.tools).toHaveProperty("memory_memorize")
+        expect(input.tools).toHaveProperty("memory_search")
+        return { text: "Saved that preference." }
+      })
+      .mockImplementationOnce(async (input: { system: string; prompt: string; tools: Record<string, unknown> }) => {
+        expect(input.prompt).toBe("What kind of neighborhood do I prefer?")
+        expect(input.system).toContain("Prefers quiet neighborhoods near parks.")
+        expect(input.tools).toHaveProperty("memory_memorize")
+        expect(input.tools).toHaveProperty("memory_search")
+        return { text: "You prefer quiet neighborhoods near parks." }
+      })
+
+    const env = {
+      MEMEX_URL: "http://localhost:8080",
+      MEMEX_API_KEY: "dev-agent-key",
+      MEMEX_DEMO_USER_ID: "demo_user",
+      GEMINI_API_KEY: "test-gemini-key",
+      GEMINI_MODEL: "gemini-test",
+    }
+
+    await runLiveAgent({
+      prompt: "Remember that I prefer quiet neighborhoods near parks.",
+      env,
+      fetchImpl: fetchMock as never,
+      log: vi.fn(),
+      generate: generate as never,
+      googleModelFactory: vi.fn(() => "mock-google-model") as never,
+    })
+    await runLiveAgent({
+      prompt: "What kind of neighborhood do I prefer?",
+      env,
+      fetchImpl: fetchMock as never,
+      log: vi.fn(),
+      generate: generate as never,
+      googleModelFactory: vi.fn(() => "mock-google-model") as never,
+    })
+
+    expect(generate).toHaveBeenCalledTimes(2)
+    expect(promptBlocks).toHaveLength(0)
+  })
+
   test("live agent falls back to OpenAI when no Gemini key is present", async () => {
     const fetchMock = createFetchMock()
     const generate = vi.fn(async (_input: unknown) => ({ text: "Saved that preference." }))

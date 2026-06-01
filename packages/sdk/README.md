@@ -38,9 +38,13 @@ Use this for most agents. MemexAI handles memory file bookkeeping.
 ```ts
 import { generateText, stepCountIs } from "ai"
 
+const system = await memory.getSystemPrompt(
+  "You are a helpful assistant with durable user memory.",
+)
+
 const result = await generateText({
   model,
-  system: "You are a helpful assistant with durable memory.",
+  system,
   prompt: "Remember that I prefer quiet projects near good schools.",
   tools: memory.createAgenticToolset(),
   stopWhen: stepCountIs(5),
@@ -54,6 +58,8 @@ Exposes:
 ```ts
 // memory_memorize, memory_search
 ```
+
+Tools alone are not the product moment. The model also needs the MemexAI prompt block, either through `memory.getSystemPrompt(...)` or by adding `await memory.getPromptBlock()` to your system prompt.
 
 ## Raw File Toolset
 

@@ -97,6 +97,19 @@ async def test_prompt_block_uses_query_context():
 
 
 @pytest.mark.asyncio
+async def test_get_system_prompt_includes_prompt_block():
+    client = MemexAI(
+        url="http://memex.test",
+        api_key="agent-key",
+        client=mock_client(lambda request: httpx.Response(200, json={"promptBlock": "<memexai_memory>"})),
+    )
+
+    prompt = await client.for_user("user_123", actor="assistant").get_system_prompt("You are helpful.")
+
+    assert prompt == "You are helpful.\n\n<memexai_memory>"
+
+
+@pytest.mark.asyncio
 async def test_service_error_json_becomes_memex_error():
     def handler(request):
         return httpx.Response(404, json={

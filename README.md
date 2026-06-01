@@ -6,9 +6,9 @@
 [![Docker](https://img.shields.io/docker/pulls/soorajshankar/memexai?color=064e3b)](https://hub.docker.com/r/soorajshankar/memexai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-064e3b.svg)](LICENSE)
 
-Persistent memory for AI agents, backed by Postgres.
+Memory that changes your agent's next response, backed by Postgres.
 
-Agents forget because most memory lives in chat history, prompt glue, or app-specific tables no one can inspect. MemexAI gives agents a small memory surface and gives humans a real system of record: files, search, revisions, access logs, and an admin UI.
+Agents forget because most memory never makes it back into the next model call, or it lives in chat history, prompt glue, or app-specific tables no one can inspect. MemexAI gives agents a closed loop: store durable memory, inject it into the next turn, verify the response changed, and inspect the record behind it.
 
 No vector database required. No hidden memory blob. Just Postgres.
 
@@ -21,7 +21,7 @@ AI agents need stable context:
 - A product assistant needs shared company context and private per-user memory.
 - A developer should be able to inspect memory without reverse-engineering model state.
 
-MemexAI stores memory as scoped Markdown-like files in Postgres. Agents can use a simple two-tool interface, while advanced workflows can use raw file tools directly.
+MemexAI stores memory as scoped Markdown-like files in Postgres and exposes a prompt block that makes stored memory available to the model when it answers. Agents can use a simple two-tool interface, while advanced workflows can use raw file tools directly.
 
 ## How It Is Different
 
@@ -34,10 +34,10 @@ store every message -> embed chunks -> retrieve similar past chunks -> answer
 That is useful, but it is closer to RAG over conversation history than durable memory. MemexAI is built around a different loop:
 
 ```text
-conversation happens -> agent writes only durable memory -> inspectable files -> targeted recall later
+conversation happens -> agent writes durable memory -> prompt block injects context -> next response changes -> humans inspect why
 ```
 
-MemexAI does not store every session as memory. Raw conversation logs can live in your app, warehouse, or audit store. MemexAI is for the smaller working set an agent should actually remember: user profile facts, preferences, timelines, commitments, project notes, decisions, and source-backed updates.
+MemexAI does not store every session as memory. Raw conversation logs can live in your app, warehouse, or audit store. MemexAI is for the smaller working set an agent should actually use later: user profile facts, preferences, timelines, commitments, project notes, decisions, and source-backed updates.
 
 **Tradeoff:** smaller context, human-readable memory, editable records, revision history, access logs, simple Postgres operations, no separate vector infrastructure — at the cost of ingestion quality. If the agent fails to write a durable fact, later recall cannot recover it unless you replay raw logs.
 
@@ -47,9 +47,10 @@ Systems like mem0, Zep, and Supermemory are often strongest when the task is "fi
 
 ### Agentic Tools: The Default
 
-Use this for most assistants. The model gets two tools and Memex handles the file bookkeeping.
+Use this for most assistants. The model gets two tools, and your system prompt gets the MemexAI prompt block.
 
 ```ts
+const system = await memory.getSystemPrompt("You are a helpful assistant with durable user memory.")
 const tools = memory.createAgenticToolset()
 // memory_memorize, memory_search
 ```
@@ -132,10 +133,11 @@ const memex = new MemexAI({
 })
 
 const memory = memex.forUser({ userId: "user_123", actor: "assistant" })
+const system = await memory.getSystemPrompt("You are a helpful assistant with durable user memory.")
 
 const result = await generateText({
   model: createGoogleGenerativeAI()("gemini-2.5-flash"),
-  system: "You are a helpful assistant with durable memory.",
+  system,
   prompt: "Remember that I prefer quiet neighborhoods near good schools.",
   tools: memory.createAgenticToolset(),
   stopWhen: stepCountIs(5),
@@ -262,10 +264,11 @@ const memex = createMemex({
 await memex.migrate()
 
 const memory = memex.forUser({ userId: "user_123", actor: "assistant" })
+const system = await memory.getSystemPrompt("You are a helpful assistant with durable user memory.")
 
 const result = await generateText({
   model: google("gemini-2.5-flash"),
-  system: "You are a helpful assistant with durable memory.",
+  system,
   prompt: "Remember that I prefer quiet neighborhoods near good schools.",
   tools: memory.createAgenticToolset(),
   stopWhen: stepCountIs(5),
@@ -311,9 +314,10 @@ await memex.close()
 | CrewAI | `memexai` | Python |
 | MCP (SSE + stdio) | service | Any |
 
-The instance methods are the shortest path:
+The instance methods are the shortest path. For model calls, use both the prompt helper and the toolset:
 
 ```ts
+const system = await memory.getSystemPrompt("You are a helpful assistant with durable user memory.")
 const agenticTools = memory.createAgenticToolset()
 const rawTools = memory.createRawToolset()
 ```
@@ -389,7 +393,7 @@ Postgres gives MemexAI durable storage, full-text search, migrations, access con
 | Self-hosting | Requires more infra | Cloud-first | One Postgres-backed service |
 | Admin UI | Not core OSS | Managed | Self-hosted |
 
-The goal is not to be a bigger memory platform. The goal is a smaller, inspectable memory layer that agents can use and humans can trust.
+The goal is not to be a bigger memory platform. The goal is a smaller memory loop: stored memory influences the next response, and humans can inspect the record that made it happen.
 
 ## Examples
 
@@ -433,7 +437,7 @@ bun run demo:agent -- --smoke
 
 ## Status
 
-Early stage. The core loop works: Postgres-backed files, scoped agent tools, BM25 search, model-backed memorize/search, revisions, access logs, SDKs, and admin UI.
+Early stage. The core loop works: Postgres-backed files, scoped agent tools, prompt-block injection, BM25 search, model-backed memorize/search, revisions, access logs, SDKs, and admin UI.
 
 ## Community
 

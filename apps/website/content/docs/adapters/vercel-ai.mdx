@@ -35,10 +35,11 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google'
 
 const memex = new MemexAI({ url: 'http://localhost:8080', apiKey: process.env.MEMEX_API_KEY! })
 const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
+const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
 
 const result = await generateText({
   model: createGoogleGenerativeAI()('gemini-2.5-flash'),
-  system: 'You are a helpful assistant with durable memory.',
+  system,
   prompt: 'Remember that I prefer quiet neighborhoods near good schools.',
   tools: memory.createAgenticToolset(),
   stopWhen: stepCountIs(5),
@@ -47,7 +48,7 @@ const result = await generateText({
 console.log(result.text)
 ```
 
-The instance method `memory.createAgenticToolset()` is the shortest path and returns Vercel AI-compatible tools directly.
+The instance method `memory.createAgenticToolset()` returns Vercel AI-compatible tools directly. Pair it with `memory.getSystemPrompt(...)` so stored memory can influence the next response.
 
 ## Direct Postgres mode
 
@@ -63,10 +64,11 @@ const memex = createMemex({ databaseUrl: process.env.DATABASE_URL!, model: googl
 await memex.migrate()
 
 const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
+const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
 
 const result = await generateText({
   model: google('gemini-2.5-flash'),
-  system: 'You are a helpful assistant with durable memory.',
+  system,
   prompt: 'Remember that I prefer quiet neighborhoods near good schools.',
   tools: memory.createAgenticToolset(),
   stopWhen: stepCountIs(5),

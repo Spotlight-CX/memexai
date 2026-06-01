@@ -191,14 +191,13 @@ const memex = new MemexAI({
 
 export async function runAgent(input: string, userId = "demo_user") {
   const memory = memex.forUser({ userId, actor: "assistant" })
-  const memexPrompt = await memory.getPromptBlock()
+  const system = await memory.getSystemPrompt(
+    "You are a helpful assistant with durable user memory.",
+  )
 
   const result = await generateText({
     model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
-    system: [
-      "You are a helpful assistant with durable user memory.",
-      memexPrompt,
-    ].join("\n\n"),
+    system,
     prompt: input,
     tools: createVercelAITools(memory, { mode: "agentic" }),
     stopWhen: stepCountIs(5),
@@ -232,11 +231,11 @@ const memex = new MemexAI({
 })
 
 const memory = memex.forUser({ userId: "demo_user", actor: "assistant" })
-const memexPrompt = await memory.getPromptBlock()
+const system = await memory.getSystemPrompt("...")
 const memexTools = createOpenAITools(memory)
 ```
 
-Add `memexPrompt` to the system message. Add `memexTools.definitions` to the OpenAI tool list. When the model returns tool calls, pass each call to `memexTools.execute(...)` and continue the tool loop according to the app's existing OpenAI SDK pattern.
+Add `system` to the model call's system message. Add `memexTools.definitions` to the OpenAI tool list. When the model returns tool calls, pass each call to `memexTools.execute(...)` and continue the tool loop according to the app's existing OpenAI SDK pattern.
 
 ## LangChain JS adapter
 
@@ -253,10 +252,10 @@ const memex = new MemexAI({
 
 const memory = memex.forUser({ userId: "demo_user", actor: "assistant" })
 const tools = createLangChainTools(memory)
-const memexPrompt = await memory.getPromptBlock()
+const system = await memory.getSystemPrompt("...")
 ```
 
-Add `memexPrompt` to the system prompt and bind `tools` using the app's existing LangChain tool binding pattern.
+Add `system` to the model call and bind `tools` using the app's existing LangChain tool binding pattern.
 
 ## Python setup
 
