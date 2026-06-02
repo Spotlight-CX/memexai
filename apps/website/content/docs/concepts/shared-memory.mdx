@@ -1,32 +1,158 @@
 ---
 title: Shared Memory as Behavior Guide
-description: Use shared memory files as durable tool guidance, policies, and behavior instructions for agents.
+description: Use shared memory files as a knowledge base, operations manual, tool policies, and durable behavioral guidance that every agent reads automatically.
 ---
 
 MemexAI has two virtual memory scopes:
 
 - `user/` is private to a user and writable by the agent.
-- `shared/` is global, read-only for agents, and useful for guidance your product wants every agent to see.
+- `shared/` is global, read-only for agents, and injected into every prompt block automatically.
 
-Most teams start by using shared memory for reusable facts. You can also use it as a behavioral guide.
+Shared memory is not just a place to store reusable facts. It is the primary lever for controlling how every agent in your product behaves — and for giving agents knowledge your team maintains, not knowledge extracted from user conversations.
 
-## Why shared memory affects behavior
+## The always-in-context guarantee
 
-The prompt is not the only source of instructions once an agent has memory. If your prompt block includes `shared/AGENTS.md`, `shared/index.md`, or other shared files, those files become durable context the model can use when it decides how to act.
+Every prompt block built by `getSystemPrompt()` or `getPromptBlock()` automatically includes:
 
-That makes shared memory useful for:
+- `shared/index.md` — if it exists, it is injected verbatim into the system prompt
+- Any files referenced from `shared/index.md` can be fetched by the agent via `memory_read`
+- `user/index.md` — the current user's memory catalog, also injected automatically
 
-- Tool usage rules
-- Product policies
-- Escalation criteria
-- Domain vocabulary
-- Preferred file organization
-- Known anti-patterns
-- Evaluation rubrics
+This means anything you write to `shared/index.md` or `shared/claude.md` becomes part of every agent session, for every user, without any extra integration code. It is the closest MemexAI has to a "global instruction" that survives model updates and session boundaries.
 
-Shared memory should be treated like a versioned operations surface. Keep it concise, source-backed, and reviewed.
+```ts
+// shared/index.md is injected here automatically
+const system = await memory.getSystemPrompt('You are a helpful assistant.')
+```
 
-## Example
+You do not need to pass shared file paths explicitly — the prompt block builder reads them from Postgres and injects them for you.
+
+---
+
+## Use case 1: Internal knowledge base
+
+Shared memory is the right place for facts your team maintains that every agent should know — product information, domain terminology, pricing, FAQs, and any knowledge that changes over time.
+
+Unlike system prompt strings (which require a code deploy to update), shared memory files can be edited in the admin console or via the API and take effect on the next session without touching application code.
+
+**Example: product knowledge base**
+
+```md
+# shared/knowledge/products.md
+
+## Plans
+
+- Starter: up to 10k memory operations/month, single user scope
+- Pro: unlimited operations, team scopes, priority support
+- Enterprise: dedicated instance, SLA, custom retention
+
+## Limits
+
+- Maximum file size: 48 KB per memory file
+- Revision retention: configurable, default 90 days
+- API rate limit: 200 requests/minute on Starter, 2000 on Pro
+
+## Common questions
+
+**Can I export user memory?** Yes. Admin API GET /v1/admin/files returns all files
+for a scope as JSON. You own the data.
+
+**Does dreaming touch shared files?** No. Dream consolidation is scoped to
+user/ paths only. Shared files are never modified by background dreaming.
+```
+
+**Example: domain vocabulary**
+
+```md
+# shared/knowledge/domain.md
+
+## Real estate terminology
+
+- EMI: Equated Monthly Installment — the fixed monthly payment on a home loan
+- FSI: Floor Space Index — the ratio of total floor area to plot area
+- OC: Occupancy Certificate — issued by the municipality after construction
+- RERA: Real Estate Regulatory Authority — regulates project registration in India
+- Super built-up area: includes the apartment area plus proportional common area share
+- Carpet area: the actual usable floor area within the walls
+```
+
+Agents that have this in their prompt block will use these terms correctly and can explain them to users without hallucinating definitions.
+
+---
+
+## Use case 2: Operations manual
+
+`shared/` can hold an operations manual — step-by-step procedures, escalation rules, and workflow instructions that define how agents should handle specific situations. Think of it as a runbook that the agent reads before every session.
+
+This is particularly valuable for support agents, onboarding agents, and any agent that handles edge cases differently depending on product state.
+
+**Example: support agent operations manual**
+
+```md
+# shared/ops/support-playbook.md
+
+## Escalation criteria
+
+Escalate to a human agent if:
+- The user mentions a payment dispute or chargeback
+- The user asks for a refund on a subscription older than 30 days
+- The conversation has been marked unresolved for more than 2 turns
+- The user expresses frustration with phrases like "this is unacceptable" or "I want to speak to a manager"
+
+Do NOT escalate for:
+- Password resets (use the self-service flow)
+- Feature requests (log them in user/feedback.md)
+- Billing questions that can be answered from shared/knowledge/products.md
+
+## Tone rules
+
+- Always address the user by their first name if it is in user/profile.md
+- Never make promises about feature timelines
+- For pricing questions, always link to the pricing page rather than quoting exact figures
+
+## Memory write policy
+
+- Log every escalation in user/support-log.md with the reason and timestamp
+- Do not write personal health, financial, or legal inferences to user memory
+- Write corrections explicitly: "User corrected city to Mumbai (was Bangalore)"
+```
+
+**Example: onboarding agent runbook**
+
+```md
+# shared/ops/onboarding.md
+
+## New user flow
+
+1. Check user/profile.md — if empty, this is the first session
+2. Ask the user for their primary goal (buying, renting, investing)
+3. Ask for their city and neighborhood preferences
+4. Write the answers to user/profile.md with the keys: goal, city, neighborhoods[]
+5. Introduce the search tools and explain what will be remembered
+
+## Profile quality signals
+
+A high-quality profile has:
+- goal (required)
+- city (required)
+- budget_range (strongly preferred)
+- neighborhoods (at least one)
+- deal_breakers (if mentioned)
+
+If any required field is missing after 3 turns, prompt the user directly.
+
+## Common gotchas
+
+- Users often mention budget in EMI terms, not total price. Convert and store both.
+- "Quiet" often means low traffic, not rural. Ask a follow-up before writing.
+- City names can be ambiguous (Bangalore vs Bengaluru). Normalize to Bengaluru Urban.
+```
+
+---
+
+## Use case 3: Agent tool policy
+
+When shared memory includes tool usage rules, every agent reads them before deciding which tool to call. This lets you tune agent behavior across sessions without changing prompts in code.
 
 ```md
 # shared/AGENTS.md
@@ -35,27 +161,80 @@ Shared memory should be treated like a versioned operations surface. Keep it con
 
 - Write user preferences only when the user states them directly.
 - Do not infer budget, health, legal, or financial constraints without confirmation.
-- When a new statement conflicts with old memory, update the memory and note the correction.
+- When a new statement conflicts with old memory, update the memory file and add a correction note.
+- Never write raw PII (full names, phone numbers, national IDs) to memory files.
 
-## Tool guide
+## Tool selection guide
 
-- Use memory_search before making personalized recommendations.
-- Use memory_patch for small changes to an existing file.
-- Use memory_write only when creating or replacing a whole file intentionally.
+- Use memory_search before making any personalized recommendation.
+- Use memory_patch for small changes (adding a field, updating a value).
+- Use memory_write only when creating or completely replacing a file.
+- Use memory_memorize when the user states a durable preference, constraint, or decision.
+
+## What not to memorize
+
+- Transient statements ("I'm tired today", "I'm in a hurry")
+- Questions the user is exploring, not deciding
+- Anything the user asks to keep private
+- Session artifacts that don't affect future responses
 ```
+
+---
+
+## Use case 4: Shared guidance + per-user context
+
+The most powerful patterns combine shared guidance with user-specific memory. The agent gets the rules from `shared/` and the user's current context from `user/` — both injected by the same prompt block.
+
+```txt
+shared/AGENTS.md          → how the agent should behave (global)
+shared/knowledge/*.md     → what the agent should know (global)
+shared/ops/playbook.md    → how to handle situations (global)
+user/profile.md           → who this user is (per-user)
+user/projects.md          → what the user is working on (per-user)
+user/index.md             → catalog of this user's memory (per-user, auto-injected)
+```
+
+The agent does not need to fetch shared files explicitly — they are in context. If the shared files are large or numerous, use `shared/index.md` as a routing catalog that tells the agent which files to read for each type of task.
+
+**Example: shared/index.md as a routing catalog**
+
+```md
+# MemexAI Shared Memory Index
+
+This file is always in context. Reference it to find the right file to read.
+
+## Knowledge
+
+- Products and pricing → shared/knowledge/products.md
+- Domain vocabulary → shared/knowledge/domain.md
+- Legal and compliance notes → shared/knowledge/compliance.md
+
+## Operations
+
+- Support escalation playbook → shared/ops/support-playbook.md
+- Onboarding agent runbook → shared/ops/onboarding.md
+
+## Agent policies
+
+- Memory write and tool selection policy → shared/AGENTS.md
+```
+
+---
 
 ## Pair shared and user memory
 
-Shared memory should describe how the agent behaves. User memory should describe what is true for a specific user.
+Shared memory should describe how the agent behaves and what it knows. User memory should describe what is true for a specific user.
 
 ```txt
 shared/AGENTS.md        durable behavior and tool rules
 shared/policy.md        product or workspace policy
-shared/index.md         catalog of shared guidance
+shared/index.md         routing catalog — always in context
 user/profile.md         stable user preferences
 user/projects.md        active work and constraints
-user/index.md           catalog of user memory
+user/index.md           catalog of user memory — always in context
 ```
+
+---
 
 ## Evaluate memory, not only prompts
 
@@ -73,13 +252,16 @@ For each eval case, capture:
 
 The best regression tests check both the response and the memory transition. A correct answer with an incorrect memory write should fail, because it will make a later session worse.
 
+---
+
 ## Operational guidance
 
-- Keep shared memory small enough to remain high-signal.
-- Use headings that make retrieval and scanning easy.
-- Prefer explicit rules over vague style advice.
+- Keep `shared/index.md` short — it is injected into every prompt block. Treat it as a routing catalog, not a data store.
+- Split large knowledge bases into named files under `shared/knowledge/` and reference them from the index.
+- Use headings that make agent retrieval easy — the agent will `memory_read` a file when it needs detail.
+- Prefer explicit rules over vague style advice in `shared/AGENTS.md`.
 - Keep sensitive, per-user facts out of `shared/`.
-- Review revisions after changing shared guidance.
-- Link shared guidance changes to product or eval failures when possible.
+- Review revisions after changing shared guidance — check the access logs to see if agents are reading the new content.
+- Link shared guidance changes to product or eval failures when possible, so the correction trail is clear.
 
-Shared memory is powerful because it persists. Treat it with the same care as prompt templates, policy code, and product configuration.
+Shared memory is powerful because it persists and affects every user session. Treat it with the same care as prompt templates, policy code, and product configuration.
