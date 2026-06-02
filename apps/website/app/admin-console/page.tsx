@@ -39,7 +39,7 @@ const consoleAreas = [
     icon: BarChart3,
     title: 'Observability',
     text: 'Track tool calls, p95 latency, error rate, active scopes, hot files, memory topology, hygiene signals, and recent slow or failed calls.',
-    why: 'Once memory is part of the system prompt, memory health becomes production health.',
+    why: 'Once memory is injected into prompts, memory health becomes part of debugging production behavior.',
   },
   {
     icon: FileClock,
@@ -56,7 +56,7 @@ const consoleAreas = [
   {
     icon: PlayCircle,
     title: 'Tool playground',
-    text: 'Call memory tools from the browser, test raw and agentic flows, inspect responses, and copy framework-specific integration snippets.',
+    text: 'In a local or private operator session, call memory tools from the console, test raw and agentic flows, inspect responses, and copy integration snippets.',
     why: 'The first proof should be concrete before a team invests in a full integration.',
   },
   {
@@ -132,6 +132,11 @@ export default function AdminConsolePage() {
               memory files, correct wrong facts, review revisions, follow access logs, test tools, and watch memory
               health across users.
             </p>
+            <p className="admin-console-security-note">
+              The console is an operator surface, not an end-user app. Put <code>/admin</code> behind your own auth,
+              keep <code>MEMEX_ADMIN_SECRET</code> and <code>MEMEX_API_KEY</code> server-side, and proxy admin calls in
+              public deployments.
+            </p>
             <div className="hero-actions">
               <Link className="site-button site-button-primary" href="/docs/operations/admin-console">
                 Read the admin docs
@@ -172,10 +177,10 @@ export default function AdminConsolePage() {
 
       <section className="section">
         <div className="section-kicker">What you can do</div>
-        <h2>The console covers the memory lifecycle.</h2>
+        <h2>The console covers the core memory operating loop.</h2>
         <p className="section-lede">
-          Use it after first install to prove the loop, and keep using it in production to debug why an agent remembered,
-          forgot, or changed a durable fact.
+          Use it after first install to prove the loop, and in production-like environments to debug why an agent
+          remembered, forgot, or changed a durable fact after you have reviewed the security and retention caveats.
         </p>
         <div className="admin-console-grid">
           {consoleAreas.map((area) => {

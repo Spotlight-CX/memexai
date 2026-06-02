@@ -240,6 +240,21 @@ body {
   height: auto;
 }
 
+.admin-console-security-note {
+  margin: 18px 0 0;
+  border: 1px solid rgba(17, 19, 21, 0.12);
+  border-radius: 8px;
+  padding: 13px 14px;
+  color: var(--site-muted);
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.admin-console-security-note code {
+  color: var(--site-ink);
+}
+
 .admin-console-philosophy {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

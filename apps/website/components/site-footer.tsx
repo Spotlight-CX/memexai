@@ -66,8 +66,7 @@ export function SiteFooter() {
           <p className="site-footer-kicker">Open-source memory infrastructure</p>
           <h2>Make memory a product surface, not a prompt secret.</h2>
           <p>
-            MemexAI keeps durable memory inspectable, revisioned, and ready for agents that personalize and operate
-            across sessions.
+            MemexAI keeps durable memory inspectable, revisioned, and usable by agents that personalize across sessions.
           </p>
           <div className="site-footer-actions">
             <Link className="site-footer-button primary" href="/docs/quickstart/docker-service">

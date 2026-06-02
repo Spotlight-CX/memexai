@@ -20,7 +20,7 @@ The admin console uses:
 - `MEMEX_ADMIN_SECRET` for admin routes
 - `MEMEX_API_KEY` for the Tool Playground
 
-Keep both values out of untrusted browsers. If you expose the console outside a local or private network, put it behind your own authentication and proxy admin API calls server-side.
+Keep both values out of untrusted browsers. If you expose the console outside a local or private network, put it behind your own authentication and proxy admin API calls server-side. MemexAI also does not authenticate end users; your backend must derive `userId` from trusted server-side identity.
 
 ## Files
 
@@ -93,7 +93,7 @@ Use this view when a product question becomes operational: "Which files are bein
 
 ## Tool Playground
 
-The Tool Playground lets you call MemexAI tools from the browser before wiring a full app integration.
+The Tool Playground lets you call MemexAI tools from a local or private operator session before wiring a full app integration.
 
 ![MemexAI admin tool playground](/images/admin-console/playground.png)
 
