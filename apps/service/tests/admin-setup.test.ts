@@ -64,6 +64,7 @@ describe("handleSetupGenerate", () => {
       userInfoCategories: ["preferences", "constraints"],
       stability: "evolving",
       extra: "Track fit and budget.",
+      revisionInstruction: "Make budget a hard constraint.",
     }, generate as never)
 
     expect(result.files).toHaveLength(3)
@@ -79,6 +80,9 @@ describe("handleSetupGenerate", () => {
     expect(generate).toHaveBeenCalledWith(expect.objectContaining({
       model: { id: "model" },
       prompt: expect.stringContaining("Track fit and budget."),
+    }))
+    expect(generate).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: expect.stringContaining("Make budget a hard constraint."),
     }))
   })
 

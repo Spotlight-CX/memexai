@@ -38,7 +38,6 @@ import { DreamsView } from "./components/DreamsView"
 import { SecretGate } from "./components/SecretGate"
 import { SetupWizard } from "./components/SetupWizard"
 import { ToolPlayground } from "./components/ToolPlayground"
-import { WelcomeModal } from "./components/WelcomeModal"
 import { UsersView, RevisionsView, AccessLogsView } from "./components/TableViews"
 import { AdminSpotlight, SpotlightTrigger } from "./components/Spotlight"
 import type { AdminFile, Overlay } from "./types"
@@ -242,8 +241,6 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
           <AccessLogsView secret={secret} physicalPath={null} />
         </Box>
       </Modal>
-
-      <WelcomeModal />
     </Layout>
   )
 }

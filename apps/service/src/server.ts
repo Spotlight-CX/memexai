@@ -442,14 +442,15 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
   })
 
   app.post("/v1/admin/setup-generate", { preHandler: adminAuth }, async (request) => {
-    const { productDescription, domain, userInfoCategories, stability, extra } = request.body as {
+    const { productDescription, domain, userInfoCategories, stability, extra, revisionInstruction } = request.body as {
       productDescription: string
       domain: string
       userInfoCategories: string[]
       stability?: string
       extra?: string
+      revisionInstruction?: string
     }
-    return handleSetupGenerate(input.model, { productDescription, domain, userInfoCategories, stability, extra })
+    return handleSetupGenerate(input.model, { productDescription, domain, userInfoCategories, stability, extra, revisionInstruction })
   })
 
   app.post("/v1/admin/configure-chat", { preHandler: adminAuth }, async (request) => {

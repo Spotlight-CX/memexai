@@ -72,6 +72,7 @@ export async function handleSetupGenerate(
     userInfoCategories: string[]
     stability?: string
     extra?: string
+    revisionInstruction?: string
   },
   generate = generateText,
 ): Promise<SetupGeneration> {
@@ -124,8 +125,20 @@ export async function handleSetupGenerate(
       "",
       "Tone:",
       "- Be precise and practical.",
-      "- Explain why the schema fits this product.",
+      "- Use crisp admin-facing copy for quick scanning.",
+      "- Do not write long rationale paragraphs.",
+      "- Prefer operational labels over explanation.",
       "- Do not claim raw transcripts are stored by default.",
+      "",
+      "Brevity requirements for explanation:",
+      "- summary: maximum 2 short sentences.",
+      "- schemaGuidance: exactly 3 short bullet-like lines separated by newlines.",
+      "- examples: exactly 3 examples when possible: one STORE, one IGNORE, one PATCH or correction example.",
+      "- Each userMessage should be 120 characters or fewer.",
+      "- Each reason should be 12 words or fewer.",
+      "- Each memoryLines array should have at most 2 short lines.",
+      "- sharedMemoryIdeas: at most 4 items, each 6 words or fewer.",
+      "- rawToolNote: one short sentence.",
     ].join("\n"),
     prompt: buildSetupPrompt(input),
   })
@@ -141,6 +154,7 @@ function buildSetupPrompt(input: {
   userInfoCategories: string[]
   stability?: string
   extra?: string
+  revisionInstruction?: string
 }) {
   const categoryLines = input.userInfoCategories
     .map((cat) => `- ${USER_INFO_CATEGORY_LABELS[cat] ?? cat}`)
@@ -157,6 +171,9 @@ function buildSetupPrompt(input: {
     "",
     "Additional admin guidance:",
     input.extra?.trim() || "None",
+    "",
+    "Admin-requested revision to the draft:",
+    input.revisionInstruction?.trim() || "None",
     "",
     "Generate a MemexAI shared memory schema for this product.",
   ].join("\n")
@@ -198,5 +215,48 @@ function normalizeGeneration(generation: SetupGeneration): SetupGeneration {
     }
   }
 
-  return { ...generation, files }
+  return {
+    ...generation,
+    files,
+    explanation: {
+      summary: clampWords(generation.explanation.summary, 38),
+      schemaGuidance: splitGuidance(generation.explanation.schemaGuidance).slice(0, 3).join("\n"),
+      examples: normalizeExamples(generation.explanation.examples),
+      sharedMemoryIdeas: generation.explanation.sharedMemoryIdeas
+        .map((idea) => clampWords(idea, 6))
+        .filter(Boolean)
+        .slice(0, 4),
+      rawToolNote: clampWords(generation.explanation.rawToolNote, 22),
+    },
+  }
+}
+
+function clampWords(value: string, maxWords: number): string {
+  const words = value.trim().replace(/\s+/g, " ").split(" ").filter(Boolean)
+  if (words.length <= maxWords) return words.join(" ")
+  return `${words.slice(0, maxWords).join(" ")}...`
+}
+
+function splitGuidance(value: string): string[] {
+  const lines = value
+    .split(/\n|•|-/)
+    .map((line) => clampWords(line.replace(/^\s*\d+[\.)]\s*/, ""), 14))
+    .filter(Boolean)
+
+  return lines.length
+    ? lines
+    : [clampWords(value, 14)]
+}
+
+function normalizeExamples(examples: SetupExample[]): SetupExample[] {
+  return examples.slice(0, 3).map((example) => ({
+    userMessage: clampWords(example.userMessage, 18),
+    shouldStore: example.shouldStore,
+    reason: clampWords(example.reason, 12),
+    targetFile: example.shouldStore ? example.targetFile : null,
+    memoryLines: example.memoryLines
+      .map((line) => clampWords(line.replace(/^-\s*/, ""), 12))
+      .filter(Boolean)
+      .slice(0, 2),
+  }))
 }

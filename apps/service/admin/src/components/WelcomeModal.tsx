@@ -1,6 +1,6 @@
-import { Button, Group, Modal, Stack, Text, TextInput, Title, ThemeIcon, Box } from "@mantine/core"
+import { Box, Button, Group, Modal, Stack, Text, TextInput, ThemeIcon, Title } from "@mantine/core"
 import { useForm } from "@mantine/form"
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyAxC6Ezy5xXPrszNu9zrIGyLtmaYFjVnxM",
@@ -9,10 +9,11 @@ const FIREBASE_CONFIG = {
   storageBucket: "memexai.firebasestorage.app",
   messagingSenderId: "960225585384",
   appId: "1:960225585384:web:3aee58fd1703286e21815d",
-  measurementId: "G-MJ3JFQYC9B"
+  measurementId: "G-MJ3JFQYC9B",
 } as const
 
 const FIREBASE_ENABLED = !!FIREBASE_CONFIG.apiKey
+const WELCOME_STORAGE_KEY = "memexai.welcomed"
 
 function SparklesIcon() {
   return (
@@ -26,41 +27,47 @@ function SparklesIcon() {
   )
 }
 
-export function WelcomeModal() {
-  const [opened, setOpened] = useState(false)
+function shouldShowProfileAsk() {
+  if (!FIREBASE_ENABLED) return false
+  const stored = localStorage.getItem(WELCOME_STORAGE_KEY)
+  if (!stored) return true
+  if (stored === "done") return false
+  const skippedAt = parseInt(stored, 10)
+  return Number.isFinite(skippedAt) && Date.now() - skippedAt > 24 * 60 * 60 * 1000
+}
+
+function markSkipped() {
+  localStorage.setItem(WELCOME_STORAGE_KEY, Date.now().toString())
+}
+
+function markDone() {
+  localStorage.setItem(WELCOME_STORAGE_KEY, "done")
+}
+
+export function AdminProfilePanel({ onDone }: { onDone?: () => void }) {
+  const [visible, setVisible] = useState(() => shouldShowProfileAsk())
   const [loading, setLoading] = useState(false)
 
   const form = useForm({
     initialValues: { name: "", email: "", company: "", role: "" },
     validate: {
-      email: (v) =>
-        !v.trim()
+      email: (value) =>
+        !value.trim()
           ? "Email is required"
-          : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())
+          : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
           ? null
           : "Enter a valid email address",
-      name: (v) => (v.trim() ? null : "Name is required"),
+      name: (value) => (value.trim() ? null : "Name is required"),
     },
     validateInputOnBlur: true,
   })
 
-  useEffect(() => {
-    if (!FIREBASE_ENABLED) return
-    const stored = localStorage.getItem("memexai.welcomed")
-    if (!stored) {
-      setOpened(true)
-      return
-    }
-    if (stored === "done") return
-    const skippedAt = parseInt(stored, 10)
-    if (Date.now() - skippedAt > 24 * 60 * 60 * 1000) {
-      setOpened(true)
-    }
-  }, [])
+  if (!visible) return null
 
   function dismiss() {
-    localStorage.setItem("memexai.welcomed", Date.now().toString())
-    setOpened(false)
+    markSkipped()
+    setVisible(false)
+    onDone?.()
   }
 
   async function submit(values: typeof form.values) {
@@ -73,84 +80,73 @@ export function WelcomeModal() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             fields: {
-              name:      { stringValue: values.name },
-              email:     { stringValue: values.email },
-              company:   { stringValue: values.company },
-              role:      { stringValue: values.role },
+              name: { stringValue: values.name },
+              email: { stringValue: values.email },
+              company: { stringValue: values.company },
+              role: { stringValue: values.role },
               timestamp: { timestampValue: new Date().toISOString() },
             },
           }),
         },
       )
-    } catch { /* best-effort */ }
-    localStorage.setItem("memexai.welcomed", "done")
-    setLoading(false)
+      markDone()
+      setVisible(false)
+      onDone?.()
+    } catch {
+      markDone()
+      setVisible(false)
+      onDone?.()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Box component="form" onSubmit={form.onSubmit(submit)}>
+      <Stack gap="lg">
+        <Box>
+          <Group align="center" gap="sm" mb={4}>
+            <ThemeIcon variant="light" size="md" radius="sm" color="blue">
+              <SparklesIcon />
+            </ThemeIcon>
+            <Title order={4} fw={700}>Optional: finish admin profile</Title>
+          </Group>
+          <Text size="sm" c="dimmed">
+            This helps us understand usage. It does not change agent memory behavior.
+          </Text>
+        </Box>
+
+        <Stack gap="md">
+          <TextInput label="Name" placeholder="Jane Doe" radius="sm" withAsterisk {...form.getInputProps("name")} />
+          <TextInput label="Work email" placeholder="jane@company.com" radius="sm" withAsterisk {...form.getInputProps("email")} />
+          <TextInput label="Company" placeholder="Acme Inc." radius="sm" {...form.getInputProps("company")} />
+          <TextInput label="Role" placeholder="Engineering lead" radius="sm" {...form.getInputProps("role")} />
+        </Stack>
+
+        <Group justify="flex-end" gap="xs">
+          <Button variant="subtle" color="gray" size="sm" onClick={dismiss}>Skip</Button>
+          <Button type="submit" size="sm" loading={loading}>Save and continue</Button>
+        </Group>
+      </Stack>
+    </Box>
+  )
+}
+
+export function WelcomeModal() {
+  const [opened, setOpened] = useState(false)
+
+  useEffect(() => {
+    if (shouldShowProfileAsk()) setOpened(true)
+  }, [])
+
+  function close() {
+    markSkipped()
     setOpened(false)
   }
 
   return (
-    <Modal
-      opened={opened}
-      onClose={dismiss}
-      withCloseButton={false}
-      size="lg"
-      radius="lg"
-      padding="xl"
-      centered
-    >
-      <form onSubmit={form.onSubmit(submit)}>
-        <Stack gap="lg">
-          <Box>
-            <Group justify="center" mb="md">
-              <ThemeIcon variant="light" size="xl" radius="md" color="blue">
-                <SparklesIcon />
-              </ThemeIcon>
-            </Group>
-            <Title order={3} ta="center" fw={700}>Welcome to MemexAI</Title>
-            <Text size="sm" c="dimmed" ta="center" mt={4} px="sm">
-              We're building the future of personal knowledge. Help us shape it by sharing a bit about yourself.
-            </Text>
-          </Box>
-
-          <Stack gap="md">
-            <TextInput
-              label="Full Name"
-              placeholder="Jane Doe"
-              radius="md"
-              withAsterisk
-              {...form.getInputProps("name")}
-            />
-            <TextInput
-              label="Work Email"
-              placeholder="jane@company.com"
-              radius="md"
-              withAsterisk
-              {...form.getInputProps("email")}
-            />
-            <TextInput
-              label="Organization"
-              placeholder="Acme Inc."
-              radius="md"
-              {...form.getInputProps("company")}
-            />
-            <TextInput
-              label="Your Role"
-              placeholder="Product Designer"
-              radius="md"
-              {...form.getInputProps("role")}
-            />
-          </Stack>
-
-          <Stack gap="xs" mt="sm">
-            <Button type="submit" size="md" radius="md" loading={loading} fullWidth>
-              Get Started
-            </Button>
-            <Button variant="subtle" color="gray" size="xs" onClick={dismiss} fullWidth>
-              I'll do this later
-            </Button>
-          </Stack>
-        </Stack>
-      </form>
+    <Modal opened={opened} onClose={close} withCloseButton={false} size="lg" radius="sm" padding="xl" centered>
+      <AdminProfilePanel onDone={() => setOpened(false)} />
     </Modal>
   )
 }
