@@ -70,6 +70,11 @@ const proofSteps = [
 
 const screenshots = [
   {
+    src: '/images/admin-console/observability-context.png',
+    title: 'Observability context',
+    text: 'Read memory topology, hygiene signals, evolution, activity, hot files, and recent slow calls in one operator view.',
+  },
+  {
     src: '/images/admin-console/files.png',
     title: 'Files',
     text: 'Open a user memory file and read the durable facts that the next agent response can use.',
