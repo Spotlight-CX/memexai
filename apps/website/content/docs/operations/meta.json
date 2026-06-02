@@ -1,5 +1,5 @@
 {
   "title": "Operations",
   "defaultOpen": true,
-  "pages": ["dreaming", "production-caveats", "trust-model", "correction-workflow", "migrations"]
+  "pages": ["admin-console", "dreaming", "production-caveats", "trust-model", "correction-workflow", "migrations"]
 }

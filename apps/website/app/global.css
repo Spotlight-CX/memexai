@@ -209,6 +209,107 @@ body {
   border-bottom: 0;
 }
 
+.admin-console-hero {
+  padding-bottom: 56px;
+}
+
+.admin-console-hero-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  gap: 34px;
+  align-items: center;
+}
+
+.admin-console-main-shot,
+.admin-console-shot {
+  margin: 0;
+}
+
+.admin-console-main-shot {
+  overflow: hidden;
+  border: 1px solid rgba(17, 19, 21, 0.12);
+  border-radius: 8px;
+  background: var(--site-panel);
+  box-shadow: 0 28px 80px rgba(16, 22, 20, 0.18);
+}
+
+.admin-console-main-shot img,
+.admin-console-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.admin-console-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 34px;
+}
+
+.admin-console-card {
+  min-height: 210px;
+  border: 1px solid var(--site-line);
+  border-radius: 8px;
+  padding: 20px;
+  background: var(--site-panel);
+}
+
+.admin-console-card svg {
+  color: var(--site-accent);
+}
+
+.admin-console-card h3 {
+  margin: 18px 0 0;
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.admin-console-card p {
+  margin: 10px 0 0;
+  color: var(--site-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.admin-console-proof {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.admin-console-shot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 34px;
+}
+
+.admin-console-shot {
+  overflow: hidden;
+  border: 1px solid var(--site-line);
+  border-radius: 8px;
+  background: var(--site-panel);
+}
+
+.admin-console-shot figcaption {
+  display: grid;
+  gap: 7px;
+  border-top: 1px solid var(--site-line);
+  padding: 16px;
+}
+
+.admin-console-shot figcaption strong {
+  font-size: 16px;
+}
+
+.admin-console-shot figcaption span {
+  color: var(--site-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
 .memory-path {
   color: #0c0f0d;
   font-weight: 650;
@@ -1442,7 +1543,11 @@ body {
   .source-list,
   .roadmap-grid,
   .roadmap-done-grid,
-  .roadmap-shipped-grid {
+  .roadmap-shipped-grid,
+  .admin-console-hero-inner,
+  .admin-console-grid,
+  .admin-console-proof,
+  .admin-console-shot-grid {
     grid-template-columns: 1fr;
   }
 

@@ -73,6 +73,9 @@ export default function HomePage() {
               <Link className="site-button site-button-secondary" href="/compare" data-analytics-event="cta_clicked" data-analytics-label="home_compare">
                 Compare
               </Link>
+              <Link className="site-button site-button-secondary" href="/admin-console" data-analytics-event="cta_clicked" data-analytics-label="home_admin_console">
+                Admin Console
+              </Link>
               <a
                 className="site-button site-button-secondary"
                 href={founderCallUrl}
