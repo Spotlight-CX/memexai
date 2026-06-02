@@ -57,8 +57,8 @@ export default function HomePage() {
             </div>
             <h1>When your AI gets a user wrong, you can fix it.</h1>
             <p className="hero-copy">
-              MemexAI stores AI memory as scoped files in your Postgres. When the model remembers something incorrect,
-              you open the record, correct it, and the next response changes. No black box. No re-indexing. No guessing.
+              MemexAI stores what your AI remembers as Markdown files in your Postgres. Wrong fact? Edit the line. The
+              next response changes. No black box. No re-indexing.
             </p>
             <div className="hero-actions">
               <Link className="site-button site-button-primary" href="/docs/quickstart/docker-service" data-analytics-event="cta_clicked" data-analytics-label="home_start_with_docker">
