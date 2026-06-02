@@ -14,6 +14,14 @@
   --site-code: #101614;
 }
 
+.site-shell h1,
+.site-shell h2,
+.site-footer-cta h2 {
+  font-family: var(--font-display, Georgia, serif);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
 html {
   scrollbar-gutter: stable;
 }

@@ -53,12 +53,12 @@ export default function HomePage() {
           <div>
             <div className="eyebrow">
               <Database size={15} aria-hidden />
-              Memory your team can inspect
+              Make memory a product surface, not a prompt secret
             </div>
-            <h1>Inspectable memory for AI agents</h1>
+            <h1>When your AI gets a user wrong, you can fix it.</h1>
             <p className="hero-copy">
-              MemexAI treats AI memory as product data: durable user context your team can inspect, correct, and review
-              in Postgres before it changes the next model call.
+              MemexAI stores AI memory as scoped files in your Postgres. When the model remembers something incorrect,
+              you open the record, correct it, and the next response changes. No black box. No re-indexing. No guessing.
             </p>
             <div className="hero-actions">
               <Link className="site-button site-button-primary" href="/docs/quickstart/docker-service" data-analytics-event="cta_clicked" data-analytics-label="home_start_with_docker">
@@ -69,23 +69,6 @@ export default function HomePage() {
               <a className="site-button site-button-secondary" href="https://github.com/Spotlight-CX/memexai" data-analytics-event="cta_clicked" data-analytics-label="home_github">
                 <GitPullRequest size={17} aria-hidden />
                 GitHub
-              </a>
-              <Link className="site-button site-button-secondary" href="/compare" data-analytics-event="cta_clicked" data-analytics-label="home_compare">
-                Compare
-              </Link>
-              <Link className="site-button site-button-secondary" href="/admin-console" data-analytics-event="cta_clicked" data-analytics-label="home_admin_console">
-                Admin Console
-              </Link>
-              <a
-                className="site-button site-button-secondary"
-                href={founderCallUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-analytics-event="cta_clicked"
-                data-analytics-label="home_talk_to_us"
-              >
-                <Calendar size={17} aria-hidden />
-                Talk to us
               </a>
             </div>
           </div>
