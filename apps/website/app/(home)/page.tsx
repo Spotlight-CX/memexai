@@ -4,6 +4,7 @@ import {
   BookOpen,
   Boxes,
   Calendar,
+  CheckCircle,
   Database,
   Eye,
   FileClock,
@@ -122,6 +123,31 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="section contrast-section">
+        <Reveal>
+          <div className="section-kicker">Is this for you?</div>
+          <h2>You need this if any of these are true.</h2>
+        </Reveal>
+        <Reveal stagger className="for-who-list">
+          <div className="for-who-row">
+            <CheckCircle size={20} aria-hidden />
+            <span>You&apos;ve shipped an AI product that talks to users across sessions</span>
+          </div>
+          <div className="for-who-row">
+            <CheckCircle size={20} aria-hidden />
+            <span>Users have complained that &quot;the AI forgot what I told it&quot;</span>
+          </div>
+          <div className="for-who-row">
+            <CheckCircle size={20} aria-hidden />
+            <span>You can&apos;t explain why the AI answered differently yesterday</span>
+          </div>
+          <div className="for-who-row">
+            <CheckCircle size={20} aria-hidden />
+            <span>Your team needs to correct a wrong fact the agent is carrying</span>
+          </div>
+        </Reveal>
       </section>
 
       <section className="section">

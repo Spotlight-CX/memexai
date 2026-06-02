@@ -1164,6 +1164,34 @@ body {
   line-height: 1.7;
 }
 
+.for-who-list {
+  display: grid;
+  gap: 0;
+  margin-top: 34px;
+  max-width: 760px;
+}
+
+.for-who-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  border-bottom: 1px solid var(--site-line);
+  padding: 18px 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.for-who-row:first-child {
+  border-top: 1px solid var(--site-line);
+}
+
+.for-who-row svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--site-accent);
+}
+
 .trust-list {
   display: grid;
   gap: 10px;
