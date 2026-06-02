@@ -6,7 +6,6 @@ import {
   Calendar,
   CheckCircle,
   Database,
-  Eye,
   FileClock,
   GitPullRequest,
   ListChecks,
@@ -81,25 +80,25 @@ export default function HomePage() {
                 <span>getSystemPrompt</span>
               </div>
               <div className="terminal-body">
-                <div>
+                <div style={{'--i': 0} as React.CSSProperties}>
                   <span className="dim">const</span> memory = memex.forUser({'{'} userId:{' '}
                   <span className="accent">&quot;user_123&quot;</span> {'}'})
                 </div>
                 <br />
-                <div>
+                <div style={{'--i': 1} as React.CSSProperties}>
                   <span className="dim">const</span> system = <span className="dim">await</span> memory.getSystemPrompt(...)
                 </div>
-                <div>
+                <div style={{'--i': 2} as React.CSSProperties}>
                   <span className="dim">await</span> memory.memorize(
                 </div>
-                <div>
+                <div style={{'--i': 3} as React.CSSProperties}>
                   &nbsp;&nbsp;<span className="accent">&quot;Prefers quiet neighborhoods near good schools.&quot;</span>
                 </div>
-                <div>)</div>
+                <div style={{'--i': 4} as React.CSSProperties}>)</div>
                 <br />
-                <div className="dim"># user returns next session</div>
-                <div className="dim"># system prompt includes MemexAI memory</div>
-                <div className="dim"># answer is personalized from turn one</div>
+                <div className="dim" style={{'--i': 5} as React.CSSProperties}># user returns next session</div>
+                <div className="dim" style={{'--i': 6} as React.CSSProperties}># system prompt includes MemexAI memory</div>
+                <div className="dim" style={{'--i': 7} as React.CSSProperties}># answer is personalized from turn one</div>
               </div>
             </div>
 
@@ -323,18 +322,30 @@ export default function HomePage() {
             Memory is not just storage. It is behavioral context with an operational record. The admin UI shows what was
             remembered, when it changed, who touched it, and which reads happened later.
           </p>
-          <div className="trust-list">
-            <div>
-              <Eye size={20} aria-hidden />
-              <span>Inspect memory files directly</span>
+          <div className="correction-diff" aria-label="Memory file correction example">
+            <div className="correction-panel correction-panel-before">
+              <div className="correction-panel-header">
+                <span className="correction-panel-label">Before correction</span>
+                <span className="correction-panel-filename">user/profile.md</span>
+              </div>
+              <pre className="correction-code">
+                <div className="correction-line">location: Bangalore</div>
+                <div className="correction-line">moved_from: null</div>
+              </pre>
             </div>
-            <div>
-              <FileClock size={20} aria-hidden />
-              <span>Review revisions and access logs</span>
-            </div>
-            <div>
-              <ListChecks size={20} aria-hidden />
-              <span>Correct records without rebuilding an index</span>
+            <div className="correction-panel correction-panel-after">
+              <div className="correction-panel-header">
+                <span className="correction-panel-label">After correction</span>
+                <span className="correction-panel-filename">user/profile.md</span>
+              </div>
+              <pre className="correction-code">
+                <div className="correction-line correction-line-added">
+                  <span className="correction-marker">+</span>location: Mumbai
+                </div>
+                <div className="correction-line correction-line-added">
+                  <span className="correction-marker">+</span>moved_from: Bangalore
+                </div>
+              </pre>
             </div>
           </div>
         </Reveal>

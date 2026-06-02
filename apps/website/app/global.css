@@ -1337,6 +1337,126 @@ body {
   transform: translateY(-1px);
 }
 
+/* ── Terminal typewriter animation ─────────────────────────────────────── */
+
+@keyframes terminal-line-in {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.terminal-body > div,
+.terminal-body > br {
+  opacity: 0;
+  animation: terminal-line-in 0.32s ease forwards;
+  animation-delay: calc(0.3s + var(--i, 0) * 120ms);
+}
+
+/* br elements don't have --i; give them a sensible fixed delay so they appear
+   between adjacent code lines without shifting layout */
+.terminal-body > br:nth-of-type(1) {
+  animation-delay: calc(0.3s + 1 * 120ms);
+}
+.terminal-body > br:nth-of-type(2) {
+  animation-delay: calc(0.3s + 5 * 120ms);
+}
+
+/* ── End terminal typewriter animation ──────────────────────────────────── */
+
+/* ── Correction diff ────────────────────────────────────────────────────── */
+
+.correction-diff {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 30px;
+  max-width: 720px;
+}
+
+.correction-panel {
+  overflow: hidden;
+  border: 1px solid var(--site-line);
+  border-radius: 8px;
+  background: var(--site-panel);
+}
+
+.correction-panel-after {
+  border-color: rgba(8, 127, 91, 0.32);
+}
+
+.correction-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--site-line);
+  padding: 10px 14px;
+  font-size: 12px;
+}
+
+.correction-panel-before .correction-panel-header {
+  background: #f0f3f1;
+  color: var(--site-muted);
+}
+
+.correction-panel-after .correction-panel-header {
+  background: rgba(231, 247, 239, 0.72);
+  border-bottom-color: rgba(8, 127, 91, 0.18);
+  color: var(--site-accent-strong);
+}
+
+.correction-panel-label {
+  font-weight: 700;
+}
+
+.correction-panel-filename {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  opacity: 0.8;
+}
+
+.correction-code {
+  margin: 0;
+  padding: 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.correction-panel-before .correction-code {
+  color: #3d454b;
+  background: #f0f3f1;
+}
+
+.correction-panel-after .correction-code {
+  color: var(--site-code);
+  background: var(--site-panel);
+}
+
+.correction-line {
+  display: block;
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.correction-line-added {
+  color: #064e3b;
+  background: rgba(8, 127, 91, 0.1);
+}
+
+.correction-marker {
+  display: inline-block;
+  width: 14px;
+  color: var(--site-accent);
+  font-weight: 700;
+  user-select: none;
+}
+
+/* ── End correction diff ─────────────────────────────────────────────────── */
+
 /* ── End scroll reveal ──────────────────────────────────────────────────── */
 
 .site-footer {
@@ -1648,7 +1768,8 @@ body {
   .admin-console-philosophy,
   .admin-console-grid,
   .admin-console-proof,
-  .admin-console-shot-grid {
+  .admin-console-shot-grid,
+  .correction-diff {
     grid-template-columns: 1fr;
   }
 
