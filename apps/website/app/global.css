@@ -569,6 +569,18 @@ body {
   background: #eef5f0;
 }
 
+.compare-row > [data-col="memex"] {
+  border-left: 2px solid var(--site-accent);
+  background: rgba(231, 247, 239, 0.38);
+  color: var(--site-ink);
+  font-weight: 600;
+}
+
+.compare-head > [data-col="memex"] {
+  color: var(--site-accent-strong);
+  font-weight: 800;
+}
+
 .feature,
 .path-panel {
   border: 1px solid var(--site-line);

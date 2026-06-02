@@ -90,15 +90,15 @@ export default function ComparePage() {
         <div className="compare-table" role="table" aria-label="AI memory comparison table">
           <div className="compare-row compare-head" role="row">
             <div role="columnheader">Question</div>
-            <div role="columnheader">MemexAI</div>
+            <div role="columnheader" data-col="memex">MemexAI</div>
             <div role="columnheader">Mem0</div>
             <div role="columnheader">Zep</div>
             <div role="columnheader">Vector DB</div>
           </div>
           {rows.map((row) => (
             <div className="compare-row" role="row" key={row[0]}>
-              {row.map((cell) => (
-                <div role="cell" key={cell}>
+              {row.map((cell, i) => (
+                <div role="cell" key={cell} data-col={i === 1 ? 'memex' : undefined}>
                   {cell}
                 </div>
               ))}
