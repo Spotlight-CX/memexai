@@ -6,6 +6,9 @@
  *   node apps/benchmark/src/docker-smoke-eval.mjs --limit 1 --max-sessions 10 --batch-size 1
  *
  * This talks to the running MemexAI HTTP service, not direct Postgres.
+ *
+ * Resume after rate-limit pause:
+ *   node apps/benchmark/src/docker-smoke-eval.mjs --run-id <same-id> [same other flags]
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
@@ -82,6 +85,7 @@ if (hasFlag("--batch-size") && arg("--batch-size") === undefined) {
 const BATCH_SIZE = intArg("--batch-size", 1)
 const OUTPUT = arg("--output") ?? join(repoRoot, "apps/benchmark/data/docker-smoke-results.json")
 const RUN_ID = arg("--run-id") ?? new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)
+const STATE_FILE = arg("--state") ?? join(repoRoot, `apps/benchmark/data/docker-smoke-state-${RUN_ID}.json`)
 const SKIP_INGEST = hasFlag("--skip-ingest")
 const DRY_RUN = hasFlag("--dry-run")
 
@@ -97,6 +101,60 @@ const DATASET_URLS = {
   "longmemeval_oracle.json":
     "https://huggingface.co/datasets/xiaowu0162/longmemeval-cleaned/resolve/main/longmemeval_oracle.json",
 }
+
+// ── State (persisted to STATE_FILE for resume) ────────────────────────────────
+
+let runState = {
+  run_id: RUN_ID,
+  started_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+  paused: false,
+  pause_reason: null,
+  completed_items: {},    // question_id → full result object
+  ingest_progress: {},    // question_id → number of sessions already ingested
+}
+
+function loadRunState() {
+  if (!existsSync(STATE_FILE)) return false
+  try {
+    const loaded = JSON.parse(readFileSync(STATE_FILE, "utf-8"))
+    runState = { ...runState, ...loaded, paused: false, pause_reason: null }
+    return true
+  } catch (e) {
+    console.warn(`Could not load state file (${STATE_FILE}): ${e.message} — starting fresh`)
+    return false
+  }
+}
+
+function saveRunState() {
+  runState.updated_at = new Date().toISOString()
+  mkdirSync(dirname(STATE_FILE), { recursive: true })
+  writeFileSync(STATE_FILE, JSON.stringify(runState, null, 2))
+}
+
+// ── Rate-limit handling ───────────────────────────────────────────────────────
+
+let rateLimitPaused = false
+
+const RATE_LIMIT_SIGNALS = [
+  "resource_exhausted",
+  "quota exceeded",
+  "rate limit",
+  "too many requests",
+  "ratequota",
+  "429",
+]
+
+function isRateLimitError(error) {
+  const msg = (error?.message ?? "").toLowerCase()
+  return RATE_LIMIT_SIGNALS.some((s) => msg.includes(s))
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// ── Dataset helpers ───────────────────────────────────────────────────────────
 
 async function ensureDataset(path) {
   if (existsSync(path)) return
@@ -138,6 +196,8 @@ async function checkHealth() {
   }
 }
 
+// ── Tool execution ────────────────────────────────────────────────────────────
+
 async function executeTool(name, context, args) {
   const response = await fetch(`${MEMEX_URL}/v1/tools/${encodeURIComponent(name)}/execute`, {
     method: "POST",
@@ -162,6 +222,37 @@ async function executeTool(name, context, args) {
 
   return body
 }
+
+/**
+ * Wraps executeTool with rate-limit retry backoff (2 attempts, doubling delay).
+ * If retries are exhausted, sets the global rateLimitPaused flag.
+ */
+async function executeToolWithRetry(name, context, args, { retries = 2, initialBackoffMs = 20000 } = {}) {
+  let backoffMs = initialBackoffMs
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await executeTool(name, context, args)
+    } catch (error) {
+      if (isRateLimitError(error)) {
+        if (attempt < retries) {
+          console.warn(`\n[rate-limit] ${name} quota hit — waiting ${backoffMs / 1000}s then retry ${attempt + 1}/${retries}`)
+          await sleep(backoffMs)
+          backoffMs *= 2
+          continue
+        }
+        // Retries exhausted — signal all workers to stop
+        console.warn(`\n[rate-limit] retries exhausted — pausing run, state saved to ${STATE_FILE}`)
+        rateLimitPaused = true
+        runState.paused = true
+        runState.pause_reason = "rate_limit"
+        saveRunState()
+      }
+      throw error
+    }
+  }
+}
+
+// ── Scoring ───────────────────────────────────────────────────────────────────
 
 function parseJson(text) {
   try {
@@ -245,6 +336,8 @@ function summarize(results) {
   }
 }
 
+// ── Concurrency ───────────────────────────────────────────────────────────────
+
 async function mapWithConcurrency(items, concurrency, mapper) {
   const results = new Array(items.length)
   let nextIndex = 0
@@ -262,9 +355,19 @@ async function mapWithConcurrency(items, concurrency, mapper) {
   return results
 }
 
+// ── Per-item runner ───────────────────────────────────────────────────────────
+
 async function runItem(item, index, totalItems) {
+  const qid = item.question_id
+
+  // Already fully completed in a prior run — return cached result
+  if (runState.completed_items[qid]) {
+    console.log(`[${index + 1}/${totalItems} ${qid}] skip (already completed)`)
+    return runState.completed_items[qid]
+  }
+
   const context = { userId: userIdFor(item), actor: "docker-smoke-eval" }
-  const prefix = `[${index + 1}/${totalItems} ${item.question_id}]`
+  const prefix = `[${index + 1}/${totalItems} ${qid}]`
   const log = (message) => console.log(`${prefix} ${message}`)
 
   log(`start (${item.question_type})`)
@@ -272,7 +375,7 @@ async function runItem(item, index, totalItems) {
   let ingestMs = 0
   let queryMs = 0
   let predicted = ""
-  let sessionsIngested = 0
+  let sessionsIngested = runState.ingest_progress[qid] ?? 0
 
   try {
     if (!SKIP_INGEST) {
@@ -283,7 +386,20 @@ async function runItem(item, index, totalItems) {
       const total = sessions.length
       const ingestStart = Date.now()
 
-      for (let s = 0; s < total; s++) {
+      // Resume from already-ingested session count
+      const resumeFrom = sessionsIngested
+      if (resumeFrom > 0) {
+        log(`resuming ingest from session ${resumeFrom + 1}/${total} (${resumeFrom} already done)`)
+      }
+
+      for (let s = resumeFrom; s < total; s++) {
+        // Honour global pause signal from another worker
+        if (rateLimitPaused) {
+          log(`paused at session ${s + 1}/${total} due to rate limit`)
+          saveRunState()
+          break
+        }
+
         const sessionLabel = `session ${s + 1}/${total}${total < totalAvailable ? `/${totalAvailable}` : ""}`
         log(`${sessionLabel} start`)
         const sessionStart = Date.now()
@@ -291,22 +407,47 @@ async function runItem(item, index, totalItems) {
           sessions[s],
           item.haystack_dates[s] ?? "unknown date",
         )
-        const result = await executeTool("memory_memorize", context, {
+        const result = await executeToolWithRetry("memory_memorize", context, {
           text,
           maxWrites: 3,
           dryRun: DRY_RUN,
         })
+
         sessionsIngested++
+        // Persist incremental progress after every session
+        runState.ingest_progress[qid] = sessionsIngested
+        saveRunState()
+
         log(`${sessionLabel} done - ${Date.now() - sessionStart}ms (${result.writes.length} writes)`)
       }
 
       ingestMs = Date.now() - ingestStart
+
+      // If we were paused mid-ingest, return a partial result (no query)
+      if (rateLimitPaused) {
+        return {
+          question_id: qid,
+          question_type: item.question_type,
+          user_id: context.userId,
+          question: item.question,
+          expected: item.answer,
+          predicted: "",
+          em: 0,
+          f1: 0,
+          sessions_ingested: sessionsIngested,
+          sessions_available: item.haystack_sessions.length,
+          ingest_ms: ingestMs,
+          query_ms: 0,
+          skipped: "paused_rate_limit",
+        }
+      }
+
       log(`ingest done - ${total} sessions, ${ingestMs}ms total`)
     }
 
     const queryStart = Date.now()
     log("query start")
-    const searchResult = await executeTool("memory_search", context, {
+    const searchResult = await executeToolWithRetry("memory_search", context, {
       query: item.question,
       limit: 5,
     })
@@ -318,8 +459,8 @@ async function runItem(item, index, totalItems) {
     const { em, f1 } = score(predicted, item.answer)
     log(`query done - ${queryMs}ms EM=${em} F1=${f1.toFixed(2)}`)
 
-    return {
-      question_id: item.question_id,
+    const result = {
+      question_id: qid,
       question_type: item.question_type,
       user_id: context.userId,
       question: item.question,
@@ -332,11 +473,21 @@ async function runItem(item, index, totalItems) {
       ingest_ms: ingestMs,
       query_ms: queryMs,
     }
+
+    // Mark item complete and clean up progress entry
+    runState.completed_items[qid] = result
+    delete runState.ingest_progress[qid]
+    saveRunState()
+
+    return result
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     log(`ERROR: ${message}`)
+    // Save whatever progress we made so it can be resumed
+    runState.ingest_progress[qid] = sessionsIngested
+    saveRunState()
     return {
-      question_id: item.question_id,
+      question_id: qid,
       question_type: item.question_type,
       user_id: context.userId,
       question: item.question,
@@ -353,16 +504,27 @@ async function runItem(item, index, totalItems) {
   }
 }
 
+// ── Main ──────────────────────────────────────────────────────────────────────
+
 async function main() {
   console.log("=== MemexAI Docker Smoke Eval ===\n")
-  console.log(`Service:  ${MEMEX_URL}`)
-  console.log(`Dataset:  ${DATASET}`)
-  console.log(`Limit:    ${LIMIT}`)
-  console.log(`Sessions: ${MAX_SESSIONS ? `first ${MAX_SESSIONS} per item` : "all per item"}`)
-  console.log(`Batch:    ${BATCH_SIZE} item${BATCH_SIZE === 1 ? "" : "s"}`)
-  console.log(`Run ID:   ${RUN_ID}`)
-  if (SKIP_INGEST) console.log("Mode:     skip-ingest")
-  if (DRY_RUN) console.log("Mode:     dry-run")
+
+  const resumed = loadRunState()
+
+  console.log(`Service:    ${MEMEX_URL}`)
+  console.log(`Dataset:    ${DATASET}`)
+  console.log(`Limit:      ${LIMIT}`)
+  console.log(`Sessions:   ${MAX_SESSIONS ? `first ${MAX_SESSIONS} per item` : "all per item"}`)
+  console.log(`Batch:      ${BATCH_SIZE} item${BATCH_SIZE === 1 ? "" : "s"}`)
+  console.log(`Run ID:     ${RUN_ID}`)
+  console.log(`State file: ${STATE_FILE}`)
+  if (resumed) {
+    const nDone = Object.keys(runState.completed_items).length
+    const nPartial = Object.keys(runState.ingest_progress).length
+    console.log(`Resumed:    ${nDone} completed, ${nPartial} partial`)
+  }
+  if (SKIP_INGEST) console.log("Mode:       skip-ingest")
+  if (DRY_RUN) console.log("Mode:       dry-run")
   console.log()
 
   await checkHealth()
@@ -372,10 +534,14 @@ async function main() {
   const subset = items.slice(0, LIMIT)
   const results = await mapWithConcurrency(subset, BATCH_SIZE, (item, index) => runItem(item, index, subset.length))
 
-  const summary = summarize(results)
+  // Collect completed results from this run + cached ones
+  const allResults = results.filter((r) => r && !r.skipped)
+  const skipped = results.filter((r) => r?.skipped).length
+
+  const summary = summarize(allResults)
 
   console.log("\n=== Results ===")
-  console.log(`Items:       ${results.length}  (${summary.errors} errors)`)
+  console.log(`Items:       ${allResults.length}  (${summary.errors} errors${skipped ? `, ${skipped} paused/skipped` : ""})`)
   console.log(`Exact Match: ${(summary.em * 100).toFixed(1)}%`)
   console.log(`F1:          ${(summary.f1 * 100).toFixed(1)}%`)
 
@@ -393,7 +559,7 @@ async function main() {
       service_url: MEMEX_URL,
       dataset: DATASET,
       run_id: RUN_ID,
-      n: results.length,
+      n: allResults.length,
       errors: summary.errors,
       em: summary.em,
       f1: summary.f1,
@@ -402,6 +568,7 @@ async function main() {
       max_sessions_per_item: MAX_SESSIONS ?? null,
       batch_size: BATCH_SIZE,
       timestamp: new Date().toISOString(),
+      paused: runState.paused,
     },
     by_type: Object.fromEntries(
       [...summary.byType.entries()].map(([type, value]) => [
@@ -409,9 +576,27 @@ async function main() {
         { em: value.em / value.n, f1: value.f1 / value.n, n: value.n },
       ]),
     ),
-    results,
+    results: allResults,
   }, null, 2))
   console.log(`\nFull results -> ${OUTPUT}`)
+
+  if (runState.paused) {
+    const nLeft = Object.keys(runState.ingest_progress).length + subset.filter(i => !runState.completed_items[i.question_id]).length
+    console.log("\n⚠  Run paused due to rate limit.")
+    console.log(`   ${Object.keys(runState.completed_items).length}/${subset.length} items completed, state saved to:`)
+    console.log(`   ${STATE_FILE}`)
+    console.log("\n   Resume with the same flags plus --run-id:")
+    console.log(`   bun run bench:docker-smoke -- --run-id ${RUN_ID} --limit ${LIMIT} --batch-size ${BATCH_SIZE}${MAX_SESSIONS ? ` --max-sessions ${MAX_SESSIONS}` : ""}`)
+  } else {
+    // Clean up state file on successful completion
+    if (existsSync(STATE_FILE)) {
+      try {
+        const { unlinkSync } = await import("node:fs")
+        unlinkSync(STATE_FILE)
+        console.log(`State file removed (run complete).`)
+      } catch { /* ignore */ }
+    }
+  }
 }
 
 main().catch((error) => {
