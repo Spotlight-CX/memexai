@@ -70,8 +70,26 @@ export async function listAdminUsers(db: Db, input: { q?: string; limit?: number
   }
 }
 
-export async function listAdminFiles(db: Db, input: { prefix?: string }) {
+export async function listAdminFiles(db: Db, input: { prefix?: string; asOf?: Date }) {
   const prefix = input.prefix?.trim()
+  if (input.asOf) {
+    const values: unknown[] = [input.asOf]
+    const filters = ["created_at <= $1"]
+    if (prefix) {
+      values.push(prefix, `${prefix.endsWith("/") ? prefix : `${prefix}/`}%`)
+      filters.push(`(physical_path = $${values.length - 1} OR physical_path LIKE $${values.length})`)
+    }
+    const { rows } = await db.query<AdminRevisionFileRow>(
+      `SELECT DISTINCT ON (physical_path)
+         id, file_id, physical_path, content_text, created_at, operation, actor, reason, user_id, tool_call_id
+       FROM mx_revision
+       WHERE ${filters.join(" AND ")}
+       ORDER BY physical_path ASC, created_at DESC, id DESC`,
+      values,
+    )
+    return { files: rows.map(toHistoricalAdminFileSummary) }
+  }
+
   const query = prefix
     ? db.query<AdminFileRow>(
         `SELECT id, physical_path, content_text, created_at, updated_at
@@ -90,8 +108,32 @@ export async function listAdminFiles(db: Db, input: { prefix?: string }) {
   return { files: rows.map(toAdminFileSummary) }
 }
 
-export async function getAdminFile(db: Db, physicalPath: string) {
+export async function getAdminFile(db: Db, physicalPath: string, input: { asOf?: Date } = {}) {
   if (!physicalPath) throw new HttpError(400, "PHYSICAL_PATH_REQUIRED", "physicalPath is required")
+
+  if (input.asOf) {
+    const { rows } = await db.query<AdminRevisionFileRow>(
+      `SELECT id, file_id, physical_path, content_text, created_at, operation, actor, reason, user_id, tool_call_id
+       FROM mx_revision
+       WHERE physical_path = $1 AND created_at <= $2
+       ORDER BY created_at DESC, id DESC
+       LIMIT 1`,
+      [physicalPath, input.asOf],
+    )
+
+    const revision = rows[0]
+    if (!revision) throw new HttpError(404, "FILE_NOT_FOUND", `File not found at selected timestamp: ${physicalPath}`)
+
+    return {
+      file: {
+        ...toHistoricalAdminFileSummary(revision),
+        content: revision.content_text,
+        latestRevision: toRevisionMeta(revision),
+        matchedRevision: toMatchedRevisionMeta(revision),
+        revisionCount: 1,
+      },
+    }
+  }
 
   const { rows } = await db.query<AdminFileRow & {
     latest_op: string | null
@@ -383,6 +425,19 @@ type AdminRevisionRow = {
   created_at: Date
 }
 
+type AdminRevisionFileRow = {
+  id: string
+  file_id: string
+  physical_path: string
+  operation: string
+  content_text: string
+  reason: string | null
+  actor: string | null
+  user_id: string | null
+  tool_call_id: string | null
+  created_at: Date
+}
+
 type AdminAccessLogRow = {
   id: string
   file_id: string | null
@@ -413,6 +468,39 @@ function toAdminFileSummary(row: AdminFileRow) {
     size: row.content_text.length,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  }
+}
+
+function toHistoricalAdminFileSummary(row: AdminRevisionFileRow) {
+  return {
+    id: row.file_id,
+    physicalPath: row.physical_path,
+    size: row.content_text.length,
+    createdAt: row.created_at,
+    updatedAt: row.created_at,
+    matchedRevision: toMatchedRevisionMeta(row),
+  }
+}
+
+function toRevisionMeta(row: AdminRevisionFileRow) {
+  return {
+    operation: row.operation,
+    actor: row.actor,
+    reason: row.reason,
+    createdAt: row.created_at,
+  }
+}
+
+function toMatchedRevisionMeta(row: AdminRevisionFileRow) {
+  return {
+    id: row.id,
+    fileId: row.file_id,
+    operation: row.operation,
+    actor: row.actor,
+    reason: row.reason,
+    userId: row.user_id,
+    toolCallId: row.tool_call_id,
+    createdAt: row.created_at,
   }
 }
 

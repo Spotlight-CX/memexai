@@ -246,8 +246,8 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
     return listAdminUsers(db, { q: query.q, limit })
   })
   app.get("/v1/admin/files", { preHandler: adminAuth }, async (request) => {
-    const query = request.query as { prefix?: string }
-    return listAdminFiles(db, { prefix: query.prefix })
+    const query = request.query as { prefix?: string; asOf?: string }
+    return listAdminFiles(db, { prefix: query.prefix, asOf: parseAsOf(query.asOf) })
   })
   app.get("/v1/admin/files/:physicalPath/observability", { preHandler: adminAuth }, async (request) => {
     const params = request.params as { physicalPath: string }
@@ -256,7 +256,8 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
   })
   app.get("/v1/admin/files/*", { preHandler: adminAuth }, async (request) => {
     const params = request.params as { "*": string }
-    return getAdminFile(db, decodeURIComponent(params["*"]))
+    const query = request.query as { asOf?: string }
+    return getAdminFile(db, decodeURIComponent(params["*"]), { asOf: parseAsOf(query.asOf) })
   })
   app.put("/v1/admin/files/*", { preHandler: adminAuth }, async (request) => {
     const params = request.params as { "*": string }
@@ -531,4 +532,13 @@ function parseObservabilityQuery(query: unknown): ObservabilityFilters {
     limit: input.limit ? Number(input.limit) : undefined,
     offset: input.offset ? Number(input.offset) : undefined,
   }
+}
+
+function parseAsOf(value: string | undefined): Date | undefined {
+  if (!value) return undefined
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) {
+    throw new HttpError(400, "INVALID_AS_OF", "asOf must be a valid UTC ISO timestamp")
+  }
+  return date
 }

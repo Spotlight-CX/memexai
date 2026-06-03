@@ -61,6 +61,58 @@ function createAdminDb() {
         return { rows: [{ total: "1" }] }
       }
 
+      if (sql.includes("SELECT DISTINCT ON (physical_path)") && sql.includes("FROM mx_revision")) {
+        expect(sql).toContain("ORDER BY physical_path ASC, created_at DESC, id DESC")
+        expect(values?.[0]).toEqual(new Date("2026-06-02T06:47:00.000Z"))
+        return {
+          rows: [
+            {
+              id: "rev_historical_1",
+              file_id: "file_1",
+              physical_path: "users/user_123/profile.md",
+              operation: "write",
+              content_text: "# Historical Profile",
+              reason: "historical write",
+              actor: "assistant",
+              user_id: "user_123",
+              tool_call_id: "call_historical",
+              created_at: new Date("2026-06-02T06:45:00.000Z"),
+            },
+            {
+              id: "rev_historical_2",
+              file_id: "file_2",
+              physical_path: "users/user_123/preferences.md",
+              operation: "patch",
+              content_text: "# Historical Preferences",
+              reason: "historical patch",
+              actor: "assistant",
+              user_id: "user_123",
+              tool_call_id: "call_historical_2",
+              created_at: new Date("2026-06-02T06:46:00.000Z"),
+            },
+          ],
+        }
+      }
+
+      if (sql.includes("FROM mx_revision") && sql.includes("WHERE physical_path = $1 AND created_at <= $2")) {
+        expect(sql).toContain("ORDER BY created_at DESC, id DESC")
+        expect(values).toEqual(["users/user_123/profile.md", new Date("2026-06-02T06:47:00.000Z")])
+        return {
+          rows: [{
+            id: "rev_historical_1",
+            file_id: "file_1",
+            physical_path: "users/user_123/profile.md",
+            operation: "write",
+            content_text: "# Historical Profile",
+            reason: "historical write",
+            actor: "assistant",
+            user_id: "user_123",
+            tool_call_id: "call_historical",
+            created_at: new Date("2026-06-02T06:45:00.000Z"),
+          }],
+        }
+      }
+
       if (sql.includes("DELETE FROM mx_revision") && sql.includes("RETURNING id")) {
         expect(values).toEqual([30])
         return { rows: [{ id: "rev_old_1" }, { id: "rev_old_2" }] }
@@ -447,6 +499,75 @@ describe("admin routes", () => {
       physicalPath: "users/user_123/profile.md",
       content: "# Profile",
     })
+  })
+
+  test("preserves current file listing without asOf", async () => {
+    const db = createAdminDb()
+    const app = buildServer({ db: db as never, config })
+    const response = await app.inject({ method: "GET", url: "/v1/admin/files", headers: adminHeaders })
+    await app.close()
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().files[0]).toMatchObject({
+      physicalPath: "users/user_123/profile.md",
+      size: "# Profile".length,
+    })
+    expect(db.query.mock.calls.some(([sql]) => String(sql).includes("FROM mx_file"))).toBe(true)
+  })
+
+  test("returns latest revision per file before asOf timestamp", async () => {
+    const app = buildServer({ db: createAdminDb() as never, config })
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/admin/files?asOf=2026-06-02T06%3A47%3A00.000Z",
+      headers: adminHeaders,
+    })
+    await app.close()
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().files).toHaveLength(2)
+    expect(response.json().files[0]).toMatchObject({
+      physicalPath: "users/user_123/profile.md",
+      size: "# Historical Profile".length,
+      matchedRevision: {
+        id: "rev_historical_1",
+        actor: "assistant",
+        reason: "historical write",
+      },
+    })
+  })
+
+  test("returns matched historical revision content for file asOf timestamp", async () => {
+    const app = buildServer({ db: createAdminDb() as never, config })
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/admin/files/users%2Fuser_123%2Fprofile.md?asOf=2026-06-02T06%3A47%3A00.000Z",
+      headers: adminHeaders,
+    })
+    await app.close()
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json().file).toMatchObject({
+      physicalPath: "users/user_123/profile.md",
+      content: "# Historical Profile",
+      matchedRevision: {
+        id: "rev_historical_1",
+        toolCallId: "call_historical",
+      },
+    })
+  })
+
+  test("rejects invalid asOf timestamp", async () => {
+    const app = buildServer({ db: createAdminDb() as never, config })
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/admin/files?asOf=not-a-date",
+      headers: adminHeaders,
+    })
+    await app.close()
+
+    expect(response.statusCode).toBe(400)
+    expect(response.json().error.code).toBe("INVALID_AS_OF")
   })
 
   test("returns file observability by physical path", async () => {
