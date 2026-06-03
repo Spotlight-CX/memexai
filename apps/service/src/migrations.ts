@@ -7,7 +7,7 @@ function migrationsDir() {
   return join(dirname(fileURLToPath(import.meta.url)), "..", "migrations")
 }
 
-export async function runMigrations(db: Db): Promise<void> {
+export async function runMigrations(db: Db, options: { vectorEnabled?: boolean } = {}): Promise<void> {
   await db.query(`
     CREATE TABLE IF NOT EXISTS mx_migration (
       id TEXT PRIMARY KEY,
@@ -19,6 +19,7 @@ export async function runMigrations(db: Db): Promise<void> {
   const files = (await readdir(dir)).filter((file) => file.endsWith(".sql")).sort()
 
   for (const file of files) {
+    if (!options.vectorEnabled && file.includes("pgvector")) continue
     const { rows } = await db.query<{ id: string }>("SELECT id FROM mx_migration WHERE id = $1", [file])
     if (rows.length > 0) continue
 

@@ -2,6 +2,20 @@
 
 ## Status: Planned
 
+## Implementation Assumptions
+
+Recorded before and during implementation on June 3, 2026:
+
+- Slice commits are kept separate after their own focused build/test verification.
+- Slice 1 is behavior-preserving for the public `memory_search` response: RRF helpers are introduced, but the agent tool schema and BM25 fallback shape do not change.
+- Slice 2 uses a precomputed query embedding in core tests. Gemini/provider wiring is deferred to Slice 4, so core stays provider-agnostic.
+- Vector migration is opt-in through `runMigrations(db, { vectorEnabled: true })`; BM25-only runs skip the pgvector migration and do not require the extension.
+- The service migration runner mirrors the core skip behavior by skipping files whose names include `pgvector` unless `vectorEnabled` is true.
+- MCP tool execution should receive the same embedding/search runtime as HTTP tool execution once service wiring lands.
+- Admin file edits are considered writes for embedding lifecycle purposes unless implementation proves there is a product reason to keep them BM25-only.
+- Admin UI search controls remain out of scope; only read-only deployment status and per-file embedding status are implemented.
+- Existing direct-Postgres `createMemex()` users remain BM25-only in V1 unless an explicit future API wires embeddings into direct mode.
+
 ## Problem
 
 `memory_search` uses pure BM25 (PostgreSQL `tsvector` + `ts_rank_cd`). BM25 is lexical — it only matches documents sharing tokens with the query. A query like "user prefers apartments near nature" will not match a memory that says "loves parks and green spaces" because no tokens overlap.

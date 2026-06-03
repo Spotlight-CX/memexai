@@ -18,10 +18,28 @@ export type RankedResult = {
   updatedAt?: Date
 }
 
+export type HybridSearchOptions = {
+  query: string
+  queryEmbedding?: number[]
+  limit?: number
+  prefix?: string
+  bm25CandidateLimit?: number
+  vectorCandidateLimit?: number
+  rrfK?: number
+  dimensions?: number
+}
+
 type SearchRow = {
   physical_path: string
   snippet: string
   rank: number
+  updated_at: Date
+}
+
+type VectorSearchRow = {
+  physical_path: string
+  content_text: string
+  distance: number
   updated_at: Date
 }
 
@@ -77,6 +95,96 @@ export async function bm25Search(
       updatedAt: row.updated_at,
     }]
   })
+}
+
+function vectorLiteral(vector: number[]): string {
+  if (vector.length === 0 || vector.some((value) => !Number.isFinite(value))) {
+    throw new MemexError("INVALID_EMBEDDING", "Embedding vector must contain only finite numbers")
+  }
+  return `[${vector.join(",")}]`
+}
+
+export async function vectorSearch(
+  db: Db,
+  input: { queryEmbedding: number[]; limit?: number; prefix?: string; dimensions?: number },
+  ctx: ToolContext,
+): Promise<RankedResult[]> {
+  const { queryEmbedding, limit = 10, prefix, dimensions } = input
+  if (dimensions !== undefined && queryEmbedding.length !== dimensions) {
+    throw new MemexError(
+      "EMBEDDING_DIMENSION_MISMATCH",
+      `Embedding dimension mismatch: expected ${dimensions}, received ${queryEmbedding.length}`,
+    )
+  }
+
+  const values: unknown[] = [vectorLiteral(queryEmbedding)]
+  let visibilityWhere = "(physical_path LIKE $2 OR physical_path LIKE 'shared/%')"
+  values.push(`users/${ctx.userId}/%`)
+
+  if (prefix) {
+    const physicalPrefix = prefixToPhysical(prefix, ctx)
+    if (!physicalPrefix) throw new MemexError("INVALID_PATH", "prefix is required")
+    visibilityWhere = "(physical_path = $2 OR physical_path LIKE $3)"
+    values.length = 1
+    values.push(physicalPrefix, `${physicalPrefix.endsWith("/") ? physicalPrefix : `${physicalPrefix}/`}%`)
+  }
+
+  const dimensionWhere = dimensions === undefined ? "" : `AND embedding_dimensions = $${values.length + 1}`
+  if (dimensions !== undefined) values.push(dimensions)
+  values.push(limit)
+
+  const { rows } = await db.query<VectorSearchRow>(
+    `
+      SELECT
+        physical_path,
+        content_text,
+        embedding <=> $1::vector AS distance,
+        updated_at
+      FROM mx_file
+      WHERE ${visibilityWhere}
+        AND embedding IS NOT NULL
+        ${dimensionWhere}
+      ORDER BY embedding <=> $1::vector ASC, physical_path ASC
+      LIMIT $${values.length}
+    `,
+    values,
+  )
+
+  return rows.flatMap((row, index) => {
+    const path = physicalToVirtual(row.physical_path, ctx)
+    if (!path) return []
+    const rank = index + 1
+    const distance = Number(row.distance)
+    return [{
+      path,
+      content: row.content_text,
+      score: 1 - distance,
+      rank,
+      matchReason: "semantic" as const,
+      vectorRank: rank,
+      vectorDistance: distance,
+      updatedAt: row.updated_at,
+    }]
+  })
+}
+
+export async function hybridSearch(db: Db, input: HybridSearchOptions, ctx: ToolContext): Promise<RankedResult[]> {
+  const limit = input.limit ?? 10
+  if (!input.queryEmbedding) {
+    return bm25Search(db, { query: input.query, limit, prefix: input.prefix }, ctx)
+  }
+
+  const [lexicalResults, semanticResults] = await Promise.all([
+    bm25Search(db, { query: input.query, limit: input.bm25CandidateLimit ?? Math.max(limit, 50), prefix: input.prefix }, ctx),
+    vectorSearch(db, {
+      queryEmbedding: input.queryEmbedding,
+      limit: input.vectorCandidateLimit ?? Math.max(limit, 50),
+      prefix: input.prefix,
+      dimensions: input.dimensions,
+    }, ctx),
+  ])
+
+  return reciprocalRankFusion(lexicalResults, semanticResults, input.rrfK ?? 60).slice(0, limit)
 }
 
 export function reciprocalRankFusion(

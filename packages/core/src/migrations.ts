@@ -1,6 +1,6 @@
 import type { Db } from "./db"
 
-const MIGRATIONS = [
+const MIGRATIONS: { id: string; sql: string; vectorOnly?: boolean }[] = [
   {
     id: "001_init.sql",
     sql: `
@@ -263,9 +263,28 @@ CREATE INDEX IF NOT EXISTS mx_observation_event_path_idx ON mx_observation_event
 CREATE INDEX IF NOT EXISTS mx_observation_event_trace_idx ON mx_observation_event (trace_id);
     `.trim(),
   },
+  {
+    id: "007_pgvector_embeddings.sql",
+    vectorOnly: true,
+    sql: `
+CREATE EXTENSION IF NOT EXISTS vector;
+
+ALTER TABLE mx_file
+  ADD COLUMN IF NOT EXISTS embedding vector(768),
+  ADD COLUMN IF NOT EXISTS embedding_model TEXT,
+  ADD COLUMN IF NOT EXISTS embedding_dimensions INTEGER,
+  ADD COLUMN IF NOT EXISTS embedding_strategy TEXT,
+  ADD COLUMN IF NOT EXISTS embedding_chunk_count INTEGER,
+  ADD COLUMN IF NOT EXISTS embedding_content_hash TEXT,
+  ADD COLUMN IF NOT EXISTS embedding_updated_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS mx_file_embedding_idx
+  ON mx_file USING hnsw (embedding vector_cosine_ops);
+    `.trim(),
+  },
 ]
 
-export async function runMigrations(db: Db): Promise<void> {
+export async function runMigrations(db: Db, options: { vectorEnabled?: boolean } = {}): Promise<void> {
   await db.query(`
     CREATE TABLE IF NOT EXISTS mx_migration (
       id TEXT PRIMARY KEY,
@@ -274,6 +293,7 @@ export async function runMigrations(db: Db): Promise<void> {
   `)
 
   for (const migration of MIGRATIONS) {
+    if (migration.vectorOnly && !options.vectorEnabled) continue
     const { rows } = await db.query<{ id: string }>("SELECT id FROM mx_migration WHERE id = $1", [migration.id])
     if (rows.length > 0) continue
 
