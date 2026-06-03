@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: memexai
@@ -31,6 +31,11 @@ services:
       NODE_ENV: production
       PORT: 8080
       MEMEX_DREAM_ENABLED: 'true'
+      MEMEX_SEARCH_MODE: ${MEMEX_SEARCH_MODE:-auto}
+      MEMEX_RRF_K: ${MEMEX_RRF_K:-60}
+      MEMEX_BM25_CANDIDATE_LIMIT: ${MEMEX_BM25_CANDIDATE_LIMIT:-50}
+      MEMEX_VECTOR_CANDIDATE_LIMIT: ${MEMEX_VECTOR_CANDIDATE_LIMIT:-50}
+      MEMEX_EMBEDDING_MAX_CHARS: ${MEMEX_EMBEDDING_MAX_CHARS:-8000}
       # Anonymous product telemetry is enabled by default. Uncomment to opt out.
       # MEMEX_TELEMETRY_DISABLED: 'true'
       DATABASE_URL: postgresql://memexai:memexai@postgres:5432/memexai

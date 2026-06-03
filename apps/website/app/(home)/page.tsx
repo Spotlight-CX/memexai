@@ -33,6 +33,11 @@ const features = [
     title: 'Scoped by default',
     text: 'Agents work with virtual paths like user/profile.md and shared/policy.md while MemexAI enforces isolation.',
   },
+  {
+    icon: ListChecks,
+    title: 'The memorize tool is opinionated',
+    text: 'The common failure is agents writing task context into durable memory because the write tool is available. The memorize tool decides what is worth keeping — scoped paths enforce the rest.',
+  },
 ];
 
 const loop = [

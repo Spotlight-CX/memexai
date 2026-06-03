@@ -50,6 +50,25 @@ function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v)
 }
 
+function asNumber(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null
+}
+
+function asString(v: unknown): string | null {
+  return typeof v === "string" && v.trim() ? v : null
+}
+
+function formatScore(value: number): string {
+  if (Math.abs(value) >= 0.01) return value.toFixed(4).replace(/0+$/, "").replace(/\.$/, "")
+  return value.toPrecision(3)
+}
+
+function reasonColor(reason: string | null): string {
+  if (reason === "semantic") return "grape"
+  if (reason === "hybrid") return "teal"
+  return "blue"
+}
+
 export function EntryRow({
   entry,
   secret,
@@ -198,11 +217,12 @@ function FileRightPanel({
     const sources = Array.isArray(body.sources)
       ? body.sources.filter((s): s is string => typeof s === "string")
       : []
+    const sourceSet = new Set(sources)
 
     const items =
       results.length > 0
         ? results
-        : sources.map((s) => ({ path: s, snippet: null as string | null }))
+        : sources.map((s) => ({ path: s, snippet: null as string | null, sourceOnly: true }))
 
     if (items.length === 0) {
       return (
@@ -215,7 +235,16 @@ function FileRightPanel({
 
     return (
       <Stack gap="md">
-        <Text size="xs" fw={700} tt="uppercase" c="dimmed">{label}</Text>
+        <Stack gap={2}>
+          <Text size="xs" fw={700} tt="uppercase" c="dimmed">
+            {results.length > 0 ? "Retrieved candidates" : label}
+          </Text>
+          {results.length > 0 && (
+            <Text size="xs" c="dimmed">
+              Retrieval order before answer assembly. Green files were read by the resolver.
+            </Text>
+          )}
+        </Stack>
         {items.map((item, i) => {
           const path = typeof item.path === "string" ? item.path : null
           const snippet = typeof item.snippet === "string" ? item.snippet : null
@@ -225,6 +254,8 @@ function FileRightPanel({
               key={`${path}-${i}`}
               path={path}
               snippet={snippet}
+              result={item}
+              wasRead={sourceSet.has(path) || item.sourceOnly === true}
               onNavigate={() => onNavigateToFile(toPhysicalPath(path, entry.userId))}
             />
           )
@@ -322,12 +353,21 @@ function WriteFileCell({
 function RecallSourceCell({
   path,
   snippet,
+  result,
+  wasRead,
   onNavigate,
 }: {
   path: string
   snippet: string | null
+  result: Record<string, unknown>
+  wasRead: boolean
   onNavigate: () => void
 }) {
+  const reason = asString(result.matchReason)
+  const bm25Rank = asNumber(result.bm25Rank)
+  const vectorRank = asNumber(result.vectorRank)
+  const fusedScore = asNumber(result.rank)
+
   return (
     <Stack gap={4}>
       <Group justify="space-between" gap="xs" wrap="nowrap">
@@ -335,6 +375,13 @@ function RecallSourceCell({
         <Anchor component="button" size="xs" c="dimmed" onClick={onNavigate} style={{ flexShrink: 0 }}>
           ↗
         </Anchor>
+      </Group>
+      <Group gap={4}>
+        {wasRead && <Badge size="xs" color="green" variant="light">read</Badge>}
+        {reason && <Badge size="xs" color={reasonColor(reason)} variant="light">{reason}</Badge>}
+        {bm25Rank !== null && <Badge size="xs" color="blue" variant="light">BM25 #{bm25Rank}</Badge>}
+        {vectorRank !== null && <Badge size="xs" color="grape" variant="light">vector #{vectorRank}</Badge>}
+        {fusedScore !== null && <Badge size="xs" variant="light">retrieval {formatScore(fusedScore)}</Badge>}
       </Group>
       {snippet && (
         <ContentBox>

@@ -21,7 +21,7 @@ const rows = [
   ['Primary abstraction', 'Scoped memory files', 'Extracted and retrieved memories', 'Temporal knowledge graph', 'Embedded text chunks'],
   ['Default storage', 'Postgres tables', 'Managed or self-hosted memory stack', 'Graph-oriented memory service', 'Vector index plus source store'],
   ['Human editing', 'Open and edit the record directly', 'Usually mediated by API or extraction flow', 'Usually mediated by graph/API flow', 'Edit source text, then re-index'],
-  ['Audit/debug surface', 'Revisions and access logs are core tables', 'Depends on deployment and product tier', 'Graph provenance and service logs', 'Usually custom app logging'],
+  ['Audit/debug surface', 'Revisions track every write; access logs track every read. Any past file state is reconstructable.', 'Depends on deployment and product tier', 'Graph provenance and service logs', 'Usually custom app logging'],
   ['Best fit', 'Memory as product data and behavior context', 'Personalized recall from conversations', 'Entity/relation-heavy temporal memory', 'Semantic search over archives'],
   ['Common failure mode', 'Needs memory hygiene and concise files', 'Opaque or over-eager extraction', 'Operational complexity and graph drift', 'Retrieves similar text, not maintained truth'],
 ];

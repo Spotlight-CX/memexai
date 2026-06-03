@@ -88,6 +88,11 @@ export type SearchMemoryResult = {
     path: string
     snippet: string
     rank: number
+    matchReason?: "lexical" | "semantic" | "hybrid"
+    bm25Rank?: number
+    vectorRank?: number
+    bm25Score?: number
+    vectorDistance?: number
     updatedAt: string
   }[]
   truncated: boolean

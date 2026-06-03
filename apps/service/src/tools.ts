@@ -2,6 +2,7 @@ import {
   executeTool as executeCoreTool,
   MemexError,
   toolDefinitions,
+  type EmbeddingConfig,
   type ToolContext,
 } from "@memexai/core"
 import type { Db } from "./db"
@@ -12,7 +13,12 @@ export async function executeTool(
   toolName: string,
   args: unknown,
   ctx: ToolContext,
-  options: { model?: unknown } = {},
+  options: EmbeddingConfig & {
+    model?: unknown
+    rrfK?: number
+    bm25CandidateLimit?: number
+    vectorCandidateLimit?: number
+  } = {},
 ) {
   try {
     return await executeCoreTool(db, toolName, args, ctx, options)
