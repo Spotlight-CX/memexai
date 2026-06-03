@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify"
 import { ZodError } from "zod"
 import { getAdminFile, listAdminAccessLogs, listAdminDreamUsers, listAdminFiles, listAdminRevisions, listAdminUsers, pruneAdminRevisions, writeAdminFile } from "./admin"
+import { getDoc, listDocs } from "./docs"
 import { handleConfigureChat } from "./admin-configure"
 import {
   getFileObservability,
@@ -313,8 +314,24 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
     return pruneAdminRevisions(db, { olderThanDays: Number(olderThanDays) })
   })
   app.get("/v1/admin/access-logs", { preHandler: adminAuth }, async (request) => {
-    const query = request.query as { physicalPath?: string }
-    return listAdminAccessLogs(db, { physicalPath: query.physicalPath })
+    const query = request.query as {
+      physicalPath?: string
+      userId?: string
+      toolCallId?: string
+      from?: string
+      to?: string
+      limit?: string
+      offset?: string
+    }
+    return listAdminAccessLogs(db, {
+      physicalPath: query.physicalPath,
+      userId: query.userId,
+      toolCallId: query.toolCallId,
+      from: query.from,
+      to: query.to,
+      limit: query.limit ? Number(query.limit) : undefined,
+      offset: query.offset ? Number(query.offset) : undefined,
+    })
   })
   app.get("/v1/admin/observability/summary", { preHandler: adminAuth }, async (request) => {
     return getObservabilitySummary(db, parseObservabilityQuery(request.query))
@@ -484,6 +501,13 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
       history?: Array<{ role: string; content: string }>
     }
     return handleConfigureChat(db, input.model, { message, history: (history ?? []) as Array<{ role: "user" | "assistant"; content: string }> })
+  })
+
+  // Public docs endpoint — no auth required
+  app.get("/v1/docs", async () => listDocs())
+  app.get("/v1/docs/*", async (request) => {
+    const params = request.params as { "*": string }
+    return getDoc(decodeURIComponent(params["*"]))
   })
 
   registerAdminStaticRoutes(app)

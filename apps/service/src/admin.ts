@@ -390,24 +390,51 @@ export async function writeAdminFile(
   return { physicalPath, created: file.created, updated: !file.created }
 }
 
-export async function listAdminAccessLogs(db: Db, input: { physicalPath?: string }) {
-  const query = input.physicalPath
-    ? db.query<AdminAccessLogRow>(
-        `SELECT id, file_id, physical_path, operation, actor, user_id, tool_call_id, created_at
-         FROM mx_access_log
-         WHERE physical_path = $1
-         ORDER BY created_at DESC
-         LIMIT 300`,
-        [input.physicalPath],
-      )
-    : db.query<AdminAccessLogRow>(
-        `SELECT id, file_id, physical_path, operation, actor, user_id, tool_call_id, created_at
-         FROM mx_access_log
-         ORDER BY created_at DESC
-         LIMIT 300`,
-      )
+export async function listAdminAccessLogs(db: Db, input: {
+  physicalPath?: string
+  userId?: string
+  toolCallId?: string
+  from?: string
+  to?: string
+  limit?: number
+  offset?: number
+} = {}) {
+  const values: unknown[] = []
+  const filters: string[] = []
+  const limit = clampInt(input.limit, 200, 1, 500)
+  const offset = clampInt(input.offset, 0, 0, 100_000)
 
-  const { rows } = await query
+  if (input.physicalPath) {
+    values.push(input.physicalPath)
+    filters.push(`physical_path = $${values.length}`)
+  }
+  if (input.userId) {
+    values.push(input.userId)
+    filters.push(`user_id = $${values.length}`)
+  }
+  if (input.toolCallId) {
+    values.push(input.toolCallId)
+    filters.push(`tool_call_id = $${values.length}`)
+  }
+  addDateFilter(filters, values, "created_at", ">=", input.from)
+  addDateFilter(filters, values, "created_at", "<=", input.to)
+
+  const where = filters.length ? `WHERE ${filters.join(" AND ")}` : ""
+  const totalValues = [...values]
+  const { rows: countRows } = await db.query<{ total: string }>(
+    `SELECT COUNT(*) AS total FROM mx_access_log ${where}`,
+    totalValues,
+  )
+  values.push(limit, offset)
+  const { rows } = await db.query<AdminAccessLogRow>(
+    `SELECT id, file_id, physical_path, operation, actor, user_id, tool_call_id, created_at
+     FROM mx_access_log
+     ${where}
+     ORDER BY created_at DESC
+     LIMIT $${values.length - 1} OFFSET $${values.length}`,
+    values,
+  )
+  const total = Number(countRows[0]?.total ?? 0)
   return {
     accessLogs: rows.map((row) => ({
       id: row.id,
@@ -419,6 +446,12 @@ export async function listAdminAccessLogs(db: Db, input: { physicalPath?: string
       toolCallId: row.tool_call_id,
       createdAt: row.created_at,
     })),
+    pagination: {
+      limit,
+      offset,
+      total,
+      hasMore: offset + limit < total,
+    },
   }
 }
 
