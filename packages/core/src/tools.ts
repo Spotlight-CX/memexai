@@ -7,7 +7,15 @@ import { listArgsSchema, memorizeArgsSchema, patchArgsSchema, readArgsSchema, se
 import { type ToolName } from "./tool-definitions"
 import { generateText, jsonSchema, stepCountIs } from "ai"
 import { isDreamExcludedPath } from "./dream-paths"
-import { bm25Search } from "./search"
+import {
+  SearchError,
+  bm25Search,
+  hybridSearch,
+  prepareFileEmbedding,
+  storePreparedEmbedding,
+  type EmbeddingConfig,
+  type SearchScope,
+} from "@memexai/search"
 
 type FileRow = {
   id: string
@@ -15,6 +23,42 @@ type FileRow = {
   content_text: string
   created_at: Date
   updated_at: Date
+}
+
+type ExecuteToolOptions = EmbeddingConfig & {
+  model?: unknown
+  rrfK?: number
+  bm25CandidateLimit?: number
+  vectorCandidateLimit?: number
+}
+
+function searchScope(ctx: ToolContext, prefix?: string): SearchScope {
+  if (!prefix) {
+    return {
+      defaultUserLike: `users/${ctx.userId}/%`,
+      physicalToVirtual: (physicalPath) => physicalToVirtual(physicalPath, ctx),
+    }
+  }
+
+  const physicalPrefix = prefixToPhysical(prefix, ctx)
+  if (!physicalPrefix) throw new MemexError("INVALID_PATH", "prefix is required")
+  return {
+    defaultUserLike: `users/${ctx.userId}/%`,
+    prefixExact: physicalPrefix,
+    prefixLike: `${physicalPrefix.endsWith("/") ? physicalPrefix : `${physicalPrefix}/`}%`,
+    physicalToVirtual: (physicalPath) => physicalToVirtual(physicalPath, ctx),
+  }
+}
+
+async function prepareCoreFileEmbedding(content: string, options: EmbeddingConfig) {
+  try {
+    return await prepareFileEmbedding(content, options)
+  } catch (error) {
+    if (error instanceof SearchError) {
+      throw new MemexError(error.code, error.message)
+    }
+    throw error
+  }
 }
 
 async function logAccess(db: Db, input: {
@@ -121,10 +165,11 @@ export async function executeMemoryRead(db: Db, args: unknown, ctx: ToolContext)
   }
 }
 
-export async function executeMemoryWrite(db: Db, args: unknown, ctx: ToolContext) {
+export async function executeMemoryWrite(db: Db, args: unknown, ctx: ToolContext, options: EmbeddingConfig = {}) {
   const { path, content, reason } = writeArgsSchema.parse(args)
   assertWritableVirtualPath(path)
   const physicalPath = virtualToPhysical(path, ctx)
+  const preparedEmbedding = await prepareCoreFileEmbedding(content, options)
 
   const { rows } = await db.query<{ id: string; created: boolean }>(
     `INSERT INTO mx_file (id, physical_path, content_text)
@@ -136,6 +181,7 @@ export async function executeMemoryWrite(db: Db, args: unknown, ctx: ToolContext
   )
 
   const file = rows[0]
+  await storePreparedEmbedding(db, file.id, preparedEmbedding)
   await insertRevision(db, { fileId: file.id, physicalPath, operation: "write", content, reason, ctx })
   await logAccess(db, { fileId: file.id, physicalPath, operation: "write", ctx })
 
@@ -146,7 +192,7 @@ export async function executeMemoryWrite(db: Db, args: unknown, ctx: ToolContext
   }
 }
 
-export async function executeMemoryPatch(db: Db, args: unknown, ctx: ToolContext) {
+export async function executeMemoryPatch(db: Db, args: unknown, ctx: ToolContext, options: EmbeddingConfig = {}) {
   const parsed = patchArgsSchema.parse(args)
   assertWritableVirtualPath(parsed.path)
   const physicalPath = virtualToPhysical(parsed.path, ctx)
@@ -165,7 +211,9 @@ export async function executeMemoryPatch(db: Db, args: unknown, ctx: ToolContext
     : replaceExactText(file.content_text, parsed.match, parsed.replacement)
 
   if (result.changed) {
+    const preparedEmbedding = await prepareCoreFileEmbedding(result.content, options)
     await db.query("UPDATE mx_file SET content_text = $1, updated_at = now() WHERE id = $2", [result.content, file.id])
+    await storePreparedEmbedding(db, file.id, preparedEmbedding)
     await insertRevision(db, {
       fileId: file.id,
       physicalPath,
@@ -429,11 +477,40 @@ export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolCon
   }
 }
 
-export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContext, options: { model?: unknown } = {}) {
+export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}) {
   const parsed = searchArgsSchema.parse(args)
   const { query, limit = 10, prefix } = parsed
   if (options.model) {
     return executeAgenticMemorySearch(db, parsed, ctx, options.model)
+  }
+  if (options.adapter) {
+    const preparedQueryEmbedding = await prepareCoreFileEmbedding(query, { adapter: options.adapter, maxChars: Number.MAX_SAFE_INTEGER })
+    const queryEmbedding = preparedQueryEmbedding?.status === "ready" ? preparedQueryEmbedding.vector : undefined
+    const results = await hybridSearch(db, {
+      query,
+      queryEmbedding,
+      limit,
+      rrfK: options.rrfK,
+      bm25CandidateLimit: options.bm25CandidateLimit,
+      vectorCandidateLimit: options.vectorCandidateLimit,
+      dimensions: options.adapter.dimensions,
+      scope: searchScope(ctx, prefix),
+    })
+
+    const logPath = prefix ? prefixToPhysical(prefix, ctx) : "*"
+    await logAccess(db, { physicalPath: logPath ?? "*", operation: "search", ctx })
+
+    return {
+      query,
+      results: results.map((result) => ({
+        path: result.path,
+        snippet: result.snippet ?? result.content?.slice(0, 240) ?? "",
+        rank: result.score,
+        matchReason: result.matchReason,
+        updatedAt: result.updatedAt,
+      })),
+      truncated: false,
+    }
   }
   return executeMemorySearchBm25(db, { query, limit, prefix }, ctx)
 }
@@ -463,7 +540,7 @@ async function runMemoryLlmPass(
     maxReads?: number
     dryRun?: boolean
     budgetErrorMessage: string
-  },
+  } & EmbeddingConfig,
 ): Promise<MemoryLlmPassResult> {
   const dryRun = options.dryRun ?? false
   const maxReads = options.maxReads ?? 0
@@ -521,7 +598,7 @@ async function runMemoryLlmPass(
         reason: parsed.reason,
         args: parsed,
       }
-      if (!dryRun) planned.result = await executeMemoryWrite(db, parsed, ctx)
+      if (!dryRun) planned.result = await executeMemoryWrite(db, parsed, ctx, options)
       writes.push(planned)
       return dryRun ? { planned: true, path: parsed.path } : planned.result
     },
@@ -553,7 +630,7 @@ async function runMemoryLlmPass(
         reason: parsed.reason,
         args: parsed,
       }
-      if (!dryRun) planned.result = await executeMemoryPatch(db, parsed, ctx)
+      if (!dryRun) planned.result = await executeMemoryPatch(db, parsed, ctx, options)
       writes.push(planned)
       return dryRun ? { planned: true, path: parsed.path } : planned.result
     },
@@ -579,7 +656,7 @@ function logTail(content: string, maxLines = 15): string {
   return lines.slice(-maxLines).join("\n")
 }
 
-export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolContext, options: { model?: unknown } = {}) {
+export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}) {
   const { text, maxWrites = 5, maxReads = 3, dryRun = false } = memorizeArgsSchema.parse(args)
   if (!options.model) {
     throw new MemexError("MODEL_NOT_CONFIGURED", "memory_memorize requires a configured model")
@@ -603,6 +680,10 @@ export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolCont
   })
 
   return runMemoryLlmPass(db, ctx, {
+    adapter: options.adapter,
+    maxChars: options.maxChars,
+    chunkChars: options.chunkChars,
+    chunkOverlap: options.chunkOverlap,
     model: options.model,
     maxWrites,
     maxReads,
@@ -647,7 +728,7 @@ type ConsolidateResult = MemoryLlmPassResult & {
 export async function executeMemoryConsolidate(
   db: Db,
   ctx: ToolContext,
-  options: { model?: unknown; maxWrites?: number; maxFiles?: number; maxInputChars?: number; dryRun?: boolean } = {},
+  options: ExecuteToolOptions & { maxWrites?: number; maxFiles?: number; maxInputChars?: number; dryRun?: boolean } = {},
 ): Promise<ConsolidateResult> {
   if (!options.model) {
     throw new MemexError("MODEL_NOT_CONFIGURED", "memory_consolidate requires a configured model")
@@ -674,6 +755,10 @@ export async function executeMemoryConsolidate(
   })
   const today = new Date().toISOString().slice(0, 10)
   const result = await runMemoryLlmPass(db, { ...ctx, actor: ctx.actor ?? "dream-agent" }, {
+    adapter: options.adapter,
+    maxChars: options.maxChars,
+    chunkChars: options.chunkChars,
+    chunkOverlap: options.chunkOverlap,
     model: options.model,
     maxWrites,
     dryRun,
@@ -708,7 +793,7 @@ export async function executeMemoryConsolidate(
 
 async function executeMemorySearchBm25(db: Db, input: { query: string; limit?: number; prefix?: string }, ctx: ToolContext) {
   const { query, limit = 10, prefix } = input
-  const results = await bm25Search(db, { query, limit, prefix }, ctx)
+  const results = await bm25Search(db, { query, limit, scope: searchScope(ctx, prefix) })
 
   const logPath = prefix ? prefixToPhysical(prefix, ctx) : "*"
   await logAccess(db, { physicalPath: logPath ?? "*", operation: "search", ctx })
@@ -815,16 +900,16 @@ async function executeAgenticMemorySearch(
   }
 }
 
-export async function executeTool(db: Db, toolName: string, args: unknown, ctx: ToolContext, options: { model?: unknown } = {}) {
+export async function executeTool(db: Db, toolName: string, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}) {
   switch (toolName as ToolName) {
     case "memory_list":
       return executeMemoryList(db, args, ctx)
     case "memory_read":
       return executeMemoryRead(db, args, ctx)
     case "memory_write":
-      return executeMemoryWrite(db, args, ctx)
+      return executeMemoryWrite(db, args, ctx, options)
     case "memory_patch":
-      return executeMemoryPatch(db, args, ctx)
+      return executeMemoryPatch(db, args, ctx, options)
     case "memory_smart_read":
       return executeMemorySmartRead(db, args, ctx)
     case "memory_search":

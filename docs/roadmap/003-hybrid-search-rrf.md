@@ -8,7 +8,8 @@ Recorded before and during implementation on June 3, 2026:
 
 - Slice commits are kept separate after their own focused build/test verification.
 - Slice 1 is behavior-preserving for the public `memory_search` response: RRF helpers are introduced, but the agent tool schema and BM25 fallback shape do not change.
-- Slice 2 uses a precomputed query embedding in core tests. Gemini/provider wiring is deferred to Slice 4, so core stays provider-agnostic.
+- Search implementation lives in the separate `@memexai/search` workspace package so BM25, vector search, RRF, chunking, and embedding helpers can be tested independently from core memory-tool orchestration.
+- Slice 2 uses a precomputed query embedding in search package tests. Gemini/provider wiring is deferred to Slice 4, so core stays provider-agnostic.
 - Vector migration is opt-in through `runMigrations(db, { vectorEnabled: true })`; BM25-only runs skip the pgvector migration and do not require the extension.
 - The service migration runner mirrors the core skip behavior by skipping files whose names include `pgvector` unless `vectorEnabled` is true.
 - MCP tool execution should receive the same embedding/search runtime as HTTP tool execution once service wiring lands.

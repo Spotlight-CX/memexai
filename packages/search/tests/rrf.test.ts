@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { reciprocalRankFusion, type RankedResult } from "../src/search"
+import { reciprocalRankFusion, type RankedResult } from "../src"
 
 function ranked(path: string, rank: number, matchReason: RankedResult["matchReason"]): RankedResult {
   return {

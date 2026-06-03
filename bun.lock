@@ -118,6 +118,7 @@
       "name": "@memexai/core",
       "version": "0.1.5",
       "dependencies": {
+        "@memexai/search": "workspace:*",
         "pg": "^8.16.3",
         "zod": "^4.3.6",
       },
@@ -148,6 +149,15 @@
       "optionalPeers": [
         "ai",
       ],
+    },
+    "packages/search": {
+      "name": "@memexai/search",
+      "version": "0.1.5",
+      "devDependencies": {
+        "@types/node": "^20.19.25",
+        "tsup": "^8.5.1",
+        "vitest": "^4.0.15",
+      },
     },
   },
   "packages": {
@@ -410,6 +420,8 @@
     "@memexai/demo-agent": ["@memexai/demo-agent@workspace:apps/demo-agent"],
 
     "@memexai/sdk": ["@memexai/sdk@workspace:packages/sdk"],
+
+    "@memexai/search": ["@memexai/search@workspace:packages/search"],
 
     "@memexai/service": ["@memexai/service@workspace:apps/service"],
 

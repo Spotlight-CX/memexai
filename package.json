@@ -7,7 +7,8 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "bun run build:core && bun run build:service && bun run build:sdk && bun run build:admin-cli && bun run build:demo",
+    "build": "bun run build:search && bun run build:core && bun run build:service && bun run build:sdk && bun run build:admin-cli && bun run build:demo",
+    "build:search": "bun run --cwd packages/search build",
     "build:core": "bun run --cwd packages/core build",
     "build:admin-cli": "bun run --cwd packages/admin-cli build",
     "build:demo": "bun run --cwd apps/demo-agent build",

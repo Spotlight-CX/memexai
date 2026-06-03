@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest"
-import { hybridSearch, vectorSearch } from "../src/search"
+import { hybridSearch, vectorSearch, type SearchScope } from "../src"
 
 const updatedAt = new Date("2026-06-03T09:14:00.000Z")
 
@@ -19,7 +19,19 @@ function createDb(input: {
     connect: vi.fn(),
     end: vi.fn(),
   }
-  return { db: db as unknown as import("../src/db").Db, calls }
+  return { db, calls }
+}
+
+function scope(overrides: Partial<SearchScope> = {}): SearchScope {
+  return {
+    defaultUserLike: "users/u1/%",
+    physicalToVirtual: (physicalPath) => {
+      if (physicalPath.startsWith("users/u1/")) return `user/${physicalPath.slice("users/u1/".length)}`
+      if (physicalPath.startsWith("shared/")) return physicalPath
+      return null
+    },
+    ...overrides,
+  }
 }
 
 describe("hybridSearch", () => {
@@ -40,7 +52,8 @@ describe("hybridSearch", () => {
       query: "greenery outdoor",
       queryEmbedding: [0.9, 0.1, 0.2],
       dimensions: 3,
-    }, { userId: "u1" })
+      scope: scope(),
+    })
 
     expect(results).toMatchObject([
       { path: "user/preferences.md", content: "loves parks and open spaces", matchReason: "semantic", vectorRank: 1 },
@@ -64,7 +77,8 @@ describe("hybridSearch", () => {
       queryEmbedding: [1, 0, 0],
       dimensions: 3,
       limit: 2,
-    }, { userId: "u1" })
+      scope: scope(),
+    })
 
     expect(results[0]).toMatchObject({ path: "user/budget.md", matchReason: "hybrid", bm25Rank: 1, vectorRank: 2 })
   })
@@ -76,7 +90,7 @@ describe("hybridSearch", () => {
       ],
     })
 
-    const results = await hybridSearch(db, { query: "budget", limit: 5 }, { userId: "u1" })
+    const results = await hybridSearch(db, { query: "budget", limit: 5, scope: scope() })
 
     expect(results).toMatchObject([{ path: "user/budget.md", matchReason: "lexical" }])
     expect(calls.some(([sql]) => sql.includes("<=>"))).toBe(false)
@@ -85,7 +99,7 @@ describe("hybridSearch", () => {
   test("vector search preserves user isolation and shared visibility", async () => {
     const { db, calls } = createDb({ vectorRows: [] })
 
-    await vectorSearch(db, { queryEmbedding: [0.2, 0.3, 0.4], dimensions: 3, limit: 7 }, { userId: "u1" })
+    await vectorSearch(db, { queryEmbedding: [0.2, 0.3, 0.4], dimensions: 3, limit: 7, scope: scope() })
 
     const [sql, values] = calls[0]
     expect(sql).toContain("physical_path LIKE $2 OR physical_path LIKE 'shared/%'")
@@ -97,7 +111,10 @@ describe("hybridSearch", () => {
   test("filters vector search by virtual prefix", async () => {
     const { db, calls } = createDb({ vectorRows: [] })
 
-    await vectorSearch(db, { queryEmbedding: [0.2, 0.3, 0.4], prefix: "user/" }, { userId: "u1" })
+    await vectorSearch(db, {
+      queryEmbedding: [0.2, 0.3, 0.4],
+      scope: scope({ prefixExact: "users/u1", prefixLike: "users/u1/%" }),
+    })
 
     const [, values] = calls[0]
     expect(values).toEqual(["[0.2,0.3,0.4]", "users/u1", "users/u1/%", 10])
