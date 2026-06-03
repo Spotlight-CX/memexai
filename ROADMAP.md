@@ -74,25 +74,37 @@ Add `confidence REAL` and `source_type TEXT` to `mx_file`. Dream consolidation s
 
 Why now: dreaming is live but has no way to signal epistemic quality. Contradicted memories persist at full weight until the next dream run.
 
-### 3. Hybrid BM25 + vector search with RRF
-Optional `embed` function at `createMemex()`. On write, generate and store embeddings in a new `pgvector` column. On search, run BM25 and vector in parallel, merge with Reciprocal Rank Fusion (`1/(60+bm25_rank) + 1/(60+vector_rank)`). Falls back to BM25-only if no embed function provided — no hard dependency, no regression. Spec: [`docs/roadmap/003-hybrid-search-rrf.md`](docs/roadmap/003-hybrid-search-rrf.md)
-
-Why now: semantic gaps that BM25 can't bridge ("loves parks" vs "nature green space") force agents to issue multiple reformulated queries or miss memories entirely.
-
-### 4. Launch polish
+### 3. Launch polish
 Clear quick-test flow, copyable SDK snippets, better examples, fewer places where a new developer has to infer the happy path.
 
 Why now: adoption depends on the product feeling obvious before it feels powerful.
 
-### 5. PII hooks and post-write hooks
+### 4. Hybrid BM25 + vector search with RRF
+Optional `embed` injection at `createMemex()`, `pgvector` column on `mx_file`, Reciprocal Rank Fusion merge. Spec: [`docs/roadmap/003-hybrid-search-rrf.md`](docs/roadmap/003-hybrid-search-rrf.md)
+
+Why now: Hybrid retrieval adds roughly 8–20 points accuracy on paraphrase-heavy recall tasks where query vocabulary diverges from stored memory vocabulary — a common failure mode for qualitative and preference memories. pgvector ships in the official Postgres Docker image (no new infra). BM25-only deployments are unchanged. Research: [`docs/research/hybrid-search-rrf.md`](docs/research/hybrid-search-rrf.md)
+
+Scope: Slices 1–4 of the spec only. No new services, no admin UI, no required dependency. BM25 remains the default. Follows memorize quality improvements (items 1–2 above are the larger lever).
+
+### 5. Memorize quality improvement
+Tune the `memory_memorize` prompt to extract personal facts even when stated as throwaway asides in queries about unrelated topics. Current `maxWrites: 3` per session is conservative for multi-turn conversations.
+
+Why now: write-time extraction quality is the primary bottleneck in agent memory recall. Analysis of memory benchmark failures shows the majority of missed recalls are facts that were stated clearly but never extracted — a retrieval improvement cannot recover facts that were never written. Research: [`docs/research/agent-memory-retrieval-landscape.md`](docs/research/agent-memory-retrieval-landscape.md)
+
+### 6. PII hooks and post-write hooks
 PII: redaction/blocking before writes, regex-first. Post-write: webhooks or callbacks after memory changes for Slack, n8n, Zapier, audit stores.
 
 Why now: memory systems are trust systems. Sensitive data handling and workflow integration should be boring and inspectable.
 
-### 6. Team memory — contribution requests
+### 7. Team memory — contribution requests
 `memory_propose` tool queues a write to `shared/` that admins review before it becomes canonical. Accept / reject / auto-approve modes. Closes the gap between "operator configures once" and "team learns together."
 
-### 7. Sidecar memory writes
+### 8. Hybrid search — `createMemex()` / direct-Postgres support
+Expose the `EmbeddingAdapter` interface via `createMemex()` so containerless users can enable hybrid search without the Docker service. Currently the embed adapter lives only inside `apps/service`. Add when there is demand or after the service path is stable.
+
+Why later: V1 ships hybrid search only via the Docker service (env-locked config). Direct-Postgres users still get BM25. Unlocking this means wiring Gemini key handling, chunking, and config validation into the core library — straightforward but not needed until someone asks.
+
+### 9. Sidecar memory writes
 Optional `raw_data` arg to `memory_write`. Payload goes directly to Postgres without entering the model's context window — useful for bulk ingestion of transcripts, structured payloads, or large data the agent has already processed.
 
 ---
