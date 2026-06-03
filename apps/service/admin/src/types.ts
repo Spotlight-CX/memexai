@@ -20,6 +20,16 @@ export type AdminFile = {
     reason: string | null
     createdAt: string
   } | null
+  matchedRevision?: {
+    id: string
+    fileId: string
+    operation: string
+    actor: string | null
+    reason: string | null
+    userId: string | null
+    toolCallId: string | null
+    createdAt: string
+  } | null
   revisionCount?: number
 }
 
