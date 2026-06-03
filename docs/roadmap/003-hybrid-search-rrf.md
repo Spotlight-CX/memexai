@@ -89,7 +89,7 @@ Path: users/user_123/preferences.md
 Search index
 - Lexical index: current
 - Embedding: fresh
-- Embedding model: text-embedding-004
+- Embedding model: gemini-embedding-001
 - Strategy: full
 - Embedded at: Jun 3, 2026 09:14
 ```
@@ -143,9 +143,9 @@ No controls, no backfill triggers, no user-level search overrides.
 
 Decisions locked before implementation starts. Changing any of these after Slice 2 ships requires a data migration.
 
-### Default provider: Gemini `text-embedding-004`
+### Default provider: Gemini `gemini-embedding-001`
 
-First provider to support. Dimensions: **768**. Auto-detected when `GEMINI_API_KEY` is set and `MEMEX_SEARCH_MODE` is `auto` or unset.
+First provider to support. Dimensions: **768** via Gemini's output dimensionality setting. Auto-detected when `GEMINI_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY` is set and `MEMEX_SEARCH_MODE` is `auto` or unset.
 
 ```bash
 # compose.yml default — hybrid on if key is present, BM25-only otherwise
@@ -153,7 +153,7 @@ MEMEX_SEARCH_MODE=auto
 GEMINI_API_KEY=${GEMINI_API_KEY:-}
 ```
 
-V1 ships 768 dims (Gemini default). The vector column dimension is baked into the Postgres column type — changing providers later requires a migration that drops and recreates the column.
+V1 ships 768 dims from `gemini-embedding-001`. The vector column dimension is baked into the Postgres column type — changing providers later requires a migration that drops and recreates the column.
 
 ### Migration strategy
 
@@ -225,7 +225,7 @@ Change to `apps/service/src/index.ts` — detect flag and pass it in:
 ```ts
 const vectorEnabled = !!config.GEMINI_API_KEY
 await runMigrations(db, { vectorEnabled })
-console.error(`search mode: ${vectorEnabled ? "hybrid (gemini/text-embedding-004)" : "bm25"}`)
+console.error(`search mode: ${vectorEnabled ? "hybrid (gemini/gemini-embedding-001)" : "bm25"}`)
 ```
 
 Same pattern applies to `packages/core/src/migrations.ts` — the pgvector migration entry in the `MIGRATIONS` array gets a `vectorOnly: true` marker and the runner skips it when `vectorEnabled` is false.
@@ -344,7 +344,7 @@ Two strategies depending on file size. The strategy used is recorded in `embeddi
 
 **Strategy: `full`** (file ≤ `MEMEX_EMBEDDING_MAX_CHARS`, default 8000)
 - Pass the full `content_text` to the provider.
-- 8000 chars ≈ 2000 tokens, safe for Gemini `text-embedding-004` (2048 token limit).
+- 8000 chars ≈ 2000 tokens, safe for Gemini `gemini-embedding-001`.
 - Applies to 95%+ of memory files in practice (individual memories, preferences, notes are typically 100–2000 chars).
 
 **Strategy: `mean_pooled`** (file > `MEMEX_EMBEDDING_MAX_CHARS`)
@@ -414,7 +414,7 @@ CREATE INDEX IF NOT EXISTS mx_file_embedding_idx
   ON mx_file USING hnsw (embedding vector_cosine_ops);
 ```
 
-Default dimension is **768** (Gemini `text-embedding-004`). The vector column type bakes in the dimension — changing it requires a new migration that drops and recreates the column. Document this clearly: switching providers means re-embedding all files and a schema migration.
+Default dimension is **768** (Gemini `gemini-embedding-001` with `outputDimensionality`). The vector column type bakes in the dimension — changing it requires a new migration that drops and recreates the column. Document this clearly: switching providers means re-embedding all files and a schema migration.
 
 Mirror this SQL in `apps/service/migrations/`.
 
@@ -476,7 +476,7 @@ Environment variables:
 
 ```bash
 # Search mode. Default: auto
-# auto: hybrid if GEMINI_API_KEY is set and pgvector available, bm25 otherwise
+# auto: hybrid if GEMINI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY is set and pgvector available, bm25 otherwise
 MEMEX_SEARCH_MODE=auto # auto | bm25
 
 # Gemini is the only built-in provider. Other providers are host-app responsibility.
@@ -489,7 +489,7 @@ MEMEX_VECTOR_CANDIDATE_LIMIT=50
 MEMEX_EMBEDDING_MAX_CHARS=8000
 ```
 
-`MEMEX_SEARCH_MODE=auto`: hybrid when `GEMINI_API_KEY` is set and pgvector available; BM25-only otherwise. `MEMEX_SEARCH_MODE=bm25` forces BM25 regardless.
+`MEMEX_SEARCH_MODE=auto`: hybrid when `GEMINI_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY` is set and pgvector available; BM25-only otherwise. `MEMEX_SEARCH_MODE=bm25` forces BM25 regardless.
 
 The service should log the resolved search mode at startup.
 
@@ -585,7 +585,7 @@ Agent tool schema stays stable. No user-level overrides.
 **Build:**
 - Read env vars at service startup: `MEMEX_SEARCH_MODE`, `GEMINI_API_KEY`, `MEMEX_RRF_K`, `MEMEX_EMBEDDING_MAX_CHARS`.
 - Instantiate a `GeminiEmbeddingAdapter` when the key is present and inject it into core search/write functions.
-- Log resolved search mode at startup: `search mode: hybrid (gemini/text-embedding-004, 768 dims)` or `search mode: bm25 (no adapter configured)`.
+- Log resolved search mode at startup: `search mode: hybrid (gemini/gemini-embedding-001, 768 dims)` or `search mode: bm25 (no adapter configured)`.
 - Add `GET /v1/admin/search/status` returning `{ mode, provider, model, dimensions }` — read-only, no controls.
 - Add per-file embedding status fields to existing `GET /v1/admin/files/*` response: `embeddingStatus`, `embeddingStrategy`, `embeddingChunkCount`, `embeddingUpdatedAt`. Omit fields entirely when mode is BM25-only.
 - Update `compose.yml`: add env var placeholders, switch Postgres image to `pgvector/pgvector:pg16`.
@@ -593,7 +593,7 @@ Agent tool schema stays stable. No user-level overrides.
 **Done when:**
 - `bun test apps/service/tests/search-config.test.ts` passes:
   - `MEMEX_SEARCH_MODE=bm25`: no embedding adapter injected, no provider calls on write.
-  - `MEMEX_SEARCH_MODE=auto` with `GEMINI_API_KEY` set: hybrid adapter injected, startup log shows hybrid.
+  - `MEMEX_SEARCH_MODE=auto` with `GEMINI_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY` set: hybrid adapter injected, startup log shows hybrid.
   - `MEMEX_SEARCH_MODE=auto` with no key: BM25, startup log shows BM25.
   - `GET /v1/admin/search/status` returns correct mode and provider metadata.
   - `GET /v1/admin/files/:path` includes embedding fields when hybrid, omits them when BM25-only.
@@ -620,7 +620,7 @@ Avoid raw implementation language in normal prompts:
 
 ```text
 Semantic search is not configured.
-Set GEMINI_API_KEY and restart the service to enable hybrid search. BM25 keyword search is still active.
+Set GEMINI_API_KEY (or GOOGLE_GENERATIVE_AI_API_KEY) and restart the service to enable hybrid search. BM25 keyword search is still active.
 ```
 
 ```text

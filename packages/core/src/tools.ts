@@ -32,6 +32,20 @@ type ExecuteToolOptions = EmbeddingConfig & {
   vectorCandidateLimit?: number
 }
 
+type MemorySearchResult = {
+  query: string
+  results: {
+    path: string
+    snippet?: string
+    rank: number
+    matchReason?: "lexical" | "semantic" | "hybrid"
+    updatedAt?: Date
+  }[]
+  truncated: boolean
+  answer?: string
+  sources?: string[]
+}
+
 function searchScope(ctx: ToolContext, prefix?: string): SearchScope {
   if (!prefix) {
     return {
@@ -477,11 +491,11 @@ export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolCon
   }
 }
 
-export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}) {
+export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}): Promise<MemorySearchResult> {
   const parsed = searchArgsSchema.parse(args)
   const { query, limit = 10, prefix } = parsed
   if (options.model) {
-    return executeAgenticMemorySearch(db, parsed, ctx, options.model)
+    return executeAgenticMemorySearch(db, parsed, ctx, options)
   }
   if (options.adapter) {
     const preparedQueryEmbedding = await prepareCoreFileEmbedding(query, { adapter: options.adapter, maxChars: Number.MAX_SAFE_INTEGER })
@@ -814,11 +828,13 @@ async function executeAgenticMemorySearch(
   db: Db,
   input: { query: string; maxChars?: number; limit?: number; maxReads?: number; prefix?: string },
   ctx: ToolContext,
-  model: unknown,
-) {
+  options: ExecuteToolOptions,
+): Promise<MemorySearchResult> {
   const maxReads = input.maxReads ?? 5
   const maxChars = input.maxChars ?? 8_000
-  const candidates = await executeMemorySearchBm25(db, { query: input.query, limit: input.limit, prefix: input.prefix }, ctx)
+  const candidates: MemorySearchResult = options.adapter
+    ? await executeMemorySearch(db, { query: input.query, limit: input.limit, prefix: input.prefix }, ctx, { ...options, model: undefined })
+    : await executeMemorySearchBm25(db, { query: input.query, limit: input.limit, prefix: input.prefix }, ctx)
   const list = await executeMemoryList(db, { prefix: input.prefix }, ctx)
   const indexReads = await Promise.allSettled([
     executeMemoryRead(db, { path: "user/index.md" }, ctx),
@@ -829,7 +845,7 @@ async function executeAgenticMemorySearch(
   const sources = new Set<string>()
 
   const result = await generateText({
-    model: model as never,
+    model: options.model as never,
     system: [
       "You are a read-only memory resolver.",
       "Answer the user's query using only MemexAI memory.",

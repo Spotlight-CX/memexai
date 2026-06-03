@@ -29,7 +29,7 @@ import { useSearchParams } from "react-router-dom"
 import { useAdminData, adminQueryKey } from "../hooks"
 import { FileTreeItem } from "./FileTree"
 import { PencilIcon, PlusIcon } from "../icons"
-import type { AdminFile, AdminRevision, FileObservability } from "../types"
+import type { AdminFile, AdminRevision, AdminSearchStatus, FileObservability } from "../types"
 import { deriveTree, formatDate, isCodeLike, relativeTime } from "../utils"
 import { ErrorText } from "./TableViews"
 
@@ -58,6 +58,7 @@ export function FilesView({ secret }: { secret: string }) {
   const currentSelectedUrl = selectedPath && isTimeTravel ? `/v1/admin/files/${encodeURIComponent(selectedPath)}` : null
 
   const { data, error } = useAdminData<{ files: AdminFile[] }>(filesUrl, secret)
+  const { data: searchStatus } = useAdminData<AdminSearchStatus>("/v1/admin/search/status", secret)
   const { data: selected } = useAdminData<{ file: AdminFile }>(
     selectedUrl,
     secret,
@@ -215,6 +216,13 @@ export function FilesView({ secret }: { secret: string }) {
         onSetAsOf={handleSetAsOf}
         onClearAsOf={handleClearAsOf}
       />
+      {searchStatus?.mode === "bm25" ? (
+        <Box px="md" py={8} bg="yellow.0" style={{ borderTop: "1px solid var(--mantine-color-yellow-2)" }}>
+          <Text size="xs" c="yellow.9">
+            Semantic search is not configured. BM25 keyword search is still active.
+          </Text>
+        </Box>
+      ) : null}
       <Box
         style={{
           display: "grid",
@@ -428,6 +436,8 @@ export function FilesView({ secret }: { secret: string }) {
               <ScrollArea h="100%" offsetScrollbars>
                 <ActivitySidebar
                   selectedPath={selectedPath}
+                  selectedFile={selectedFile ?? null}
+                  searchStatus={searchStatus ?? null}
                   data={fileObservability}
                   error={fileObservabilityError}
                   onOpenFile={handleSelectPath}
@@ -712,11 +722,15 @@ function isRiskyPath(path: string | null) {
 
 function ActivitySidebar({
   selectedPath,
+  selectedFile,
+  searchStatus,
   data,
   error,
   onOpenFile,
 }: {
   selectedPath: string | null
+  selectedFile: AdminFile | null
+  searchStatus: AdminSearchStatus | null
   data: FileObservability | null
   error: string | null
   onOpenFile: (path: string) => void
@@ -747,6 +761,19 @@ function ActivitySidebar({
           <InfoRow label="Revisions" value={String(summary?.revisions ?? 0)} />
         </Stack>
       </Paper>
+      {searchStatus?.mode === "hybrid" ? (
+        <Paper withBorder radius="sm" p="xs">
+          <Text size="xs" fw={650} c="dimmed" tt="uppercase" style={{ letterSpacing: "0.04em" }}>Search index</Text>
+          <Stack gap={4} mt={8}>
+            <InfoRow label="Lexical" value="current" />
+            <InfoRow label="Embedding" value={selectedFile?.embeddingStatus ?? "missing"} />
+            <InfoRow label="Model" value={selectedFile?.embeddingModel ?? searchStatus.model ?? "n/a"} />
+            <InfoRow label="Strategy" value={selectedFile?.embeddingStrategy ?? "n/a"} />
+            <InfoRow label="Chunks" value={selectedFile?.embeddingChunkCount ? String(selectedFile.embeddingChunkCount) : "n/a"} />
+            <InfoRow label="Embedded" value={selectedFile?.embeddingUpdatedAt ? relativeTime(selectedFile.embeddingUpdatedAt) : "n/a"} />
+          </Stack>
+        </Paper>
+      ) : null}
       <Paper withBorder radius="sm" p="xs">
         <Text size="xs" fw={650} c="dimmed" tt="uppercase" style={{ letterSpacing: "0.04em" }}>Frequently accessed nearby</Text>
         <Stack gap={6} mt={8}>

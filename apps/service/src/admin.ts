@@ -1,6 +1,7 @@
 import type { Db } from "./db"
 import { HttpError } from "./errors"
 import { newId } from "./ids"
+import { SearchError, contentHash, prepareFileEmbedding, storePreparedEmbedding, type EmbeddingConfig } from "@memexai/search"
 
 type QueryResult<T> = { rows: T[] }
 const DREAM_STATUSES = new Set(["idle", "running", "completed", "failed"])
@@ -108,7 +109,7 @@ export async function listAdminFiles(db: Db, input: { prefix?: string; asOf?: Da
   return { files: rows.map(toAdminFileSummary) }
 }
 
-export async function getAdminFile(db: Db, physicalPath: string, input: { asOf?: Date } = {}) {
+export async function getAdminFile(db: Db, physicalPath: string, input: { asOf?: Date; includeEmbedding?: boolean; embedding?: EmbeddingConfig } = {}) {
   if (!physicalPath) throw new HttpError(400, "PHYSICAL_PATH_REQUIRED", "physicalPath is required")
 
   if (input.asOf) {
@@ -135,6 +136,13 @@ export async function getAdminFile(db: Db, physicalPath: string, input: { asOf?:
     }
   }
 
+  const embeddingSelect = input.includeEmbedding
+    ? `f.embedding_model, f.embedding_dimensions, f.embedding_strategy,
+       f.embedding_chunk_count, f.embedding_content_hash, f.embedding_updated_at,`
+    : `NULL::text AS embedding_model, NULL::integer AS embedding_dimensions,
+       NULL::text AS embedding_strategy, NULL::integer AS embedding_chunk_count,
+       NULL::text AS embedding_content_hash, NULL::timestamptz AS embedding_updated_at,`
+
   const { rows } = await db.query<AdminFileRow & {
     latest_op: string | null
     latest_actor: string | null
@@ -144,6 +152,7 @@ export async function getAdminFile(db: Db, physicalPath: string, input: { asOf?:
   }>(
     `SELECT
        f.id, f.physical_path, f.content_text, f.created_at, f.updated_at,
+       ${embeddingSelect}
        r.operation AS latest_op, r.actor AS latest_actor,
        r.reason AS latest_reason, r.created_at AS latest_rev_at,
        (SELECT COUNT(*) FROM mx_revision WHERE file_id = f.id) AS revision_count
@@ -164,7 +173,7 @@ export async function getAdminFile(db: Db, physicalPath: string, input: { asOf?:
 
   return {
     file: {
-      ...toAdminFileSummary(file),
+        ...toAdminFileSummary(file, input.includeEmbedding ? input.embedding : undefined),
       content: file.content_text,
       latestRevision: file.latest_op
         ? {
@@ -349,9 +358,17 @@ export async function writeAdminFile(
   physicalPath: string,
   content: string,
   reason?: string,
+  embedding?: EmbeddingConfig,
 ) {
   if (!physicalPath) throw new HttpError(400, "PHYSICAL_PATH_REQUIRED", "physicalPath is required")
   if (typeof content !== "string") throw new HttpError(400, "CONTENT_REQUIRED", "content is required")
+  let preparedEmbedding
+  try {
+    preparedEmbedding = await prepareFileEmbedding(content, embedding)
+  } catch (error) {
+    if (error instanceof SearchError) throw new HttpError(400, error.code, error.message)
+    throw error
+  }
 
   const { rows } = await db.query<{ id: string; created: boolean }>(
     `INSERT INTO mx_file (id, physical_path, content_text)
@@ -363,6 +380,7 @@ export async function writeAdminFile(
   )
 
   const file = rows[0]
+  await storePreparedEmbedding(db, file.id, preparedEmbedding)
   await db.query(
     `INSERT INTO mx_revision (id, file_id, physical_path, operation, content_text, reason, actor, user_id, tool_call_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
@@ -410,6 +428,12 @@ type AdminFileRow = {
   content_text: string
   created_at: Date
   updated_at: Date
+  embedding_model?: string | null
+  embedding_dimensions?: number | null
+  embedding_strategy?: string | null
+  embedding_chunk_count?: number | null
+  embedding_content_hash?: string | null
+  embedding_updated_at?: Date | null
 }
 
 type AdminRevisionRow = {
@@ -461,13 +485,33 @@ type AdminDreamRunRow = {
   updated_at: Date
 }
 
-function toAdminFileSummary(row: AdminFileRow) {
+function embeddingStatus(row: AdminFileRow, embedding?: EmbeddingConfig): "fresh" | "missing" | "stale" | undefined {
+  if (!embedding?.adapter) return undefined
+  if (!row.embedding_content_hash) return "missing"
+  if (row.embedding_model !== embedding.adapter.model) return "stale"
+  if (row.embedding_dimensions !== embedding.adapter.dimensions) return "stale"
+  if (row.embedding_content_hash !== contentHash(row.content_text)) return "stale"
+  return "fresh"
+}
+
+function toAdminFileSummary(row: AdminFileRow, embedding?: EmbeddingConfig) {
+  const status = embeddingStatus(row, embedding)
   return {
     id: row.id,
     physicalPath: row.physical_path,
     size: row.content_text.length,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    ...(status
+      ? {
+          embeddingStatus: status,
+          embeddingModel: row.embedding_model,
+          embeddingDimensions: row.embedding_dimensions,
+          embeddingStrategy: row.embedding_strategy,
+          embeddingChunkCount: row.embedding_chunk_count,
+          embeddingUpdatedAt: row.embedding_updated_at,
+        }
+      : {}),
   }
 }
 

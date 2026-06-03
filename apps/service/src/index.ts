@@ -3,6 +3,7 @@ import { createPool } from "./db"
 import { runMigrations } from "./migrations"
 import { createServiceModel } from "./model"
 import { buildServer } from "./server"
+import { createSearchRuntime } from "./search-config"
 import { readDreamConfig, resetStaleDreamRuns, runDreamCycle } from "@memexai/core"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createConnectionScopedMcpServer } from "./mcp"
@@ -12,8 +13,12 @@ async function main() {
   const config = loadConfig()
   const modelConfig = await createServiceModel(config)
   console.error(`MemexAI model provider: ${modelConfig ? `${modelConfig.provider}/${modelConfig.modelName}` : "none"}`)
+  const searchRuntime = createSearchRuntime(config)
+  console.error(searchRuntime.mode === "hybrid"
+    ? `search mode: hybrid (${searchRuntime.provider}/${searchRuntime.model}, ${searchRuntime.dimensions} dims)`
+    : "search mode: bm25 (no adapter configured)")
   const db = createPool(config.DATABASE_URL)
-  await runMigrations(db)
+  await runMigrations(db, { vectorEnabled: searchRuntime.vectorEnabled })
   const telemetry = await createTelemetryClient({ config, db, serviceVersion: process.env.npm_package_version })
   telemetry.capture("service_started", {
     node_env: config.NODE_ENV ?? "unknown",
@@ -63,7 +68,13 @@ async function main() {
     const userId = getArgValue("--user-id", "default")
     const actor = getArgValue("--actor", "claude-desktop")
 
-    const server = createConnectionScopedMcpServer(db, { userId, actor }, modelConfig?.model)
+    const server = createConnectionScopedMcpServer(db, { userId, actor }, {
+      model: modelConfig?.model,
+      ...searchRuntime.embedding,
+      rrfK: searchRuntime.rrfK,
+      bm25CandidateLimit: searchRuntime.bm25CandidateLimit,
+      vectorCandidateLimit: searchRuntime.vectorCandidateLimit,
+    })
     const transport = new StdioServerTransport()
     await server.connect(transport)
     telemetry.capture("mcp_session_started", { transport: "stdio" })
@@ -82,7 +93,7 @@ async function main() {
     return
   }
 
-  const app = buildServer({ db, config, model: modelConfig?.model, telemetry })
+  const app = buildServer({ db, config, model: modelConfig?.model, telemetry, search: searchRuntime })
   await app.listen({ port: config.PORT, host: "0.0.0.0" })
 
   const close = async () => {

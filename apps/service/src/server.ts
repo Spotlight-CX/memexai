@@ -22,6 +22,7 @@ import type { Db } from "./db"
 import { errorResponse, HttpError } from "./errors"
 import { buildPromptBlock } from "./prompt-block"
 import { executeToolRequestSchema, promptBlockQuerySchema } from "./schemas"
+import { searchStatus, type SearchRuntime } from "./search-config"
 import { executeTool, listTools } from "./tools"
 import { registerAdminStaticRoutes } from "./static-admin"
 import { countBucket, createNoopTelemetry, durationBucket, type TelemetryClient } from "./telemetry"
@@ -30,9 +31,11 @@ import { newId } from "./ids"
 import { activeMcpSessions, createConnectionScopedMcpServer } from "./mcp"
 import { readDreamConfig, runDreamCycle, triggerUserDream } from "@memexai/core"
 
-export function buildServer(input: { db: Db; config: Config; model?: unknown; telemetry?: TelemetryClient }): FastifyInstance {
+export function buildServer(input: { db: Db; config: Config; model?: unknown; telemetry?: TelemetryClient; search?: SearchRuntime }): FastifyInstance {
   const app = Fastify({ logger: true })
   const { db, config } = input
+  const searchRuntime = input.search
+  const embeddingOptions = () => searchRuntime?.mode === "hybrid" ? searchRuntime.embedding : undefined
   const telemetry = input.telemetry ?? createNoopTelemetry()
   const apiAuth = requireApiKey(config.MEMEX_API_KEY)
   const adminAuth = requireAdminSecret(config.MEMEX_ADMIN_SECRET)
@@ -86,7 +89,13 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
     const transport = new SSEServerTransport(`/v1/mcp/messages?connectionId=${connectionId}`, reply.raw)
 
     const ctx = { userId, actor }
-    const mcpServer = createConnectionScopedMcpServer(db, ctx, input.model)
+    const mcpServer = createConnectionScopedMcpServer(db, ctx, {
+      model: input.model,
+      ...embeddingOptions(),
+      rrfK: searchRuntime?.rrfK,
+      bm25CandidateLimit: searchRuntime?.bm25CandidateLimit,
+      vectorCandidateLimit: searchRuntime?.vectorCandidateLimit,
+    })
 
     await mcpServer.connect(transport)
     telemetry.capture("mcp_session_started", { transport: "sse" })
@@ -136,7 +145,13 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
     try {
       const body = executeToolRequestSchema.parse(request.body)
       context = body.context
-      const result = await executeTool(db, params.toolName, body.arguments, body.context, { model: input.model })
+      const result = await executeTool(db, params.toolName, body.arguments, body.context, {
+        model: input.model,
+        ...embeddingOptions(),
+        rrfK: searchRuntime?.rrfK,
+        bm25CandidateLimit: searchRuntime?.bm25CandidateLimit,
+        vectorCandidateLimit: searchRuntime?.vectorCandidateLimit,
+      })
       await recordObservationEvent(db, {
         eventType: "tool_execution",
         status: "success",
@@ -240,6 +255,11 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
   })
 
   app.get("/v1/admin/health", { preHandler: adminAuth }, async () => ({ ok: true, admin: true }))
+  app.get("/v1/admin/search/status", { preHandler: adminAuth }, async () => {
+    return searchRuntime
+      ? searchStatus(searchRuntime)
+      : { mode: "bm25", provider: null, model: null, dimensions: null }
+  })
   app.get("/v1/admin/users", { preHandler: adminAuth }, async (request) => {
     const query = request.query as { q?: string; limit?: string }
     const limit = query.limit ? Number(query.limit) : undefined
@@ -257,12 +277,16 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
   app.get("/v1/admin/files/*", { preHandler: adminAuth }, async (request) => {
     const params = request.params as { "*": string }
     const query = request.query as { asOf?: string }
-    return getAdminFile(db, decodeURIComponent(params["*"]), { asOf: parseAsOf(query.asOf) })
+    return getAdminFile(db, decodeURIComponent(params["*"]), {
+      asOf: parseAsOf(query.asOf),
+      embedding: embeddingOptions(),
+      includeEmbedding: searchRuntime?.mode === "hybrid",
+    })
   })
   app.put("/v1/admin/files/*", { preHandler: adminAuth }, async (request) => {
     const params = request.params as { "*": string }
     const { content, reason } = request.body as { content: string; reason?: string }
-    return writeAdminFile(db, decodeURIComponent(params["*"]), content, reason)
+    return writeAdminFile(db, decodeURIComponent(params["*"]), content, reason, embeddingOptions())
   })
   app.get("/v1/admin/revisions", { preHandler: adminAuth }, async (request) => {
     const query = request.query as {
@@ -505,6 +529,7 @@ function observationAttributesForResult(result: unknown): Record<string, unknown
 function adminRouteGroup(url: string): string | null {
   if (!url.startsWith("/v1/admin/")) return null
   if (url.startsWith("/v1/admin/dream/")) return "dreams"
+  if (url.startsWith("/v1/admin/search")) return "search"
   if (url.startsWith("/v1/admin/observability")) return "observability"
   if (url.startsWith("/v1/admin/files")) return "files"
   if (url.startsWith("/v1/admin/revisions")) return "revisions"
