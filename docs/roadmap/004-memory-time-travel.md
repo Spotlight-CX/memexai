@@ -1,6 +1,6 @@
 # Memory Time Travel
 
-## Status: Planned
+## Status: Partially done — Files time travel shipped (`c839f06`, `6529050`, `c5c8ab0`). Memory context snapshots remain planned.
 
 ## Problem
 
