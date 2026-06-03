@@ -7,6 +7,7 @@ import { listArgsSchema, memorizeArgsSchema, patchArgsSchema, readArgsSchema, se
 import { type ToolName } from "./tool-definitions"
 import { generateText, jsonSchema, stepCountIs } from "ai"
 import { isDreamExcludedPath } from "./dream-paths"
+import { bm25Search } from "./search"
 
 type FileRow = {
   id: string
@@ -428,13 +429,6 @@ export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolCon
   }
 }
 
-type SearchRow = {
-  physical_path: string
-  snippet: string
-  rank: number
-  updated_at: Date
-}
-
 export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContext, options: { model?: unknown } = {}) {
   const parsed = searchArgsSchema.parse(args)
   const { query, limit = 10, prefix } = parsed
@@ -714,51 +708,19 @@ export async function executeMemoryConsolidate(
 
 async function executeMemorySearchBm25(db: Db, input: { query: string; limit?: number; prefix?: string }, ctx: ToolContext) {
   const { query, limit = 10, prefix } = input
-  const values: unknown[] = [query]
-  let visibilityWhere = "(physical_path LIKE $2 OR physical_path LIKE 'shared/%')"
-  values.push(`users/${ctx.userId}/%`)
-
-  if (prefix) {
-    const physicalPrefix = prefixToPhysical(prefix, ctx)
-    if (!physicalPrefix) throw new MemexError("INVALID_PATH", "prefix is required")
-    visibilityWhere = "(physical_path = $2 OR physical_path LIKE $3)"
-    values.length = 1
-    values.push(physicalPrefix, `${physicalPrefix.endsWith("/") ? physicalPrefix : `${physicalPrefix}/`}%`)
-  }
-  values.push(limit)
-
-  const { rows } = await db.query<SearchRow>(
-    `
-      WITH q AS (SELECT plainto_tsquery('english', $1) AS query)
-      SELECT
-        physical_path,
-        ts_headline('english', content_text, q.query, 'MaxFragments=2, MinWords=4, MaxWords=24') AS snippet,
-        ts_rank_cd(search_vector, q.query) AS rank,
-        updated_at
-      FROM mx_file, q
-      WHERE ${visibilityWhere}
-        AND search_vector @@ q.query
-      ORDER BY rank DESC, updated_at DESC
-      LIMIT $${values.length}
-    `,
-    values,
-  )
+  const results = await bm25Search(db, { query, limit, prefix }, ctx)
 
   const logPath = prefix ? prefixToPhysical(prefix, ctx) : "*"
   await logAccess(db, { physicalPath: logPath ?? "*", operation: "search", ctx })
 
   return {
     query,
-    results: rows.flatMap((row) => {
-      const path = physicalToVirtual(row.physical_path, ctx)
-      if (!path) return []
-      return [{
-        path,
-        snippet: row.snippet,
-        rank: Number(row.rank),
-        updatedAt: row.updated_at,
-      }]
-    }),
+    results: results.map((result) => ({
+      path: result.path,
+      snippet: result.snippet,
+      rank: result.bm25Score ?? result.score,
+      updatedAt: result.updatedAt,
+    })),
     truncated: false,
   }
 }
