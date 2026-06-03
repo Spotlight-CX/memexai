@@ -39,6 +39,10 @@ type MemorySearchResult = {
     snippet?: string
     rank: number
     matchReason?: "lexical" | "semantic" | "hybrid"
+    bm25Rank?: number
+    vectorRank?: number
+    bm25Score?: number
+    vectorDistance?: number
     updatedAt?: Date
   }[]
   truncated: boolean
@@ -521,6 +525,10 @@ export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContex
         snippet: result.snippet ?? result.content?.slice(0, 240) ?? "",
         rank: result.score,
         matchReason: result.matchReason,
+        bm25Rank: result.bm25Rank,
+        vectorRank: result.vectorRank,
+        bm25Score: result.bm25Score,
+        vectorDistance: result.vectorDistance,
         updatedAt: result.updatedAt,
       })),
       truncated: false,
@@ -818,6 +826,9 @@ async function executeMemorySearchBm25(db: Db, input: { query: string; limit?: n
       path: result.path,
       snippet: result.snippet,
       rank: result.bm25Score ?? result.score,
+      matchReason: "lexical" as const,
+      bm25Rank: result.bm25Rank,
+      bm25Score: result.bm25Score,
       updatedAt: result.updatedAt,
     })),
     truncated: false,
