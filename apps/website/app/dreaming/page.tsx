@@ -44,6 +44,11 @@ const problems = [
     title: 'Cleanup still needs an audit trail',
     text: 'Dream writes use normal memory_write and memory_patch paths, so revisions and access logs stay intact instead of hiding consolidation in a black box.',
   },
+  {
+    icon: GitCompareArrows,
+    title: 'Maintenance without provenance is scheduled forgetting',
+    text: 'Dream writes carry when a memory was written, why, and when it was last read — because they go through the same revision and access log paths as every other write. Consolidation without that trail is just lossy compression.',
+  },
 ];
 
 const solved = [
