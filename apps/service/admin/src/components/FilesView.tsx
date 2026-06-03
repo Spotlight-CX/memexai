@@ -48,6 +48,7 @@ export function FilesView({ secret }: { secret: string }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [newFilePath, setNewFilePath] = useState<string | null>(null)
+  const [centerPanel, setCenterPanel] = useState<"document" | "diff">("document")
   const queryClient = useQueryClient()
 
   const filesUrl = `/v1/admin/files${asOf ? `?asOf=${encodeURIComponent(asOf)}` : ""}`
@@ -92,6 +93,7 @@ export function FilesView({ secret }: { secret: string }) {
       setIsEditing(false)
       return
     }
+    setCenterPanel("document")
     if (!sidebarTab) setSidebarTab("activity")
   }, [isTimeTravel, sidebarTab])
 
@@ -126,6 +128,7 @@ export function FilesView({ secret }: { secret: string }) {
     setSelectedRevision(null)
     setIsEditing(false)
     setSaveError(null)
+    setCenterPanel("document")
     setFileSearchParams(setSearchParams, { path, asOf })
     tree.select(path)
   }
@@ -135,6 +138,7 @@ export function FilesView({ secret }: { secret: string }) {
     setSelectedRevision(null)
     setIsEditing(false)
     setSaveError(null)
+    setCenterPanel("document")
     setFileSearchParams(setSearchParams, {
       path: selectedPath ?? files[0]?.physicalPath ?? null,
       asOf: localPickerValueToUtcIso(value),
@@ -145,11 +149,13 @@ export function FilesView({ secret }: { secret: string }) {
     setSelectedRevision(null)
     setIsEditing(false)
     setSaveError(null)
+    setCenterPanel("document")
     setFileSearchParams(setSearchParams, { path: selectedPath, asOf: null })
   }
 
   const handleOpenLatest = () => {
     if (!selectedPath) return
+    setCenterPanel("document")
     setFileSearchParams(setSearchParams, { path: selectedPath, asOf: null })
   }
 
@@ -273,6 +279,13 @@ export function FilesView({ secret }: { secret: string }) {
       </Stack>
 
       {/* Center: file content */}
+      {isTimeTravel && centerPanel === "diff" && selectedFile ? (
+        <DiffFromCurrentPanel
+          historicalFile={selectedFile}
+          currentFile={currentFile ?? null}
+          onBack={() => setCenterPanel("document")}
+        />
+      ) : (
       <ScrollArea h="100%">
         <Box px={{ base: "xl", xl: 56 }} py={40}>
           <Box maw={860} mx="auto">
@@ -370,6 +383,7 @@ export function FilesView({ secret }: { secret: string }) {
           </Box>
         </Box>
       </ScrollArea>
+      )}
 
       {/* New file modal */}
       {newFilePath !== null && !isTimeTravel && (
@@ -395,6 +409,7 @@ export function FilesView({ secret }: { secret: string }) {
           hasCurrentFile={hasCurrentFile}
           changedSinceCurrent={changedSinceCurrent}
           onOpenLatest={handleOpenLatest}
+          onShowDiff={() => setCenterPanel("diff")}
         />
       ) : (
         <Stack gap={0} h="100%" style={{ minHeight: 0, borderLeft: "1px solid var(--mantine-color-gray-2)", background: "rgba(255, 255, 255, 0.4)", backdropFilter: "blur(4px)" }}>
@@ -499,6 +514,7 @@ function MatchedRevisionSidebar({
   hasCurrentFile,
   changedSinceCurrent,
   onOpenLatest,
+  onShowDiff,
 }: {
   selectedPath: string | null
   selectedFile: AdminFile | null
@@ -507,6 +523,7 @@ function MatchedRevisionSidebar({
   hasCurrentFile: boolean
   changedSinceCurrent: boolean
   onOpenLatest: () => void
+  onShowDiff: () => void
 }) {
   const revision = selectedFile?.matchedRevision ?? null
 
@@ -544,12 +561,118 @@ function MatchedRevisionSidebar({
           </Paper>
           <Group gap="xs">
             <Button size="xs" variant="light" color="gray" disabled={!hasCurrentFile} onClick={onOpenLatest}>Open latest</Button>
-            <Button size="xs" variant="filled" color="blue" disabled>Show diff</Button>
+            <Button size="xs" variant="filled" color="blue" onClick={onShowDiff}>Show diff</Button>
           </Group>
         </Stack>
       </ScrollArea>
     </Stack>
   )
+}
+
+function DiffFromCurrentPanel({
+  historicalFile,
+  currentFile,
+  onBack,
+}: {
+  historicalFile: AdminFile
+  currentFile: AdminFile | null
+  onBack: () => void
+}) {
+  const historicalContent = historicalFile.content ?? ""
+  const currentContent = currentFile?.content ?? null
+  const historicalLines = historicalContent.split("\n")
+  const currentLines = currentContent?.split("\n") ?? ["No current file"]
+  const changedLines = getChangedLineIndexes(historicalLines, currentLines)
+  const unchanged = Boolean(currentContent !== null && changedLines.size === 0)
+
+  return (
+    <ScrollArea h="100%">
+      <Box px={{ base: "xl", xl: 40 }} py={36}>
+        <Stack gap="md">
+          <Group justify="space-between" align="flex-start" gap="md">
+            <Box>
+              <Text size="xl" fw={650}>Diff from current</Text>
+              <Text size="sm" c="dimmed">Compare the matched historical revision with the current file.</Text>
+            </Box>
+            <Group gap="xs">
+              {!currentFile ? (
+                <Badge color="gray" variant="light">No current file</Badge>
+              ) : unchanged ? (
+                <Badge color="green" variant="light">Unchanged</Badge>
+              ) : (
+                <Badge color="yellow" variant="light">Changed</Badge>
+              )}
+              <Button size="xs" variant="light" color="gray" onClick={onBack}>Back to file</Button>
+            </Group>
+          </Group>
+          {!currentFile ? (
+            <Paper withBorder radius="sm" p="sm" bg="gray.0">
+              <Text size="sm" c="dimmed">No current file exists for this historical path.</Text>
+            </Paper>
+          ) : unchanged ? (
+            <Paper withBorder radius="sm" p="sm" bg="green.0">
+              <Text size="sm" c="green.9">Unchanged since selected timestamp.</Text>
+            </Paper>
+          ) : null}
+          <Box style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "start" }}>
+            <DiffColumn title="As of timestamp" path={historicalFile.physicalPath} lines={historicalLines} changedLines={changedLines} tone="old" />
+            <DiffColumn title="Current" path={historicalFile.physicalPath} lines={currentLines} changedLines={changedLines} tone="current" />
+          </Box>
+        </Stack>
+      </Box>
+    </ScrollArea>
+  )
+}
+
+function DiffColumn({
+  title,
+  path,
+  lines,
+  changedLines,
+  tone,
+}: {
+  title: string
+  path: string
+  lines: string[]
+  changedLines: Set<number>
+  tone: "old" | "current"
+}) {
+  return (
+    <Paper withBorder radius="sm" bg="white" style={{ overflow: "hidden" }}>
+      <Box px="md" py="sm" bg="gray.0" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)" }}>
+        <Text size="sm" fw={700}>{title}</Text>
+        <Code>{path}</Code>
+      </Box>
+      <Stack gap={0} p="md">
+        {lines.map((line, index) => {
+          const changed = changedLines.has(index)
+          return (
+            <Text
+              key={`${index}-${line}`}
+              ff="monospace"
+              size="sm"
+              px="xs"
+              py={4}
+              bg={changed ? (tone === "current" ? "green.0" : "red.0") : undefined}
+              c={changed ? (tone === "current" ? "green.9" : "red.9") : undefined}
+              style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
+            >
+              {line || " "}
+            </Text>
+          )
+        })}
+      </Stack>
+    </Paper>
+  )
+}
+
+function getChangedLineIndexes(left: string[], right: string[]) {
+  const changed = new Set<number>()
+  const max = Math.max(left.length, right.length)
+  for (let index = 0; index < max; index += 1) {
+    if ((left[index] ?? "") !== (right[index] ?? "")) changed.add(index)
+  }
+  return changed
 }
 
 function getAncestorPaths(path: string) {
