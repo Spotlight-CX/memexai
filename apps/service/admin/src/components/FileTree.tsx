@@ -1,6 +1,6 @@
 import { Box, Text, UnstyledButton } from "@mantine/core"
 import type { RenderTreeNodePayload } from "@mantine/core"
-import { useState } from "react"
+import React, { useState } from "react"
 import { ChevronIcon, FileDocIcon, FolderIcon, PlusIcon } from "../icons"
 
 export function FileTreeItem({
