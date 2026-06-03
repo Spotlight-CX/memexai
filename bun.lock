@@ -137,6 +137,17 @@
         "ai",
       ],
     },
+    "packages/memex-cli": {
+      "name": "@memexai/memex-cli",
+      "version": "0.1.0",
+      "bin": {
+        "memex-cli": "./dist/cli.js",
+      },
+      "devDependencies": {
+        "tsup": "^8.5.1",
+        "tsx": "^4.21.0",
+      },
+    },
     "packages/sdk": {
       "name": "@memexai/sdk",
       "version": "0.1.5",
@@ -419,6 +430,8 @@
     "@memexai/core": ["@memexai/core@workspace:packages/core"],
 
     "@memexai/demo-agent": ["@memexai/demo-agent@workspace:apps/demo-agent"],
+
+    "@memexai/memex-cli": ["@memexai/memex-cli@workspace:packages/memex-cli"],
 
     "@memexai/sdk": ["@memexai/sdk@workspace:packages/sdk"],
 
