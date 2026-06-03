@@ -71,7 +71,7 @@ describe("runMigrations", () => {
   })
 
   test("skips pgvector migration unless vector mode is enabled", async () => {
-    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql", "006_observation_events.sql"])
+    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql", "006_observation_events.sql", "008_backlinks.sql"])
 
     await runMigrations(db)
 
@@ -134,6 +134,24 @@ describe("runMigrations", () => {
     expect(client.query.mock.calls).toContainEqual([
       "INSERT INTO mx_migration (id) VALUES ($1)",
       ["006_observation_events.sql"],
+    ])
+  })
+
+  test("includes backlink migration", async () => {
+    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql", "006_observation_events.sql"])
+
+    await runMigrations(db)
+
+    const migrationSql = client.query.mock.calls
+      .map(([sql]) => sql)
+      .filter((sql): sql is string => typeof sql === "string")
+      .join("\n")
+
+    expect(migrationSql).toContain("CREATE TABLE IF NOT EXISTS mx_backlink")
+    expect(migrationSql).toContain("ADD COLUMN IF NOT EXISTS importance_score")
+    expect(client.query.mock.calls).toContainEqual([
+      "INSERT INTO mx_migration (id) VALUES ($1)",
+      ["008_backlinks.sql"],
     ])
   })
 })
