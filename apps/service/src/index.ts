@@ -82,7 +82,7 @@ async function main() {
     return
   }
 
-  const app = buildServer({ db, config, model: modelConfig?.model, telemetry })
+  const app = await buildServer({ db, config, model: modelConfig?.model, telemetry })
   await app.listen({ port: config.PORT, host: "0.0.0.0" })
 
   const close = async () => {
