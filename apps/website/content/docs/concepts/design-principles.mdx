@@ -25,17 +25,17 @@ Shared memory is read-only for agents by the same mechanism. A write to `shared/
 
 `memory_smart_read` returns the same files for the same query on the same data, every time.
 
-Retrieval is BM25 full-text search for initial candidates, followed by memory-link graph traversal (forward and inbound) within a character budget. Every file in the response carries a `reason` field — `query_match`, `linked`, `inbound_link`, or `recency` — explaining how it was found.
+Retrieval is BM25 full-text search for initial candidates, followed by forward memory-link traversal within a character budget. Every file in the response carries a `reason` field — `query_match`, `linked`, or `recency` — explaining how it was found.
 
 This makes retrieval testable. You can write an eval that seeds a known memory state and asserts exactly which files are returned and why.
 
-## The knowledge graph grows forward
+## Memory links keep context connected
 
-A note written today makes an old hub file richer without touching the hub.
+Memory links let one durable file point at another without copying the same facts everywhere.
 
-When an agent writes `user/visit-jan.md` containing `[[user/preferences.md]]`, a backlink is created immediately. The next time anything seeds `preferences.md`, the visit note surfaces as an inbound file in the same response — no re-indexing, no re-writing the hub.
+When an agent writes `user/profile.md` containing `[[user/preferences.md]]`, a later smart read that seeds `profile.md` can follow the link to include `preferences.md` in the same response. This keeps hub files and supporting notes connected while preserving an inspectable file model.
 
-Files that many others reference accumulate an `importance_score`. Hub files with high scores rank higher in search results, which means the most central memory surfaces naturally over time.
+Bidirectional backlinks and hub scoring are planned next: notes that point back to a hub file will be able to surface as inbound context, and highly referenced files will be able to rank higher in search.
 
 ## Writes are permanently recorded
 
@@ -63,8 +63,8 @@ The boundary is not advisory — it is enforced at the route and path validation
 | **Operator** | The team or developer running the deployment. Controls `shared/*`, admin config, and model settings. |
 | **Virtual path** | The path agents see: `user/profile.md`, `shared/index.md`. |
 | **Physical path** | How paths are stored in Postgres: `users/{userId}/profile.md`. Agents never see these. |
-| **Hub file** | A memory file that many others link to. High `importance_score`. Grows richer as related notes accumulate. |
-| **Memory link** | `[[user/file.md]]` syntax in file content. Creates graph edges used by smart_read traversal. |
+| **Hub file** | A memory file that many others link to or reference. Useful as a stable context anchor. |
+| **Memory link** | `[[user/file.md]]` syntax in file content. Creates forward graph edges used by smart_read traversal. |
 | **Scope** | The namespace prefix that determines write access and visibility: `user/` or `shared/`. |
 | **Dreaming** | Background consolidation. Merges duplicates, resolves contradictions, and keeps memory clean between sessions. See [Dreaming](/docs/operations/dreaming). |
 

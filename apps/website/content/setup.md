@@ -119,7 +119,7 @@ services:
       MEMEX_ADMIN_SECRET: ${MEMEX_ADMIN_SECRET:-dev-admin-secret}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
-      MEMEX_DREAM_ENABLED: "true"
+      MEMEX_DREAM_ENABLED: "false"
     ports:
       - "8080:8080"
 
@@ -182,6 +182,26 @@ curl -fsS "http://localhost:8080/v1/admin/files/shared/index.md" \
 ```
 
 This schema is injected into every agent's system prompt automatically via `getSystemPrompt()`. Agents read the shared guidance before they decide what to memorize.
+
+## Explain the integration to the developer
+
+Before the final handoff, explain the setup in two layers.
+
+TLDR:
+
+1. Docker runs Postgres plus the MemexAI HTTP service.
+2. The app sends memory tool calls to the service with `MEMEX_API_KEY`.
+3. The agent gets two recommended tools: `memory_memorize` and `memory_search`.
+4. The app must include `memory.getSystemPrompt(...)` on every model call so stored memory affects later answers.
+5. The admin UI shows the files, revisions, access logs, and tool activity behind the behavior.
+
+Under the hood:
+
+1. Agent tools use virtual paths such as `user/profile.md`.
+2. MemexAI validates each path and translates `user/...` to `users/{userId}/...`.
+3. Writes update `mx_file`, create full snapshots in `mx_revision`, and create read/write rows in `mx_access_log`.
+4. Shared memory such as `shared/index.md` is injected into the prompt block and guides every agent.
+5. User memory becomes useful on the next turn only when the prompt block is included and the same stable `userId` is used.
 
 ## TypeScript setup
 

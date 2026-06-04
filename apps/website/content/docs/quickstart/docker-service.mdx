@@ -5,11 +5,35 @@ description: Run MemexAI as a separate service, then connect over TypeScript, Py
 
 The containerized service path is the recommended default. Your application does not need database credentials; it connects to MemexAI over HTTP with the TypeScript SDK, Python SDK, or through MCP over SSE/stdio.
 
-If you want a coding agent to do the setup inside your app, start with [Coding Agent Onboarding](/docs/quickstart/agent-onboarding) or paste this into your agent:
+## Fastest path
+
+If you want a coding agent to do the integration inside your app, paste this into the agent:
 
 ```text
 Setup MemexAI by following https://memexai.space/setup.md
 ```
+
+That public setup file tells the agent to inspect your app, choose the right adapter, start the local service, wire memory tools, add the MemexAI prompt block, and run a two-turn memory proof. See [Coding Agent Onboarding](/docs/quickstart/agent-onboarding) for the human-readable version.
+
+If you want to wire it manually, follow this page:
+
+1. Start the Docker Compose service.
+2. Connect your app with the TypeScript SDK, Python SDK, or MCP.
+3. Use one stable `userId` per end user.
+4. Pass both the MemexAI tools and `memory.getSystemPrompt(...)` into every model call.
+5. Verify that one turn writes memory and a later turn recalls it.
+
+## What you are starting
+
+TLDR: Docker runs Postgres plus a MemexAI HTTP service. Your app calls the service with `MEMEX_API_KEY`; operators use the admin UI with `MEMEX_ADMIN_SECRET`.
+
+Under the hood:
+
+- the service creates the `mx_*` Postgres tables on startup
+- agent routes execute memory tools and write revisions/access logs
+- admin routes let you inspect and correct memory files
+- `memory.getSystemPrompt(...)` fetches the prompt block that makes stored memory affect the next answer
+- optional model configuration powers `memory_memorize`, answer synthesis in `memory_search`, hybrid search embeddings, and background dreaming
 
 ## Compose file
 
@@ -54,7 +78,24 @@ Start it:
 docker compose up -d
 ```
 
-The API and admin UI are available at `http://localhost:8080`.
+Verify it:
+
+```bash
+curl -fsS http://localhost:8080/health
+```
+
+The API and admin UI are available at `http://localhost:8080`. For local defaults, open:
+
+```text
+http://localhost:8080/admin?defaultAdminSecret=1&defaultApiKey=1&onboarding=1
+```
+
+If your build does not support the default-login query params, open `http://localhost:8080/admin` and enter:
+
+```text
+Admin secret: dev-admin-secret
+Agent API key: dev-agent-key
+```
 
 ## Connect with the TypeScript SDK
 
@@ -87,6 +128,26 @@ console.log(result.text)
 ```
 
 `memory.getSystemPrompt(...)` adds the MemexAI prompt block to your base prompt. Without that prompt block or an equivalent system section, the tools can store memory, but the next response may not be conditioned on it.
+
+## Verify the memory loop
+
+Run two separate calls for the same `userId`.
+
+Turn one:
+
+```text
+Remember that I prefer quiet neighborhoods near good schools.
+```
+
+Turn two:
+
+```text
+What kind of neighborhood do I prefer?
+```
+
+A successful setup answers from stored memory on turn two. In the admin UI, the Files tab should show the user memory file, Revisions should show the write, and Access Logs should show the later read or search.
+
+If turn one writes memory but turn two stays generic, check that the second model call uses the same `userId` and includes `await memory.getSystemPrompt(...)`.
 
 ## Connect with the Python SDK
 
@@ -144,6 +205,8 @@ OPENAI_MODEL=gpt-4.1-mini
 ```
 
 Without a service model, `memory_search` still works through Postgres full-text search, or hybrid pgvector search when embeddings are configured. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.
+
+For the smoothest first run, set `GEMINI_API_KEY` on the service so the agentic `memory_memorize` tool can decide what should become durable memory.
 
 ## Search configuration
 

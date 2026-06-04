@@ -1,6 +1,6 @@
 # Bidirectional Backlink Index with Hub Scoring
 
-## Status: Done — shipped 2026-06-01 (`feat(core): bidirectional backlink index with hub scoring`, commit `62303d6`)
+## Status: Ready to merge — PR #9 is open and mergeable, but the implementation is not on `main` yet
 
 ## Problem
 

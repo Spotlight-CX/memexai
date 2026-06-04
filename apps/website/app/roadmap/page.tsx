@@ -22,6 +22,7 @@ export const metadata: Metadata = {
 const shipped = [
   'Postgres-backed memory files',
   'Revision history and access logs',
+  'Files time travel in the admin UI',
   'Admin UI and Playground',
   'TypeScript and Python SDKs',
   'MCP over SSE and stdio',
@@ -30,12 +31,6 @@ const shipped = [
 ];
 
 const nextFeatures: RoadmapInterestFeature[] = [
-  {
-    id: 'files-time-travel',
-    title: 'Files time travel',
-    stage: 'Next',
-    text: 'Add an As of timestamp view to the Files tab using existing revision history, so operators can browse historical memory and diff it against current files without new database schema.',
-  },
   {
     id: 'memory-context-snapshots',
     title: 'Memory context snapshots',
@@ -71,6 +66,12 @@ const nextFeatures: RoadmapInterestFeature[] = [
     title: 'Post-write hooks',
     stage: 'Next',
     text: 'Trigger webhooks after memory changes so Slack, n8n, Zapier, app events, and audit stores can stay in sync.',
+  },
+  {
+    id: 'link-aware-memory',
+    title: 'Bidirectional memory links',
+    stage: 'Next',
+    text: 'Index memory links as a precomputed backlink graph. With reverse traversal, seeding on a hub file can surface the most recent notes that reference it, and highly referenced hub files can rank higher in search.',
   },
 ];
 
@@ -111,15 +112,13 @@ const exploringFeatures: RoadmapInterestFeature[] = [
     stage: 'Exploring',
     text: 'Track where facts came from and organize durable memory by app events, documents, projects, and conversations.',
   },
-  {
-    id: 'link-aware-memory',
-    title: 'Bidirectional memory links',
-    stage: 'Exploring',
-    text: 'Index memory links as a precomputed backlink graph. memory_smart_read today only follows links forward — with reverse traversal, seeding on a hub file also surfaces the most recent notes that reference it (visit logs, chat summaries, corrections). Files with many inbound references rank higher in search. Hub files become self-enriching context anchors instead of static snapshots.',
-  },
 ];
 
 const doneFeatures = [
+  {
+    title: 'Files time travel',
+    text: 'Operators can open the Files tab with an As of timestamp, browse the historical file tree reconstructed from revisions, and diff matched historical content against the current file.',
+  },
   {
     title: 'Dreaming and background synthesis',
     text: 'Shipped as opt-in service-mode consolidation. Dreaming waits for quiet memory, merges duplicates, clarifies fragmented notes, resolves direct contradictions, and writes normal revisions as dream-agent.',
@@ -217,11 +216,11 @@ export default function RoadmapPage() {
 
       <section className="section contrast-section">
         <div className="section-kicker">Done / absorbed</div>
-        <h2>Dreaming moved from roadmap bet to shipped memory infrastructure.</h2>
+        <h2>Recent roadmap work has moved into shipped memory infrastructure.</h2>
         <p className="section-lede">
-          Background dreaming now handles the cleanup work that used to sit behind separate memory health and compaction
-          roadmap items. We may still add sharper diagnostics later, but the default product direction is to solve these
-          through automatic consolidation.
+          Files time travel is now part of the admin workflow. Background dreaming also handles the cleanup work that
+          used to sit behind separate memory health and compaction roadmap items. We may still add sharper diagnostics
+          later, but the default product direction is to make memory maintenance inspectable and automatic.
         </p>
         <div className="roadmap-done-grid">
           {doneFeatures.map((feature) => (

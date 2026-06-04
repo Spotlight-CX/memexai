@@ -8,6 +8,7 @@ MemexAI gives agents durable memory that can actually influence the next respons
 ## Start with the service
 
 <Cards>
+  <Card title="Fastest: Coding agent setup" href="/docs/quickstart/agent-onboarding" description="Paste one public setup instruction into your coding agent and let it wire the service, tools, prompt block, and two-turn proof." />
   <Card title="Recommended: Containerized service" href="/docs/quickstart/docker-service" description="Run MemexAI as a separate service, then connect over the TypeScript SDK, Python SDK, or MCP." />
   <Card title="Admin Console" href="/docs/operations/admin-console" description="Inspect memory files, revisions, access logs, observability, tool calls, and background dreaming." />
   <Card title="Advanced: Direct Postgres runtime" href="/docs/quickstart/direct-postgres" description="Skip the service only when your app intentionally owns database credentials." />
@@ -20,6 +21,8 @@ MemexAI gives agents durable memory that can actually influence the next respons
 Run the MemexAI service alongside Postgres. Your app never gets database credentials; it connects to the service over HTTP with the TypeScript or Python SDK, or through MCP over SSE/stdio.
 
 Use this when you want a deployable memory service with API key auth and the admin UI built in.
+
+If you want your coding agent to perform the integration, start with [Coding Agent Onboarding](/docs/quickstart/agent-onboarding). It uses the same service path, then asks the agent to prove memory with a two-turn test.
 
 ### 2. Advanced: direct Postgres runtime
 

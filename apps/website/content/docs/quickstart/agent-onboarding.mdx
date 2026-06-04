@@ -11,6 +11,19 @@ Setup MemexAI by following https://memexai.space/setup.md
 
 That file is written for coding agents. It tells them how to inspect your app, choose the right SDK adapter, start the local MemexAI service, wire tools into your model call, add the MemexAI prompt block, and verify that memory works.
 
+## TLDR
+
+The agent will add MemexAI in the smallest useful loop:
+
+1. run or reuse a local MemexAI service at `http://localhost:8080`
+2. choose a stable `userId`
+3. add MemexAI tools to the model call
+4. add the MemexAI prompt block with `memory.getSystemPrompt(...)`
+5. run one turn that stores memory
+6. run a later turn that recalls it
+
+Storage alone is not success. The proof is that the later answer changes because memory was injected into the model call.
+
 ## What the agent will ask
 
 The setup file asks the agent to confirm two decisions before editing code:
@@ -37,9 +50,35 @@ The agent inspects your app before changing it:
 - model call entrypoint
 - existing environment variables
 
+It looks for model calls such as `generateText`, `streamText`, OpenAI chat completions, Anthropic messages, LangChain agents, LlamaIndex agents, or CrewAI crews. The goal is to keep your current model SDK and add memory at the existing agent boundary.
+
 For Vercel AI SDK projects, it uses `@memexai/sdk` and `@memexai/sdk/adapters/vercel-ai`. The agent binds MemexAI tools to your model call and uses `memory.getSystemPrompt(...)` so the MemexAI prompt block is included in the system prompt.
 
 If your SDK does not have a first-party MemexAI adapter yet, the agent should still use your existing language/model SDK when it supports custom tools. Direct HTTP calls are the last reserve. The normal fallback is SDK-native custom tools backed by MemexAI's HTTP contract: fetch schemas from `/v1/tools`, add the prompt block from `/v1/prompt-block`, and execute model tool calls through `/v1/tools/:toolName/execute`.
+
+## What it changes in your app
+
+Most TypeScript integrations end up with this shape:
+
+```ts
+const memex = new MemexAI({
+  url: process.env.MEMEX_URL ?? 'http://localhost:8080',
+  apiKey: process.env.MEMEX_API_KEY ?? 'dev-agent-key',
+})
+
+const memory = memex.forUser({ userId, actor: 'assistant' })
+const system = await memory.getSystemPrompt(baseSystemPrompt)
+
+const result = await generateText({
+  model,
+  system,
+  prompt: userMessage,
+  tools: memory.createAgenticToolset(),
+  stopWhen: stepCountIs(5),
+})
+```
+
+The two important pieces are `tools` and `system`. Tools let the model write or search memory. The system prompt block tells the model when memory exists and how to use it on the next call.
 
 ## Schema setup
 
@@ -53,6 +92,14 @@ The agent will read your README, system prompts, or data models to understand:
 It will propose a schema — the memory file conventions and guidelines it will follow — and ask you to confirm or adjust before writing anything. Once confirmed, it writes the schema to `shared/index.md` via the admin API. This schema is automatically injected into every system prompt via `getSystemPrompt()`.
 
 You can review or edit the schema at any time from the admin UI Files tab.
+
+## Under the hood
+
+The local Docker service runs MemexAI plus Postgres. Your app never needs database credentials; it only calls the service with `MEMEX_API_KEY`.
+
+When the model calls `memory_memorize`, MemexAI decides what durable facts are worth keeping, validates the requested virtual path, translates `user/...` to the current user's physical database path, writes the file, and stores a revision plus an access log. When the next model call uses `memory.getSystemPrompt(...)`, MemexAI injects shared memory and the current user's memory index into the system prompt so the model can search, read, and answer from the durable record.
+
+The admin UI shows the same record as files, revisions, access logs, and tool activity. That is the operating surface for debugging wrong or stale memory.
 
 ## Local service flow
 
@@ -89,6 +136,14 @@ What kind of neighborhood do I prefer?
 ```
 
 A successful setup stores the durable preference on the first turn and recalls it on the second turn. The model call should use Gemini from `.env`, include MemexAI tools, and include the MemexAI prompt block or equivalent system prompt section. Storage alone is not success; the second answer should change because memory was injected.
+
+If the proof fails, ask the agent to check:
+
+- the app and service use the same `MEMEX_API_KEY`
+- both turns use the same `userId`
+- the service has `GEMINI_API_KEY` or another model provider when using `memory_memorize`
+- the second model call includes `memory.getSystemPrompt(...)`
+- the admin UI shows a write revision after the first turn
 
 ## Admin follow-up
 
