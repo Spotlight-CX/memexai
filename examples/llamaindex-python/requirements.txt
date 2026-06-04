@@ -1,0 +1,4 @@
+-e ../../sdks/python[llamaindex]
+llama-index-core==0.14.16
+llama-index-llms-google-genai==0.7.4
+python-dotenv==1.2.1
