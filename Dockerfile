@@ -18,7 +18,8 @@ FROM deps AS build
 COPY . .
 RUN pnpm --config.package-manager-strict=false --filter @memexai/search build \
   && pnpm --config.package-manager-strict=false --filter @memexai/core build \
-  && pnpm --config.package-manager-strict=false --filter @memexai/service build
+  && pnpm --config.package-manager-strict=false --filter @memexai/service build \
+  && pnpm --config.package-manager-strict=false --filter @memexai/admin build:cli-only
 
 FROM node:20-slim AS runtime
 WORKDIR /app
@@ -32,5 +33,9 @@ COPY --from=build /app/apps/service/dist ./apps/service/dist
 COPY --from=build /app/apps/service/migrations ./apps/service/migrations
 COPY --from=build /app/apps/service/admin/dist ./apps/service/admin/dist
 COPY --from=build /app/apps/service/package.json ./apps/service/package.json
+COPY --from=build /app/packages/admin-cli/dist ./packages/admin-cli/dist
+COPY --from=build /app/packages/admin-cli/package.json ./packages/admin-cli/package.json
+RUN ln -s /app/packages/admin-cli/dist/cli.js /usr/local/bin/memex-admin \
+  && chmod +x /usr/local/bin/memex-admin
 EXPOSE 8080
 CMD ["node", "apps/service/dist/index.js"]
