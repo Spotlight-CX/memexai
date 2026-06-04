@@ -3,15 +3,16 @@ import { access } from "node:fs/promises"
 import { dirname, extname, join, normalize } from "node:path"
 import { fileURLToPath } from "node:url"
 import Fastify, { type FastifyReply } from "fastify"
-import { createPool, runMigrations } from "@memexai/core"
 import {
+  createPool,
+  runMigrations,
   getAdminFile,
   listAdminAccessLogs,
   listAdminFiles,
   listAdminRevisions,
   listAdminUsers,
   writeAdminFile,
-} from "./admin"
+} from "@memexai/core"
 
 const contentTypes: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
