@@ -93,7 +93,7 @@ async function main() {
     return
   }
 
-  const app = buildServer({ db, config, model: modelConfig?.model, telemetry, search: searchRuntime })
+  const app = await buildServer({ db, config, model: modelConfig?.model, telemetry, search: searchRuntime })
   await app.listen({ port: config.PORT, host: "0.0.0.0" })
 
   const close = async () => {

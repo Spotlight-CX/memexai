@@ -29,7 +29,7 @@ function createDb() {
 describe("memory_search route", () => {
   test("executes through the tool route", async () => {
     const db = createDb()
-    const app = buildServer({ db: db as never, config })
+    const app = await buildServer({ db: db as never, config })
 
     const response = await app.inject({
       method: "POST",
