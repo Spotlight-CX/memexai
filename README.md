@@ -281,11 +281,25 @@ const result = await generateText({
 await memex.end()
 ```
 
-Inspect direct-mode memory with the local admin CLI:
+Inspect and manage memory with the admin CLI — works headlessly for agents and humans:
 
 ```bash
-npx @memexai/admin --database-url postgresql://...
+# Start the web UI (human-friendly)
+npx @memexai/admin serve --database-url postgresql://...
 # Opens http://localhost:4040/admin
+
+# CLI for agents (no browser needed)
+npx @memexai/admin -d $DATABASE_URL --json users list
+npx @memexai/admin -d $DATABASE_URL files get shared/index.md
+npx @memexai/admin -d $DATABASE_URL memory snapshot --user alice --at "2025-06-01T10:00:00Z"
+npx @memexai/admin -d $DATABASE_URL trace <toolCallId>
+```
+
+The CLI for agents supports time-travel (reconstruct memory at a past timestamp), agentic trace (what did a specific tool call do?), setup bootstrapping, and all CRUD operations. See [`docs/admin-cli.md`](docs/admin-cli.md) for the full reference.
+
+**Docker exec:** the `memex-admin` binary is built into the runtime image:
+```bash
+docker exec <container> memex-admin --json users list
 ```
 
 ## Python SDK

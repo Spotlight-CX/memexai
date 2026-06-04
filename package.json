@@ -11,7 +11,7 @@
     "build:memex-cli": "bun run --cwd packages/memex-cli build",
     "build:search": "bun run --cwd packages/search build",
     "build:core": "bun run --cwd packages/core build",
-    "build:admin-cli": "bun run --cwd packages/admin-cli build",
+    "build:admin-cli": "bun run --cwd packages/admin-cli build:cli-only",
     "build:demo": "bun run --cwd apps/demo-agent build",
     "build:service": "bun run --cwd apps/service build",
     "build:website": "bun run --cwd apps/website build",
