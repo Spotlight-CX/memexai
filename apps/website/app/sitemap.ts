@@ -35,7 +35,7 @@ const routes = [
 export default function sitemap(): MetadataRoute.Sitemap {
   return routes.map((route) => ({
     url: `${baseUrl}${route}`,
-    lastModified: new Date('2026-05-26'),
+    lastModified: new Date('2026-06-04'),
     changeFrequency: route === '/' ? 'weekly' : 'monthly',
     priority: route === '/' ? 1 : route.startsWith('/docs') ? 0.8 : 0.7,
   }));

@@ -11,7 +11,7 @@ Memory is Markdown text stored as rows in Postgres — not embedding vectors in 
 
 This means memory is human-readable, grep-able, patchable by a script, and auditable with a SQL query. You can open any memory file in the admin UI and understand exactly what the agent knows. You can also run eval fixtures against a known memory state and get reproducible results.
 
-The tradeoff: semantic similarity search requires explicit tooling (hybrid search is on the roadmap). BM25 and memory-link traversal cover most retrieval cases in practice, and the behavior they produce is predictable and testable.
+BM25 and memory-link traversal cover most retrieval cases in practice. When you need semantic recall, optional pgvector hybrid search is available via `MEMEX_SEARCH_MODE=auto` — see [Docker service setup](/docs/quickstart/docker-service). Both modes are testable and produce predictable results.
 
 ## Path-enforced isolation
 

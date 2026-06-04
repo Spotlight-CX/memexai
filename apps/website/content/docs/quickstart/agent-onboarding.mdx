@@ -41,6 +41,19 @@ For Vercel AI SDK projects, it uses `@memexai/sdk` and `@memexai/sdk/adapters/ve
 
 If your SDK does not have a first-party MemexAI adapter yet, the agent should still use your existing language/model SDK when it supports custom tools. Direct HTTP calls are the last reserve. The normal fallback is SDK-native custom tools backed by MemexAI's HTTP contract: fetch schemas from `/v1/tools`, add the prompt block from `/v1/prompt-block`, and execute model tool calls through `/v1/tools/:toolName/execute`.
 
+## Schema setup
+
+After the service is running, the agent inspects your app's domain and drafts a `shared/index.md` before finishing the SDK wiring.
+
+The agent will read your README, system prompts, or data models to understand:
+- What your product helps users do
+- What facts should survive across sessions
+- What guidance the agent needs in shared memory (policies, tool rules, escalation criteria)
+
+It will propose a schema — the memory file conventions and guidelines it will follow — and ask you to confirm or adjust before writing anything. Once confirmed, it writes the schema to `shared/index.md` via the admin API. This schema is automatically injected into every system prompt via `getSystemPrompt()`.
+
+You can review or edit the schema at any time from the admin UI Files tab.
+
 ## Local service flow
 
 For local development, the setup file points the agent at MemexAI service mode:

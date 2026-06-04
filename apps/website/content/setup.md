@@ -147,6 +147,42 @@ Admin secret: dev-admin-secret
 Agent API key: dev-agent-key
 ```
 
+## Schema setup
+
+After the service is healthy, inspect the target app to understand what kind of durable memory the product needs.
+
+1. Read domain-defining files: README, main agent entrypoint, existing system prompts, data models. Identify:
+   - What the agent is helping users do
+   - What facts should survive across sessions (preferences, account state, decisions, project context)
+   - What guidance the agent needs from shared memory (policies, tool rules, escalation criteria)
+
+2. Draft a `shared/index.md` that describes:
+   - Memory file conventions (e.g. `user/preferences.md`, `user/project-state.md`)
+   - What the agent should memorize and what it should skip
+   - Domain-specific schema and formatting guidelines
+
+3. Show the draft to the developer. Ask them to confirm or adjust the proposed schema before writing it.
+
+4. Once confirmed, write it to shared memory:
+
+```bash
+curl -fsS -X PUT http://localhost:8080/v1/admin/files/shared/index.md \
+  -H "x-admin-secret: dev-admin-secret" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "# Memory Schema\n\n..."}'
+```
+
+Or write directly via the admin UI Files tab at `http://localhost:8080/admin`.
+
+5. Verify it was saved:
+
+```bash
+curl -fsS "http://localhost:8080/v1/admin/files/shared/index.md" \
+  -H "x-admin-secret: dev-admin-secret"
+```
+
+This schema is injected into every agent's system prompt automatically via `getSystemPrompt()`. Agents read the shared guidance before they decide what to memorize.
+
 ## TypeScript setup
 
 Install packages based on the detected package manager.
@@ -376,4 +412,5 @@ Before finishing, report:
 - Which mode was selected.
 - The service health result.
 - The exact command used to run the memory validation.
+- Whether a domain-specific `shared/index.md` was written and confirmed with the developer.
 - Whether the durable memory was recalled successfully.
