@@ -1,0 +1,4 @@
+-e ../../sdks/python[langchain]
+langchain==1.3.4
+langchain-google-genai==4.2.4
+python-dotenv==1.2.1
