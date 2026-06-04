@@ -1,4 +1,19 @@
-export const rawToolDefinitions = [
+import { resolveMemoryPermissions, type MemoryPermissions } from "./paths"
+
+function writablePathDescription(permissions: MemoryPermissions): string {
+  return permissions.writableMounts.includes("shared")
+    ? "Writable paths: `user/**` and `shared/**`. Use `shared/**` only for durable global knowledge, project canon, policies, style rules, workflow lessons, and cross-user insights. Never store private user facts in `shared/**`."
+    : "Writable paths: `user/**`. `shared/**` is globally readable and read-only for agents."
+}
+
+function sharedReadDescription(permissions: MemoryPermissions): string {
+  return permissions.writableMounts.includes("shared")
+    ? "`shared/**` is global memory and is writable in this deployment."
+    : "`shared/**` is global memory and read-only for agents."
+}
+
+export function getRawToolDefinitions(permissions: MemoryPermissions = resolveMemoryPermissions()) {
+  return [
   {
     name: "memory_list",
     description: `List memory files visible to the current user.
@@ -39,7 +54,7 @@ Returns a flat list of virtual paths. Use \`prefix\` to scope to a namespace —
     name: "memory_read",
     description: `Read a single memory file by its virtual path.
 
-Agents can read both \`user/**\` (private to the current user) and \`shared/**\` (global, read-only). Returns the raw file content as a string.
+Agents can read both \`user/**\` (private to the current user) and \`shared/**\` (global). ${sharedReadDescription(permissions)} Returns the raw file content as a string.
 
 ### Parameters
 
@@ -72,15 +87,17 @@ Agents can read both \`user/**\` (private to the current user) and \`shared/**\`
   },
   {
     name: "memory_write",
-    description: `Create or fully overwrite a \`user/**\` memory file.
+    description: `Create or fully overwrite a writable memory file.
 
-The entire file is replaced with \`content\`. Use \`memory_patch\` when you only need to change part of an existing file. Pass a \`reason\` to annotate the write — stored in revision history for auditability.
+${writablePathDescription(permissions)}
+
+The entire file is replaced with \`content\`. Use \`memory_patch\` when you only need to change part of an existing file, especially for shared memory. Pass a \`reason\` to annotate the write — stored in revision history for auditability.
 
 ### Parameters
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| \`path\` | string | **yes** | Writable virtual file path under \`user/**\` |
+| \`path\` | string | **yes** | Writable virtual file path |
 | \`content\` | string | **yes** | Complete replacement content |
 | \`reason\` | string | no | Stored in revision history |
 
@@ -104,7 +121,7 @@ The entire file is replaced with \`content\`. Use \`memory_patch\` when you only
       required: ["path", "content"],
       additionalProperties: false,
       properties: {
-        path: { type: "string", description: "Writable virtual file path under user/**" },
+        path: { type: "string", description: permissions.writableMounts.includes("shared") ? "Writable virtual path under user/** or shared/**" : "Writable virtual path under user/**" },
         content: { type: "string", description: "Complete file content" },
         reason: { type: "string", description: "Optional reason stored in revision history" },
       },
@@ -112,7 +129,9 @@ The entire file is replaced with \`content\`. Use \`memory_patch\` when you only
   },
   {
     name: "memory_patch",
-    description: `Patch a \`user/**\` memory file without rewriting it entirely.
+    description: `Patch a writable memory file without rewriting it entirely.
+
+${writablePathDescription(permissions)}
 
 Two operations available:
 - **\`append_lines\`** — append lines to the end of the file, or insert them under a specific markdown heading when \`after_heading\` is provided
@@ -207,13 +226,17 @@ When a query is provided, deterministic linked recall is enabled by default: dir
     },
   },
 ] as const
+}
 
-export const agenticToolDefinitions = [
+export function getAgenticToolDefinitions(permissions: MemoryPermissions = resolveMemoryPermissions()) {
+  return [
   {
     name: "memory_memorize",
     description: `Feed raw text (conversation snippets, notes, observations) and let MemexAI autonomously decide what to remember and where to store it.
 
 MemexAI reads existing memory files, identifies durable facts, and writes or patches them — all with full audit trails. Use \`dryRun: true\` to preview planned writes without committing.
+
+${writablePathDescription(permissions)}
 
 ### Parameters
 
@@ -301,7 +324,17 @@ When an LLM is configured, agentic resolution reads the top BM25 candidates and 
     },
   },
 ] as const
+}
 
+export function getToolDefinitions(permissions: MemoryPermissions = resolveMemoryPermissions()) {
+  return [
+  ...getAgenticToolDefinitions(permissions),
+  ...getRawToolDefinitions(permissions),
+] as const
+}
+
+export const rawToolDefinitions = getRawToolDefinitions()
+export const agenticToolDefinitions = getAgenticToolDefinitions()
 export const toolDefinitions = [
   ...agenticToolDefinitions,
   ...rawToolDefinitions,

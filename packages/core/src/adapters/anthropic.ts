@@ -1,6 +1,5 @@
 import type { Memex, MemexUser } from "../memex"
 import type { ToolContext } from "../paths"
-import { toolDefinitions } from "../tool-definitions"
 
 type AnthropicTool = {
   name: string
@@ -9,7 +8,7 @@ type AnthropicTool = {
 }
 
 export function createAnthropicTools(target: Memex | MemexUser, ctx?: ToolContext): AnthropicTool[] {
-  return toolDefinitions.map((tool) => ({
+  return target.getTools().map((tool) => ({
     name: tool.name,
     description: tool.description,
     input_schema: tool.inputSchema as Record<string, unknown>,

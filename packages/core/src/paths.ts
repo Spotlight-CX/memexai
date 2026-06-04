@@ -6,6 +6,23 @@ export type ToolContext = {
   toolCallId?: string
 }
 
+export type SharedWriteMode = "read_only" | "rw"
+
+export type MemoryPermissions = {
+  sharedWriteMode: SharedWriteMode
+  writableMounts: string[]
+  readOnlyMounts: string[]
+}
+
+export function resolveMemoryPermissions(input: { sharedWriteMode?: SharedWriteMode } = {}): MemoryPermissions {
+  const sharedWriteMode = input.sharedWriteMode ?? "read_only"
+  return {
+    sharedWriteMode,
+    writableMounts: sharedWriteMode === "rw" ? ["user", "shared"] : ["user"],
+    readOnlyMounts: sharedWriteMode === "rw" ? [] : ["shared"],
+  }
+}
+
 export function validateVirtualPath(path: string): void {
   if (!path || typeof path !== "string") {
     throw new MemexError("INVALID_PATH", "path is required")
@@ -58,11 +75,14 @@ export function physicalToVirtual(physicalPath: string, ctx: ToolContext): strin
   return null
 }
 
-export function assertWritableVirtualPath(path: string): void {
+export function assertWritableVirtualPath(path: string, permissions: MemoryPermissions = resolveMemoryPermissions()): void {
   validateVirtualPath(path)
-  if (!(path === "user" || path.startsWith("user/"))) {
+  if (path === "user" || path.startsWith("user/")) return
+  if ((path === "shared" || path.startsWith("shared/")) && permissions.writableMounts.includes("shared")) return
+  if (path === "shared" || path.startsWith("shared/")) {
     throw new MemexError("READ_ONLY_MOUNT", "Agents cannot write to shared/**")
   }
+  throw new MemexError("UNKNOWN_MOUNT", "Path must start with user/ or shared/")
 }
 
 export function prefixToPhysical(prefix: string | undefined, ctx: ToolContext): string | null {

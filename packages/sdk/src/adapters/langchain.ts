@@ -20,3 +20,18 @@ export function createLangChainTools(memory: MemexMemory): LangChainStructuredTo
     }),
   }))
 }
+
+export async function createLangChainToolsFromService(memory: MemexMemory): Promise<LangChainStructuredToolLike[]> {
+  const definitions = await memory.getToolDefinitions()
+
+  return definitions.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    schema: tool.inputSchema,
+    call: (args: unknown, options?: { toolCallId?: string }) => memory.executeTool({
+      name: tool.name,
+      arguments: args,
+      toolCallId: options?.toolCallId,
+    }),
+  }))
+}

@@ -6,9 +6,11 @@ description: Use shared memory files as a knowledge base, operations manual, too
 MemexAI has two virtual memory scopes:
 
 - `user/` is private to a user and writable by the agent.
-- `shared/` is global, read-only for agents, and injected into every prompt block automatically.
+- `shared/` is global, read-only for agents by default, and injected into every prompt block automatically.
 
 Shared memory is not just a place to store reusable facts. It is the primary lever for controlling how every agent in your product behaves — and for giving agents knowledge your team maintains, not knowledge extracted from user conversations.
+
+Operators can enable collective shared memory with `MEMEX_SHARED_WRITE_MODE=rw`. In that mode, agent tools can write or patch `shared/**`, and the prompt block/tool descriptions tell agents that shared memory is writable. Use this for project canon, policies, product facts, team workflows, style guides, and learned procedures. Do not store private user facts, secrets, raw transcripts, or untrusted external content in `shared/**`.
 
 ## The always-in-context guarantee
 
@@ -261,6 +263,7 @@ The best regression tests check both the response and the memory transition. A c
 - Use headings that make agent retrieval easy — the agent will `memory_read` a file when it needs detail.
 - Prefer explicit rules over vague style advice in `shared/AGENTS.md`.
 - Keep sensitive, per-user facts out of `shared/`.
+- If `MEMEX_SHARED_WRITE_MODE=rw` is enabled, prefer `memory_patch` over full rewrites and review shared revisions regularly.
 - Review revisions after changing shared guidance — check the access logs to see if agents are reading the new content.
 - Link shared guidance changes to product or eval failures when possible, so the correction trail is clear.
 

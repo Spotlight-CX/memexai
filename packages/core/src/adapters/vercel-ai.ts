@@ -1,7 +1,6 @@
 import { jsonSchema } from "ai"
 import type { Memex, MemexUser } from "../memex"
 import type { ToolContext } from "../paths"
-import { toolDefinitions } from "../tool-definitions"
 
 type VercelAITool = {
   description: string
@@ -13,8 +12,9 @@ export function createVercelAITools(
   target: Memex | MemexUser,
   ctx?: ToolContext,
 ): Record<string, VercelAITool> {
+  const tools = target.getTools()
   return Object.fromEntries(
-    toolDefinitions.map((tool) => [
+    tools.map((tool) => [
       tool.name,
       {
         description: tool.description,

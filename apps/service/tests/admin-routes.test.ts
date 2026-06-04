@@ -33,7 +33,7 @@ function createAdminDb() {
         return { rows: [{ user_id: "user_123", file_count: "2", last_write_at: new Date("2026-05-09T08:00:00Z"), last_read_at: null }] }
       }
 
-      if (sql.includes("FROM mx_file") && sql.includes("WHERE physical_path = $1") && !sql.includes("LIKE $2") && !sql.includes("AS normalized_path")) {
+      if (sql.includes("FROM mx_file") && sql.includes("physical_path = $1") && !sql.includes("LIKE $2") && !sql.includes("AS normalized_path")) {
         return {
           rows: [{
             id: "file_1",
@@ -118,7 +118,7 @@ function createAdminDb() {
         return { rows: [{ id: "rev_old_1" }, { id: "rev_old_2" }] }
       }
 
-      if (sql.includes("FROM mx_revision") && !sql.includes("HAVING COUNT(*) > 1") && !sql.includes("file_access") && !sql.includes("AS normalized_path")) {
+      if (sql.includes("SELECT id, file_id") && sql.includes("FROM mx_revision") && !sql.includes("HAVING COUNT(*) > 1") && !sql.includes("file_access") && !sql.includes("AS normalized_path")) {
         return {
           rows: [{
             id: "rev_1",

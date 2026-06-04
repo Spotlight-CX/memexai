@@ -25,7 +25,7 @@ The agent never sees the physical path.
 
 ## `shared/`
 
-Virtual paths starting with `shared/` are visible to every user but cannot be written by agents.
+Virtual paths starting with `shared/` are visible to every user. By default they cannot be written by agents.
 
 ```txt
 shared/index.md
@@ -33,7 +33,15 @@ shared/policy.md
 shared/faq.md
 ```
 
-Use shared files for context your agents should always have access to: policies, reference docs, product facts, or team guidance.
+Use shared files for context your agents should always have access to: policies, reference docs, product facts, project canon, style guides, learned procedures, or team guidance.
+
+Operators can opt into collective shared memory:
+
+```bash
+MEMEX_SHARED_WRITE_MODE=rw
+```
+
+When this is enabled, `memory_write` and `memory_patch` can target `shared/**`, and the prompt block/tool descriptions tell the agent that shared memory is writable. Use it only for durable global knowledge. Keep private user facts, secrets, raw transcripts, and untrusted external content out of `shared/**`.
 
 ## Blocked paths
 
@@ -41,7 +49,7 @@ MemexAI rejects:
 
 - Physical paths like `users/someone/profile.md`.
 - Paths with `..`, `//`, or backslashes.
-- Writes to `shared/`.
+- Writes to `shared/` when shared writable mode is disabled.
 
 Path isolation is enforced in code, not left to the model prompt.
 

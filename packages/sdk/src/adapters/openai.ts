@@ -31,6 +31,25 @@ export function createOpenAITools(memory: MemexMemory) {
   }
 }
 
+export async function createOpenAIToolsFromService(memory: MemexMemory) {
+  const definitions = await memory.getToolDefinitions()
+
+  return {
+    definitions: definitions.map((tool) => ({
+      type: "function" as const,
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.inputSchema,
+    })) satisfies OpenAIToolDefinition[],
+
+    execute: (toolCall: OpenAIToolCall) => memory.executeTool({
+      name: toolCall.name,
+      arguments: normalizeArguments(toolCall.arguments),
+      toolCallId: toolCall.toolCallId,
+    }),
+  }
+}
+
 function normalizeArguments(args: unknown): unknown {
   if (typeof args !== "string") return args
   try {

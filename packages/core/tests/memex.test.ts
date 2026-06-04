@@ -43,6 +43,15 @@ describe("Memex", () => {
     }
   })
 
+  test("getTools() reflects shared writable mode", () => {
+    const memex = new Memex(createMockDb(), undefined, { sharedWriteMode: "rw" })
+    const writeTool = memex.getTools().find((tool) => tool.name === "memory_write")
+    const patchTool = memex.getTools().find((tool) => tool.name === "memory_patch")
+
+    expect(writeTool?.description).toContain("user/**` and `shared/**")
+    expect(patchTool?.description).toContain("Never store private user facts in `shared/**`")
+  })
+
   test("forUser() creates a MemexUser scoped to that userId", () => {
     const memex = new Memex(createMockDb())
     const user = memex.forUser({ userId: "u1", actor: "agent" })
@@ -69,6 +78,17 @@ describe("Memex", () => {
     await expect(
       memex.executeTool("memory_write", { path: "shared/file.md", content: "x" }, { userId: "u1" }),
     ).rejects.toThrow(MemexError)
+  })
+
+  test("executeTool() allows shared writes in rw mode", async () => {
+    const queryMock = vi.fn(async (sql: string) => {
+      if (sql.includes("INSERT INTO mx_file")) return { rows: [{ id: "file_shared", created: true }] }
+      return { rows: [] }
+    })
+    const memex = new Memex(createMockDb({ query: queryMock }), undefined, { sharedWriteMode: "rw" })
+    const result = await memex.executeTool("memory_write", { path: "shared/canon.md", content: "global fact" }, { userId: "u1" })
+
+    expect(result).toMatchObject({ path: "shared/canon.md", created: true, updated: false })
   })
 
   test("end() closes the pool", async () => {
@@ -133,6 +153,15 @@ describe("MemexUser", () => {
 
     await expect(user.getSystemPrompt("You are helpful.")).resolves.toContain(
       "You are helpful.\n\n<memexai_memory>",
+    )
+  })
+
+  test("getSystemPrompt() reflects shared writable mode", async () => {
+    const memex = new Memex(createMockDb(), undefined, { sharedWriteMode: "rw" })
+    const user = memex.forUser({ userId: "u1", actor: "agent" })
+
+    await expect(user.getSystemPrompt("You are helpful.")).resolves.toContain(
+      "Writable memory lives under user/** and shared/**",
     )
   })
 })

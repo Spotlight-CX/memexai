@@ -34,6 +34,7 @@ const envSchema = z.object({
   MEMEX_TELEMETRY_DISABLED: optionalBoolean,
   MEMEX_TELEMETRY_POSTHOG_KEY: optionalNonEmptyString,
   MEMEX_TELEMETRY_POSTHOG_HOST: optionalNonEmptyString,
+  MEMEX_SHARED_WRITE_MODE: z.preprocess((value) => value === "" || value === undefined ? "read_only" : value, z.enum(["read_only", "rw"]).default("read_only")),
   MEMEX_SEARCH_MODE: z.preprocess((value) => value === "" || value === undefined ? "auto" : value, z.enum(["auto", "bm25"]).default("auto")),
   MEMEX_RRF_K: z.coerce.number().positive().default(60),
   MEMEX_BM25_CANDIDATE_LIMIT: z.coerce.number().int().positive().default(50),

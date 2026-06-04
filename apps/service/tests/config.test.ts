@@ -94,11 +94,30 @@ describe("config", () => {
       MEMEX_API_KEY: "dev-key",
     })
 
+    expect(config.MEMEX_SHARED_WRITE_MODE).toBe("read_only")
     expect(config.MEMEX_SEARCH_MODE).toBe("auto")
     expect(config.MEMEX_RRF_K).toBe(60)
     expect(config.MEMEX_BM25_CANDIDATE_LIMIT).toBe(50)
     expect(config.MEMEX_VECTOR_CANDIDATE_LIMIT).toBe(50)
     expect(config.MEMEX_EMBEDDING_MAX_CHARS).toBe(8_000)
+  })
+
+  test("loads shared write mode override", () => {
+    const config = loadConfig({
+      DATABASE_URL: "postgresql://localhost/memexai",
+      MEMEX_API_KEY: "dev-key",
+      MEMEX_SHARED_WRITE_MODE: "rw",
+    })
+
+    expect(config.MEMEX_SHARED_WRITE_MODE).toBe("rw")
+  })
+
+  test("rejects invalid shared write mode", () => {
+    expect(() => loadConfig({
+      DATABASE_URL: "postgresql://localhost/memexai",
+      MEMEX_API_KEY: "dev-key",
+      MEMEX_SHARED_WRITE_MODE: "yes-please",
+    })).toThrow()
   })
 
   test("loads search overrides", () => {

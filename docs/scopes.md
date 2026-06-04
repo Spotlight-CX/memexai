@@ -18,9 +18,9 @@ user/reminders.md
 
 These are the paths you put in your agent's system prompt and tool calls. The agent never sees the physical location.
 
-### `shared/` — read-only, cross-user
+### `shared/` — cross-user
 
-Virtual paths starting with `shared/` are visible to every user but cannot be written by agents. Only an admin (or a direct SQL write) can update shared files.
+Virtual paths starting with `shared/` are visible to every user. By default agents cannot write here; only an admin (or a direct SQL write) can update shared files. Operators can opt into collective shared memory with `MEMEX_SHARED_WRITE_MODE=rw`.
 
 ```
 shared/index.md
@@ -28,7 +28,7 @@ shared/property-guidelines.md
 shared/faq.md
 ```
 
-Use shared files for context your agents should always have access to regardless of who's asking — system knowledge, policies, reference documents.
+Use shared files for context your agents should always have access to regardless of who's asking — system knowledge, policies, reference documents, project canon, style guides, and durable workflow lessons.
 
 ---
 
@@ -56,7 +56,7 @@ The full mapping rules:
 The system also blocks:
 - Physical paths (`users/someone/...`) — `PHYSICAL_PATH_FORBIDDEN`
 - Paths with `..` or `//` — `INVALID_PATH`
-- Writes to `shared/` — `READ_ONLY_MOUNT`
+- Writes to `shared/` when shared writable mode is disabled — `READ_ONLY_MOUNT`
 
 ---
 
@@ -90,15 +90,32 @@ await user.list()
 
 ---
 
-## Writing to shared/ (admin only)
+## Writing to shared/
 
-Shared files are intended for content that the application owner controls. You can write them:
+Shared files are intended for content that benefits every user or agent. In the default mode, agents cannot write shared files. You can always write them:
 
 - Through the admin UI
 - Via `memex.executeTool("memory_write", { path: "shared/index.md", ... }, ctx)` called directly with admin context (not via an agent)
 - Direct SQL in `mx_file`
 
-There is no separate "admin write" tool — the restriction is enforced by checking the virtual path in `assertWritableVirtualPath()`. Any call from agent context that tries to write `shared/` gets `READ_ONLY_MOUNT`.
+To let agent tools write to shared memory in the HTTP service, set:
+
+```bash
+MEMEX_SHARED_WRITE_MODE=rw
+```
+
+In direct Postgres mode:
+
+```ts
+const memex = createMemex({
+  databaseUrl: process.env.DATABASE_URL!,
+  sharedWriteMode: "rw",
+})
+```
+
+When shared writable mode is enabled, `memory_write` and `memory_patch` can target `shared/**`. The prompt block and tool descriptions also tell the agent that `shared/**` is writable. Runtime validation remains authoritative; prompt text is guidance, not the security boundary.
+
+Use shared writable mode for project canon, policies, product facts, team workflows, style guides, and learned procedures. Do not write private user facts, secrets, raw transcripts, or untrusted external content into `shared/**`. Prefer `memory_patch` over full rewrites so revisions stay easy to inspect and roll back.
 
 ---
 
@@ -115,8 +132,9 @@ user/history/2024-01.md  ← archived session summaries
 
 **Shared reference documents:**
 ```
-shared/city-guide.md        ← facts about the city the app covers
-shared/property-policies.md ← rules agents should always know
+shared/screenplay-canon.md  ← project-wide facts all collaborators share
+shared/style-guide.md       ← tone, motifs, dialogue rules, formatting rules
+shared/policies.md          ← rules agents should always know
 ```
 
 **Flat is usually fine.** The path structure is for agent navigation, not database performance. A single `user/memory.md` with headings works as well as a deep directory tree for most use cases. Use directories only when the agent needs to list a subset of files (e.g. `user/sessions/`) without loading everything.

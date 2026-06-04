@@ -31,12 +31,13 @@ import { countBucket, createNoopTelemetry, durationBucket, type TelemetryClient 
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js"
 import { newId } from "./ids"
 import { activeMcpSessions, createConnectionScopedMcpServer } from "./mcp"
-import { readDreamConfig, runDreamCycle, triggerUserDream } from "@memexai/core"
+import { readDreamConfig, resolveMemoryPermissions, runDreamCycle, triggerUserDream } from "@memexai/core"
 
-export async function buildServer(input: { db: Db; config: Config; model?: unknown; telemetry?: TelemetryClient; search?: SearchRuntime }): Promise<FastifyInstance> {
+export function buildServer(input: { db: Db; config: Config; model?: unknown; telemetry?: TelemetryClient; search?: SearchRuntime }): FastifyInstance {
   const app = Fastify({ logger: true })
   const { db, config } = input
   const searchRuntime = input.search
+  const memoryPermissions = resolveMemoryPermissions({ sharedWriteMode: config.MEMEX_SHARED_WRITE_MODE })
   const embeddingOptions = () => searchRuntime?.mode === "hybrid" ? searchRuntime.embedding : undefined
   const telemetry = input.telemetry ?? createNoopTelemetry()
   const apiAuth = requireApiKey(config.MEMEX_API_KEY)
@@ -54,7 +55,7 @@ export async function buildServer(input: { db: Db; config: Config; model?: unkno
     throw new HttpError(401, "UNAUTHORIZED", "Missing or invalid API key")
   }
 
-  await app.register(swagger, {
+  app.register(swagger, {
     openapi: {
       openapi: "3.0.3",
       info: {
@@ -124,6 +125,7 @@ export async function buildServer(input: { db: Db; config: Config; model?: unkno
     const ctx = { userId, actor }
     const mcpServer = createConnectionScopedMcpServer(db, ctx, {
       model: input.model,
+      permissions: memoryPermissions,
       ...embeddingOptions(),
       rrfK: searchRuntime?.rrfK,
       bm25CandidateLimit: searchRuntime?.bm25CandidateLimit,
@@ -165,7 +167,7 @@ export async function buildServer(input: { db: Db; config: Config; model?: unkno
     reply.hijack()
   })
 
-  app.get("/v1/tools", { preHandler: apiAuth }, async () => listTools())
+  app.get("/v1/tools", { preHandler: apiAuth }, async () => listTools(memoryPermissions))
 
   app.post("/v1/tools/:toolName/execute", { preHandler: apiAuth }, async (request) => {
     const started = Date.now()
@@ -180,6 +182,7 @@ export async function buildServer(input: { db: Db; config: Config; model?: unkno
       context = body.context
       const result = await executeTool(db, params.toolName, body.arguments, body.context, {
         model: input.model,
+        permissions: memoryPermissions,
         ...embeddingOptions(),
         rrfK: searchRuntime?.rrfK,
         bm25CandidateLimit: searchRuntime?.bm25CandidateLimit,
@@ -229,7 +232,7 @@ export async function buildServer(input: { db: Db; config: Config; model?: unkno
     let context: { userId?: string; actor?: string } | undefined
     try {
       context = promptBlockQuerySchema.parse(request.query)
-      const result = { promptBlock: await buildPromptBlock(db, context) }
+      const result = { promptBlock: await buildPromptBlock(db, context, memoryPermissions) }
       await recordObservationEvent(db, {
         eventType: "prompt_block",
         status: "success",
@@ -261,7 +264,7 @@ export async function buildServer(input: { db: Db; config: Config; model?: unkno
     try {
       const body = executeToolRequestSchema.pick({ context: true }).parse(request.body)
       context = body.context
-      const result = { promptBlock: await buildPromptBlock(db, body.context) }
+      const result = { promptBlock: await buildPromptBlock(db, body.context, memoryPermissions) }
       await recordObservationEvent(db, {
         eventType: "prompt_block",
         status: "success",
@@ -320,7 +323,7 @@ export async function buildServer(input: { db: Db; config: Config; model?: unkno
         type: "object",
         properties: {
           prefix: { type: "string", description: "Filter by path prefix (e.g. shared/ or users/alice/)" },
-          asOf: { type: "string", format: "date-time", description: "Return file state at this timestamp (time-travel)" },
+          asOf: { type: "string", description: "Return file state at this UTC ISO timestamp (time-travel)" },
         },
       },
     },
@@ -382,7 +385,7 @@ export async function buildServer(input: { db: Db; config: Config; model?: unkno
           actor: { type: "string", description: "Filter by actor (e.g. dream-agent, admin)" },
           from: { type: "string", format: "date-time", description: "Start timestamp (ISO 8601)" },
           to: { type: "string", format: "date-time", description: "End timestamp (ISO 8601)" },
-          limit: { type: "integer", minimum: 1, maximum: 200 },
+          limit: { type: "integer", minimum: 1 },
           offset: { type: "integer", minimum: 0 },
         },
       },

@@ -52,7 +52,7 @@ Raw conversation logs can still exist outside MemexAI for replay, audit, or anal
 - Admin memory editor — inspect and edit files through the dashboard
 - Revision history — every write creates a full snapshot
 - Access logs — every tool call is logged
-- Virtual path isolation — `user/` auto-scoped to `userId`, `shared/` read-only
+- Virtual path isolation — `user/` auto-scoped to `userId`, `shared/` read-only by default with opt-in shared writable mode
 - Framework adapters — Vercel AI, Anthropic, LangChain, LlamaIndex, CrewAI
 - Dual deployment — containerized HTTP service and direct Postgres mode
 - Files time travel — "As of" mode in the admin Files view, historical file tree from `mx_revision`, diff against current (spec: [`docs/roadmap/004-memory-time-travel.md`](docs/roadmap/004-memory-time-travel.md))
@@ -100,15 +100,20 @@ PII: redaction/blocking before writes, regex-first. Post-write: webhooks or call
 
 Why now: memory systems are trust systems. Sensitive data handling and workflow integration should be boring and inspectable.
 
-### 8. Team memory — contribution requests
+### 8. Shared writable mode
+Opt-in `MEMEX_SHARED_WRITE_MODE=rw` / `sharedWriteMode: "rw"` lets trusted agent deployments write durable global knowledge into `shared/`. The default remains read-only; runtime validation, prompt blocks, and tool descriptions all reflect the resolved mode.
+
+Why now: this is the smallest collective-memory flywheel. It lets teams nurture shared project canon, policies, style guides, product facts, and learned procedures without waiting for a full proposal/review queue or named mounts.
+
+### 9. Team memory — contribution requests
 `memory_propose` tool queues a write to `shared/` that admins review before it becomes canonical. Accept / reject / auto-approve modes. Closes the gap between "operator configures once" and "team learns together."
 
-### 9. Hybrid search — `createMemex()` / direct-Postgres support
+### 10. Hybrid search — `createMemex()` / direct-Postgres support
 Expose the `EmbeddingAdapter` interface via `createMemex()` so containerless users can enable hybrid search without the Docker service. Currently the embed adapter lives only inside `apps/service`. Add when there is demand or after the service path is stable.
 
 Why later: V1 ships hybrid search only via the Docker service (env-locked config). Direct-Postgres users still get BM25. Unlocking this means wiring Gemini key handling, chunking, and config validation into the core library — straightforward but not needed until someone asks.
 
-### 10. Sidecar memory writes
+### 11. Sidecar memory writes
 Optional `raw_data` arg to `memory_write`. Payload goes directly to Postgres without entering the model's context window — useful for bulk ingestion of transcripts, structured payloads, or large data the agent has already processed.
 
 ---

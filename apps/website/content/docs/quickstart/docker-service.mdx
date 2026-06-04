@@ -64,6 +64,7 @@ services:
       MEMEX_ADMIN_SECRET: dev-admin-secret
       GEMINI_API_KEY: ...
       MEMEX_DREAM_ENABLED: "false"
+      # MEMEX_SHARED_WRITE_MODE: rw # optional: let agent tools write shared/**
       # MEMEX_TELEMETRY_DISABLED: "true" # optional opt-out
     ports:
       - "8080:8080"
@@ -207,6 +208,16 @@ OPENAI_MODEL=gpt-4.1-mini
 Without a service model, `memory_search` still works through Postgres full-text search, or hybrid pgvector search when embeddings are configured. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.
 
 For the smoothest first run, set `GEMINI_API_KEY` on the service so the agentic `memory_memorize` tool can decide what should become durable memory.
+
+## Shared writable mode
+
+By default, agents can read `shared/**` but can write only `user/**`. To let agent tools contribute durable global knowledge, project canon, policies, style guides, or learned procedures to `shared/**`, set:
+
+```bash
+MEMEX_SHARED_WRITE_MODE=rw
+```
+
+Keep this disabled for untrusted public-user agents. When enabled, prefer `memory_patch` over full rewrites and keep private user facts, secrets, raw transcripts, and untrusted external content out of `shared/**`.
 
 ## Search configuration
 

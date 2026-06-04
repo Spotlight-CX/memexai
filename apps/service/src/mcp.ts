@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js"
 import { executeTool } from "./tools"
 import type { Db } from "./db"
-import { type EmbeddingConfig, type ToolContext, toolDefinitions } from "@memexai/core"
+import { getToolDefinitions, resolveMemoryPermissions, type EmbeddingConfig, type MemoryPermissions, type ToolContext } from "@memexai/core"
 import {
   listArgsSchema,
   readArgsSchema,
@@ -38,6 +38,7 @@ export function createConnectionScopedMcpServer(
   ctx: ToolContext,
   options: EmbeddingConfig & {
     model?: unknown
+    permissions?: MemoryPermissions
     rrfK?: number
     bm25CandidateLimit?: number
     vectorCandidateLimit?: number
@@ -47,6 +48,7 @@ export function createConnectionScopedMcpServer(
     name: "memexai",
     version: "0.1.0",
   })
+  const toolDefinitions = getToolDefinitions(options.permissions ?? resolveMemoryPermissions())
 
   for (const def of toolDefinitions) {
     const schema = schemaMap[def.name]

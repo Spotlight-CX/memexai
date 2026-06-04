@@ -8,6 +8,7 @@ const config = {
   DATABASE_URL: "postgresql://localhost/memexai",
   MEMEX_API_KEY: "agent-key",
   MEMEX_ADMIN_SECRET: "admin-secret",
+  MEMEX_SHARED_WRITE_MODE: "read_only" as const,
 }
 
 describe("memory_patch route", () => {
@@ -21,7 +22,7 @@ describe("memory_patch route", () => {
         updated_at: new Date("2026-05-20T09:00:00.000Z"),
       },
     ])
-    const app = buildServer({ db: db as never, config })
+    const app = await buildServer({ db: db as never, config })
 
     const response = await app.inject({
       method: "POST",
@@ -47,5 +48,70 @@ describe("memory_patch route", () => {
       noOp: false,
     })
     expect(files.get("users/u1/log.md")?.content_text).toBe("- existing log\n- [2026-05-22] wrote user/profile.md - User likes cars.\n")
+  })
+
+  test("rejects shared patches by default", async () => {
+    const { db } = createMemoryDb([
+      {
+        id: "file_1",
+        physical_path: "shared/screenplay-canon.md",
+        content_text: "# Canon\n",
+        created_at: new Date("2026-05-20T09:00:00.000Z"),
+        updated_at: new Date("2026-05-20T09:00:00.000Z"),
+      },
+    ])
+    const app = await buildServer({ db: db as never, config })
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/tools/memory_patch/execute",
+      headers: { authorization: "Bearer agent-key" },
+      payload: {
+        context: { userId: "writer_a" },
+        arguments: {
+          path: "shared/screenplay-canon.md",
+          operation: "append_lines",
+          lines: ["- Mira's missing brother anchors Act I."],
+        },
+      },
+    })
+    await app.close()
+
+    expect(response.statusCode).toBe(403)
+    expect(response.json().error.code).toBe("READ_ONLY_MOUNT")
+  })
+
+  test("allows shared patches in rw mode", async () => {
+    const { db, files, revisions, accessLogs } = createMemoryDb([
+      {
+        id: "file_1",
+        physical_path: "shared/screenplay-canon.md",
+        content_text: "# Canon\n",
+        created_at: new Date("2026-05-20T09:00:00.000Z"),
+        updated_at: new Date("2026-05-20T09:00:00.000Z"),
+      },
+    ])
+    const app = await buildServer({ db: db as never, config: { ...config, MEMEX_SHARED_WRITE_MODE: "rw" } })
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/tools/memory_patch/execute",
+      headers: { authorization: "Bearer agent-key" },
+      payload: {
+        context: { userId: "writer_a", actor: "assistant", toolCallId: "call_shared_patch" },
+        arguments: {
+          path: "shared/screenplay-canon.md",
+          operation: "append_lines",
+          lines: ["- Mira's missing brother anchors Act I."],
+          reason: "Promote safe screenplay canon.",
+        },
+      },
+    })
+    await app.close()
+
+    expect(response.statusCode).toBe(200)
+    expect(files.get("shared/screenplay-canon.md")?.content_text).toContain("missing brother")
+    expect(revisions).toHaveLength(1)
+    expect(accessLogs).toHaveLength(1)
   })
 })

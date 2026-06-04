@@ -14,6 +14,7 @@ import type {
   RequestContext,
   SearchMemoryInput,
   SearchMemoryResult,
+  ToolDefinition,
   WriteFileInput,
   WriteFileResult,
 } from "./types"
@@ -84,6 +85,11 @@ export class MemexAI {
         arguments: input.arguments,
       }),
     })
+  }
+
+  async listToolDefinitions(): Promise<ToolDefinition[]> {
+    const result = await this.request<{ tools: ToolDefinition[] }>("/v1/tools")
+    return result.tools
   }
 }
 
@@ -163,6 +169,10 @@ export class MemexMemory {
     })
   }
 
+  async getToolDefinitions(): Promise<ToolDefinition[]> {
+    return this.client.listToolDefinitions()
+  }
+
   createAgenticToolset(): Record<string, VercelAITool> {
     return this.createToolset(agenticToolDefinitions)
   }
@@ -171,7 +181,17 @@ export class MemexMemory {
     return this.createToolset(rawToolDefinitions)
   }
 
-  private createToolset(definitions: typeof agenticToolDefinitions | typeof rawToolDefinitions): Record<string, VercelAITool> {
+  async createAgenticToolsetFromService(): Promise<Record<string, VercelAITool>> {
+    const definitions = (await this.getToolDefinitions()).filter((tool) => tool.name === "memory_memorize" || tool.name === "memory_search")
+    return this.createToolset(definitions)
+  }
+
+  async createRawToolsetFromService(): Promise<Record<string, VercelAITool>> {
+    const definitions = (await this.getToolDefinitions()).filter((tool) => tool.name !== "memory_memorize" && tool.name !== "memory_search")
+    return this.createToolset(definitions)
+  }
+
+  private createToolset(definitions: readonly ToolDefinition[]): Record<string, VercelAITool> {
     return Object.fromEntries(definitions.map((tool) => [
       tool.name,
       {

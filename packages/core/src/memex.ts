@@ -1,8 +1,8 @@
 import { createPool, type Db } from "./db"
 import { runMigrations } from "./migrations"
-import type { ToolContext } from "./paths"
+import { resolveMemoryPermissions, type MemoryPermissions, type SharedWriteMode, type ToolContext } from "./paths"
 import { buildPromptBlock } from "./prompt-block"
-import { agenticToolDefinitions, rawToolDefinitions, toolDefinitions, type ToolDefinition } from "./tool-definitions"
+import { getAgenticToolDefinitions, getRawToolDefinitions, getToolDefinitions, type ToolDefinition } from "./tool-definitions"
 import { executeTool } from "./tools"
 import { jsonSchema } from "ai"
 
@@ -13,21 +13,34 @@ type VercelAITool = {
 }
 
 export class Memex {
+  private readonly permissions: MemoryPermissions
+
   constructor(
     private readonly db: Db,
     private readonly model?: unknown,
-  ) {}
+    input: { sharedWriteMode?: SharedWriteMode; permissions?: MemoryPermissions } = {},
+  ) {
+    this.permissions = input.permissions ?? resolveMemoryPermissions({ sharedWriteMode: input.sharedWriteMode })
+  }
 
   async migrate(): Promise<void> {
     await runMigrations(this.db)
   }
 
   getTools() {
-    return toolDefinitions
+    return getToolDefinitions(this.permissions)
+  }
+
+  getAgenticTools() {
+    return getAgenticToolDefinitions(this.permissions)
+  }
+
+  getRawTools() {
+    return getRawToolDefinitions(this.permissions)
   }
 
   async executeTool<T = unknown>(toolName: string, args: unknown, ctx: ToolContext): Promise<T> {
-    return executeTool(this.db, toolName, args, ctx, { model: this.model }) as Promise<T>
+    return executeTool(this.db, toolName, args, ctx, { model: this.model, permissions: this.permissions }) as Promise<T>
   }
 
   getModel(): unknown | undefined {
@@ -35,7 +48,7 @@ export class Memex {
   }
 
   async getPromptBlock(ctx: ToolContext): Promise<string> {
-    return buildPromptBlock(this.db, ctx)
+    return buildPromptBlock(this.db, ctx, this.permissions)
   }
 
   forUser(ctx: ToolContext): MemexUser {
@@ -60,6 +73,10 @@ export class MemexUser {
   async getSystemPrompt(basePrompt: string): Promise<string> {
     const promptBlock = await this.getPromptBlock()
     return [basePrompt.trim(), promptBlock].filter(Boolean).join("\n\n")
+  }
+
+  getTools() {
+    return this.memex.getTools()
   }
 
   async list(prefix?: string) {
@@ -111,11 +128,11 @@ export class MemexUser {
   }
 
   createAgenticToolset(): Record<string, VercelAITool> {
-    return this.createToolset(agenticToolDefinitions)
+    return this.createToolset(this.memex.getAgenticTools())
   }
 
   createRawToolset(): Record<string, VercelAITool> {
-    return this.createToolset(rawToolDefinitions)
+    return this.createToolset(this.memex.getRawTools())
   }
 
   private createToolset(definitions: readonly ToolDefinition[]): Record<string, VercelAITool> {
@@ -138,9 +155,10 @@ export class MemexUser {
   }
 }
 
-export function createMemex(input: string | { databaseUrl: string; model?: unknown }): Memex {
+export function createMemex(input: string | { databaseUrl: string; model?: unknown; sharedWriteMode?: SharedWriteMode }): Memex {
   const databaseUrl = typeof input === "string" ? input : input.databaseUrl
   const model = typeof input === "string" ? undefined : input.model
+  const sharedWriteMode = typeof input === "string" ? undefined : input.sharedWriteMode
   const db = createPool(databaseUrl)
-  return new Memex(db, model)
+  return new Memex(db, model, { sharedWriteMode })
 }

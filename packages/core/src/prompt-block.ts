@@ -1,6 +1,6 @@
 import type { Db } from "./db"
-import type { ToolContext } from "./paths"
-import { agenticToolDefinitions, rawToolDefinitions } from "./tool-definitions"
+import { resolveMemoryPermissions, type MemoryPermissions, type ToolContext } from "./paths"
+import { getAgenticToolDefinitions, getRawToolDefinitions } from "./tool-definitions"
 
 async function readOptionalFile(db: Db, physicalPath: string): Promise<string | null> {
   const { rows } = await db.query<{ content_text: string }>(
@@ -10,7 +10,13 @@ async function readOptionalFile(db: Db, physicalPath: string): Promise<string | 
   return rows[0]?.content_text ?? null
 }
 
-export async function buildPromptBlock(db: Db, ctx: ToolContext): Promise<string> {
+function writableMemoryPrompt(permissions: MemoryPermissions): string {
+  return permissions.writableMounts.includes("shared")
+    ? "Writable memory lives under user/** and shared/**. Use shared/** only for durable global knowledge, project canon, policies, style rules, workflow lessons, and cross-user insights. Never store private user facts in shared/**. Prefer memory_patch over memory_write for shared files."
+    : "Writable user memory lives under user/**. Shared memory lives under shared/** and is read-only."
+}
+
+export async function buildPromptBlock(db: Db, ctx: ToolContext, permissions: MemoryPermissions = resolveMemoryPermissions()): Promise<string> {
   const [sharedResult, userIndex] = await Promise.all([
     db.query<{ physical_path: string; content_text: string }>(
       "SELECT physical_path, content_text FROM mx_file WHERE physical_path LIKE 'shared/%' AND physical_path NOT LIKE 'shared/.%' ORDER BY physical_path ASC",
@@ -31,14 +37,14 @@ export async function buildPromptBlock(db: Db, ctx: ToolContext): Promise<string
     "Tools alone do not make memory useful: retrieve relevant memory before answering when stored context could change the response.",
     "Prefer the agentic memory tools: memory_memorize to remember durable facts, and memory_search to retrieve memory.",
     "MemexAI handles file bookkeeping for agentic tools. Use virtual paths only if raw tools are explicitly provided.",
-    "Writable user memory lives under user/**. Shared memory lives under shared/** and is read-only.",
+    writableMemoryPrompt(permissions),
     "Never use physical paths such as users/{userId}/... .",
     "",
     "<recommended_tools>",
-    JSON.stringify(agenticToolDefinitions, null, 2),
+    JSON.stringify(getAgenticToolDefinitions(permissions), null, 2),
     "</recommended_tools>",
     "<raw_tools>",
-    JSON.stringify(rawToolDefinitions, null, 2),
+    JSON.stringify(getRawToolDefinitions(permissions), null, 2),
     "</raw_tools>",
     docs.length ? ["", ...docs].join("\n") : "",
     "</memexai_memory>",

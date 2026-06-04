@@ -1,7 +1,7 @@
 import type { Db } from "./db"
 import { MemexError } from "./errors"
 import { newId } from "./ids"
-import { assertWritableVirtualPath, physicalToVirtual, prefixToPhysical, virtualToPhysical, type ToolContext } from "./paths"
+import { assertWritableVirtualPath, physicalToVirtual, prefixToPhysical, resolveMemoryPermissions, virtualToPhysical, type MemoryPermissions, type SharedWriteMode, type ToolContext } from "./paths"
 import { appendLinesAfterHeading, replaceExactText } from "./text-patch"
 import { listArgsSchema, memorizeArgsSchema, patchArgsSchema, readArgsSchema, searchArgsSchema, smartReadArgsSchema, writeArgsSchema } from "./schemas"
 import { type ToolName } from "./tool-definitions"
@@ -27,6 +27,8 @@ type FileRow = {
 
 type ExecuteToolOptions = EmbeddingConfig & {
   model?: unknown
+  sharedWriteMode?: SharedWriteMode
+  permissions?: MemoryPermissions
   rrfK?: number
   bm25CandidateLimit?: number
   vectorCandidateLimit?: number
@@ -183,9 +185,10 @@ export async function executeMemoryRead(db: Db, args: unknown, ctx: ToolContext)
   }
 }
 
-export async function executeMemoryWrite(db: Db, args: unknown, ctx: ToolContext, options: EmbeddingConfig = {}) {
+export async function executeMemoryWrite(db: Db, args: unknown, ctx: ToolContext, options: EmbeddingConfig & { permissions?: MemoryPermissions; sharedWriteMode?: SharedWriteMode } = {}) {
   const { path, content, reason } = writeArgsSchema.parse(args)
-  assertWritableVirtualPath(path)
+  const permissions = options.permissions ?? resolveMemoryPermissions({ sharedWriteMode: options.sharedWriteMode })
+  assertWritableVirtualPath(path, permissions)
   const physicalPath = virtualToPhysical(path, ctx)
   const preparedEmbedding = await prepareCoreFileEmbedding(content, options)
 
@@ -210,9 +213,10 @@ export async function executeMemoryWrite(db: Db, args: unknown, ctx: ToolContext
   }
 }
 
-export async function executeMemoryPatch(db: Db, args: unknown, ctx: ToolContext, options: EmbeddingConfig = {}) {
+export async function executeMemoryPatch(db: Db, args: unknown, ctx: ToolContext, options: EmbeddingConfig & { permissions?: MemoryPermissions; sharedWriteMode?: SharedWriteMode } = {}) {
   const parsed = patchArgsSchema.parse(args)
-  assertWritableVirtualPath(parsed.path)
+  const permissions = options.permissions ?? resolveMemoryPermissions({ sharedWriteMode: options.sharedWriteMode })
+  assertWritableVirtualPath(parsed.path, permissions)
   const physicalPath = virtualToPhysical(parsed.path, ctx)
 
   const { rows } = await db.query<FileRow>(
@@ -562,10 +566,15 @@ async function runMemoryLlmPass(
     maxReads?: number
     dryRun?: boolean
     budgetErrorMessage: string
-  } & EmbeddingConfig,
+  } & EmbeddingConfig & { permissions?: MemoryPermissions; sharedWriteMode?: SharedWriteMode },
 ): Promise<MemoryLlmPassResult> {
   const dryRun = options.dryRun ?? false
   const maxReads = options.maxReads ?? 0
+  const permissions = options.permissions ?? resolveMemoryPermissions({ sharedWriteMode: options.sharedWriteMode })
+  const writablePaths = permissions.writableMounts.includes("shared") ? "user/** and shared/**" : "user/**"
+  const sharedGuardrail = permissions.writableMounts.includes("shared")
+    ? " Use shared/** only for durable global knowledge, project canon, policies, style rules, workflow lessons, and cross-user insights; never store private user facts in shared/**."
+    : " shared/** is read-only for agents."
   const writes: MemorizeWrite[] = []
   let reads = 0
 
@@ -599,7 +608,7 @@ async function runMemoryLlmPass(
   }
 
   tools.memory_write = {
-    description: "Create or overwrite a writable user/** memory file.",
+    description: `Create or overwrite a writable memory file. Writable paths: ${writablePaths}.${sharedGuardrail}`,
     inputSchema: jsonSchema({
       type: "object",
       required: ["path", "content"],
@@ -613,7 +622,7 @@ async function runMemoryLlmPass(
     execute: async (toolArgs: unknown) => {
       ensureWriteBudget()
       const parsed = writeArgsSchema.parse(toolArgs)
-      assertWritableVirtualPath(parsed.path)
+      assertWritableVirtualPath(parsed.path, permissions)
       const planned: MemorizeWrite = {
         tool: "memory_write",
         path: parsed.path,
@@ -627,7 +636,7 @@ async function runMemoryLlmPass(
   }
 
   tools.memory_patch = {
-    description: "Patch a writable user/** memory file.",
+    description: `Patch a writable memory file. Writable paths: ${writablePaths}. Prefer this over full rewrites for shared files.${sharedGuardrail}`,
     inputSchema: jsonSchema({
       type: "object",
       required: ["path", "operation"],
@@ -645,7 +654,7 @@ async function runMemoryLlmPass(
     execute: async (toolArgs: unknown) => {
       ensureWriteBudget()
       const parsed = patchArgsSchema.parse(toolArgs)
-      assertWritableVirtualPath(parsed.path)
+      assertWritableVirtualPath(parsed.path, permissions)
       const planned: MemorizeWrite = {
         tool: "memory_patch",
         path: parsed.path,
@@ -683,6 +692,8 @@ export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolCont
   if (!options.model) {
     throw new MemexError("MODEL_NOT_CONFIGURED", "memory_memorize requires a configured model")
   }
+  const permissions = options.permissions ?? resolveMemoryPermissions({ sharedWriteMode: options.sharedWriteMode })
+  const sharedWritable = permissions.writableMounts.includes("shared")
 
   const list = await executeMemoryList(db, {}, ctx)
   const regularFiles = list.files.filter((f) => !isDreamExcludedPath(f.path))
@@ -706,6 +717,7 @@ export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolCont
     maxChars: options.maxChars,
     chunkChars: options.chunkChars,
     chunkOverlap: options.chunkOverlap,
+    permissions,
     model: options.model,
     maxWrites,
     maxReads,
@@ -714,11 +726,16 @@ export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolCont
     systemPrompt: [
       "You are a memory ingestion agent.",
       "Extract only durable facts worth remembering.",
-      "Use virtual paths only, such as user/profile.md.",
+      sharedWritable
+        ? "Use virtual paths only. user/** is for the current user's private memory; shared/** is for durable global knowledge, project canon, policies, style rules, workflow lessons, and cross-user insights."
+        : "Use virtual paths only, such as user/profile.md. shared/** is read-only for agents.",
+      sharedWritable
+        ? "Never store private user facts, secrets, or raw conversation dumps in shared/**. Prefer memory_patch over memory_write for shared files."
+        : "Do not write to shared/**.",
       "Never use physical paths such as users/{userId}/...",
       "Before calling memory_patch on an existing file, read it first with memory_read.",
       "Use append_lines to add new facts. Use replace_lines only after reading to confirm the exact text to match.",
-      "Use memory_write only for new user files.",
+      sharedWritable ? "Use memory_write only for new files." : "Use memory_write only for new user files.",
       "Always include a concise reason.",
       "After writing or patching any user file, also update user/index.md: patch it if it exists, write it if not. Add or update a one-line entry per file in the format: `- user/filename.md - <short purpose>`.",
       "After all writes, append one line per written file to user/log.md (patch with append_lines and no after_heading if exists, write if not): `- [YYYY-MM-DD] <wrote|patched> user/filename.md - <reason>`. Use today's date.",
@@ -781,6 +798,7 @@ export async function executeMemoryConsolidate(
     maxChars: options.maxChars,
     chunkChars: options.chunkChars,
     chunkOverlap: options.chunkOverlap,
+    permissions: options.permissions ?? resolveMemoryPermissions({ sharedWriteMode: options.sharedWriteMode }),
     model: options.model,
     maxWrites,
     dryRun,
@@ -928,21 +946,23 @@ async function executeAgenticMemorySearch(
 }
 
 export async function executeTool(db: Db, toolName: string, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}) {
+  const permissions = options.permissions ?? resolveMemoryPermissions({ sharedWriteMode: options.sharedWriteMode })
+  const toolOptions = { ...options, permissions }
   switch (toolName as ToolName) {
     case "memory_list":
       return executeMemoryList(db, args, ctx)
     case "memory_read":
       return executeMemoryRead(db, args, ctx)
     case "memory_write":
-      return executeMemoryWrite(db, args, ctx, options)
+      return executeMemoryWrite(db, args, ctx, toolOptions)
     case "memory_patch":
-      return executeMemoryPatch(db, args, ctx, options)
+      return executeMemoryPatch(db, args, ctx, toolOptions)
     case "memory_smart_read":
       return executeMemorySmartRead(db, args, ctx)
     case "memory_search":
-      return executeMemorySearch(db, args, ctx, options)
+      return executeMemorySearch(db, args, ctx, toolOptions)
     case "memory_memorize":
-      return executeMemoryMemorize(db, args, ctx, options)
+      return executeMemoryMemorize(db, args, ctx, toolOptions)
     default:
       throw new MemexError("UNKNOWN_TOOL", `Unknown tool: ${toolName}`)
   }

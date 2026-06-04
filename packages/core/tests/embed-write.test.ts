@@ -16,12 +16,13 @@ function adapter(overrides: Partial<EmbeddingAdapter> = {}): EmbeddingAdapter {
 
 function createDb(input: { selectContent?: string } = {}) {
   const db = {
-    query: vi.fn(async (sql: string) => {
+    query: vi.fn(async (sql: string, values: unknown[] = []) => {
       if (sql.includes("SELECT id, physical_path")) {
+        const physicalPath = values[0] as string | undefined
         return {
           rows: [{
             id: "file_existing",
-            physical_path: "users/u1/preferences.md",
+            physical_path: physicalPath ?? "users/u1/preferences.md",
             content_text: input.selectContent ?? "short memory",
             created_at: updatedAt,
             updated_at: updatedAt,
@@ -90,6 +91,43 @@ describe("embedding write lifecycle", () => {
 
     const sqlCalls = (db.query as ReturnType<typeof vi.fn>).mock.calls.map(([sql]) => String(sql))
     expect(sqlCalls.some((sql) => sql.includes("embedding"))).toBe(false)
+  })
+
+  test("default write mode rejects shared memory writes", async () => {
+    const db = createDb()
+
+    await expect(executeMemoryWrite(db, { path: "shared/canon.md", content: "global fact" }, { userId: "u1" }))
+      .rejects.toMatchObject({ code: "READ_ONLY_MOUNT" })
+  })
+
+  test("rw write mode allows shared memory writes", async () => {
+    const db = createDb()
+
+    const result = await executeMemoryWrite(
+      db,
+      { path: "shared/canon.md", content: "global fact", reason: "shared canon" },
+      { userId: "u1" },
+      { sharedWriteMode: "rw" },
+    )
+
+    expect(result).toEqual({ path: "shared/canon.md", created: true, updated: false })
+    const insertCall = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(([sql]) => String(sql).includes("INSERT INTO mx_file"))
+    expect(insertCall?.[1]?.[1]).toBe("shared/canon.md")
+  })
+
+  test("rw write mode allows shared memory patches", async () => {
+    const db = createDb({ selectContent: "# Canon\n" })
+
+    const result = await executeMemoryPatch(
+      db,
+      { path: "shared/canon.md", operation: "append_lines", lines: ["- Blue leaves mean grief."] },
+      { userId: "u1" },
+      { sharedWriteMode: "rw" },
+    )
+
+    expect(result).toMatchObject({ path: "shared/canon.md", changed: true })
+    const updateCall = (db.query as ReturnType<typeof vi.fn>).mock.calls.find(([sql]) => String(sql).includes("UPDATE mx_file SET content_text"))
+    expect(updateCall?.[1]?.[0]).toContain("Blue leaves")
   })
 
   test("provider failure saves content and clears embedding metadata without throwing", async () => {

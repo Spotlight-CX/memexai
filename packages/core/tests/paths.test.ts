@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { assertWritableVirtualPath, physicalToVirtual, prefixToPhysical, virtualToPhysical } from "../src/paths"
+import { assertWritableVirtualPath, physicalToVirtual, prefixToPhysical, resolveMemoryPermissions, virtualToPhysical } from "../src/paths"
 import { MemexError } from "../src/errors"
 
 const ctx = { userId: "user_123", actor: "assistant" }
@@ -43,6 +43,18 @@ describe("path translation", () => {
     expect(() => assertWritableVirtualPath("user/nested/file.md")).not.toThrow()
     expect(() => assertWritableVirtualPath("shared/claude.md")).toThrow(MemexError)
     expect(() => assertWritableVirtualPath("shared/index.md")).toThrow(MemexError)
+  })
+
+  test("allows shared writes when shared write mode is rw", () => {
+    const permissions = resolveMemoryPermissions({ sharedWriteMode: "rw" })
+    expect(() => assertWritableVirtualPath("user/profile.md", permissions)).not.toThrow()
+    expect(() => assertWritableVirtualPath("shared/claude.md", permissions)).not.toThrow()
+    expect(() => assertWritableVirtualPath("shared/index.md", permissions)).not.toThrow()
+  })
+
+  test("rejects unknown writable mounts", () => {
+    const permissions = resolveMemoryPermissions({ sharedWriteMode: "rw" })
+    expect(() => assertWritableVirtualPath("tmp/profile.md", permissions)).toThrow(MemexError)
   })
 
   test("normalizes documented trailing slash prefixes", () => {

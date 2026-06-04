@@ -4,7 +4,7 @@ import { runMigrations } from "./migrations"
 import { createServiceModel } from "./model"
 import { buildServer } from "./server"
 import { createSearchRuntime } from "./search-config"
-import { readDreamConfig, resetStaleDreamRuns, runDreamCycle } from "@memexai/core"
+import { readDreamConfig, resetStaleDreamRuns, resolveMemoryPermissions, runDreamCycle } from "@memexai/core"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createConnectionScopedMcpServer } from "./mcp"
 import { countBucket, createTelemetryClient } from "./telemetry"
@@ -14,6 +14,7 @@ async function main() {
   const modelConfig = await createServiceModel(config)
   console.error(`MemexAI model provider: ${modelConfig ? `${modelConfig.provider}/${modelConfig.modelName}` : "none"}`)
   const searchRuntime = createSearchRuntime(config)
+  const memoryPermissions = resolveMemoryPermissions({ sharedWriteMode: config.MEMEX_SHARED_WRITE_MODE })
   console.error(searchRuntime.mode === "hybrid"
     ? `search mode: hybrid (${searchRuntime.provider}/${searchRuntime.model}, ${searchRuntime.dimensions} dims)`
     : "search mode: bm25 (no adapter configured)")
@@ -70,6 +71,7 @@ async function main() {
 
     const server = createConnectionScopedMcpServer(db, { userId, actor }, {
       model: modelConfig?.model,
+      permissions: memoryPermissions,
       ...searchRuntime.embedding,
       rrfK: searchRuntime.rrfK,
       bm25CandidateLimit: searchRuntime.bm25CandidateLimit,

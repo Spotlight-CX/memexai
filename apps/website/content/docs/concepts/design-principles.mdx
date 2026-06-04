@@ -19,7 +19,7 @@ Multi-tenancy is enforced in code, not prompts.
 
 When an agent calls a memory tool, MemexAI validates the virtual path and injects the `userId` before touching the database. `user/profile.md` physically becomes `users/{userId}/profile.md`. Agents cannot construct a path that reaches another user's data, regardless of what the model generates.
 
-Shared memory is read-only for agents by the same mechanism. A write to `shared/anything.md` is rejected at the path validation layer. No prompt instruction changes this.
+Shared memory is read-only for agents by default through the same mechanism. A write to `shared/anything.md` is rejected at the path validation layer unless the deployment explicitly enables `MEMEX_SHARED_WRITE_MODE=rw`.
 
 ## Deterministic retrieval
 
@@ -49,7 +49,7 @@ This supports post-hoc debugging: when an agent gives a wrong answer, you can in
 
 Agents and operators are not the same thing. MemexAI enforces this structurally.
 
-- **Agents** authenticate with an API key and can write only to `user/*`. They can read `shared/*` but not write it.
+- **Agents** authenticate with an API key and can always write to `user/*`. They can read `shared/*`, and can write it only when the deployment enables shared writable mode.
 - **Operators** authenticate with an admin secret and can read or write any file, inspect revisions, manage config, and control dreaming behavior.
 
 The boundary is not advisory — it is enforced at the route and path validation level. Changing it requires changing how the service is deployed or extending the path rules in code.
@@ -59,7 +59,7 @@ The boundary is not advisory — it is enforced at the route and path validation
 | Term | Meaning |
 |---|---|
 | **User** | The person the AI product serves. Each user has a private `user/` namespace. |
-| **Agent** | The LLM acting on behalf of the user. Can read+write `user/*` and read `shared/*`. |
+| **Agent** | The LLM acting on behalf of the user. Can read+write `user/*`, read `shared/*`, and write `shared/*` only when shared writable mode is enabled. |
 | **Operator** | The team or developer running the deployment. Controls `shared/*`, admin config, and model settings. |
 | **Virtual path** | The path agents see: `user/profile.md`, `shared/index.md`. |
 | **Physical path** | How paths are stored in Postgres: `users/{userId}/profile.md`. Agents never see these. |
