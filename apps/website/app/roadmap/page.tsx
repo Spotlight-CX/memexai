@@ -27,6 +27,7 @@ const shipped = [
   'TypeScript and Python SDKs',
   'MCP over SSE and stdio',
   'Scoped user/ and shared/ memory',
+  'Opt-in shared writable memory',
   'Hybrid pgvector search with reciprocal rank fusion',
 ];
 
@@ -59,7 +60,7 @@ const nextFeatures: RoadmapInterestFeature[] = [
     id: 'team-memory-proposals',
     title: 'Team memory proposals',
     stage: 'Next',
-    text: 'Let agents propose updates to shared memory while admins review, accept, reject, or auto-approve contributions.',
+    text: 'Add a review queue on top of shared writable mode so agents can propose shared-memory updates while admins review, accept, reject, or auto-approve contributions.',
   },
   {
     id: 'post-write-hooks',

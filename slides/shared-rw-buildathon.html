@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MemexAI Shared RW Buildathon Deck</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080b0f;
+      --panel: #111820;
+      --panel-2: #151d27;
+      --text: #f4f7fb;
+      --muted: #9aa8b8;
+      --line: rgba(255, 255, 255, 0.12);
+      --green: #55d88d;
+      --blue: #6db7ff;
+      --silver: #cfd8e6;
+      --amber: #f7bf5c;
+      --red: #ff6f7d;
+      --shadow: 0 24px 90px rgba(0, 0, 0, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(85, 216, 141, 0.12), transparent 34%),
+        radial-gradient(circle at 78% 28%, rgba(109, 183, 255, 0.11), transparent 30%),
+        linear-gradient(135deg, #070a0e 0%, #0b1017 52%, #07090d 100%);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+    }
+
+    .deck {
+      width: min(100vw, 1600px);
+      height: min(100vh, 1000px);
+      position: relative;
+      isolation: isolate;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+      box-shadow: var(--shadow);
+    }
+
+    .deck::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,0.72), transparent 88%);
+    }
+
+    .slide {
+      position: absolute;
+      inset: 0;
+      display: none;
+      padding: clamp(36px, 5vw, 76px);
+    }
+
+    .slide.active {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 28px;
+      animation: enter 220ms ease-out;
+    }
+
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      color: var(--muted);
+      font-size: clamp(12px, 1.15vw, 15px);
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .mark {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background:
+        linear-gradient(135deg, rgba(85,216,141,0.95), rgba(109,183,255,0.95));
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.16), 0 0 28px rgba(85,216,141,0.28);
+    }
+
+    .progress {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 4px;
+      background: rgba(255,255,255,0.06);
+    }
+
+    .progress span {
+      display: block;
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, var(--green), var(--blue));
+      transition: width 180ms ease;
+    }
+
+    .content {
+      align-self: center;
+      min-height: 0;
+    }
+
+    h1, h2 {
+      margin: 0;
+      letter-spacing: 0;
+      line-height: 0.95;
+    }
+
+    h1 {
+      max-width: 1080px;
+      font-size: clamp(58px, 8vw, 128px);
+      font-weight: 780;
+    }
+
+    h2 {
+      max-width: 1040px;
+      font-size: clamp(44px, 5.6vw, 88px);
+      font-weight: 760;
+    }
+
+    .lead {
+      max-width: 920px;
+      margin: 26px 0 0;
+      color: #d8e1eb;
+      font-size: clamp(22px, 2.2vw, 36px);
+      line-height: 1.25;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .accent {
+      color: var(--green);
+    }
+
+    .blue {
+      color: var(--blue);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(20px, 3vw, 42px);
+      align-items: center;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 22px;
+      margin-top: 40px;
+    }
+
+    .panel, .file-card, .path-card {
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,0.065), rgba(255,255,255,0.028));
+      border-radius: 8px;
+      box-shadow: 0 18px 70px rgba(0,0,0,0.24);
+    }
+
+    .panel {
+      padding: clamp(22px, 3vw, 40px);
+    }
+
+    .pain {
+      min-height: 190px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .pain strong {
+      font-size: clamp(24px, 2.2vw, 34px);
+      line-height: 1.05;
+    }
+
+    .pain span {
+      color: var(--muted);
+      font-size: clamp(16px, 1.45vw, 22px);
+      line-height: 1.3;
+    }
+
+    .path-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 18px;
+      align-items: center;
+      margin-top: 42px;
+    }
+
+    .path-card {
+      min-height: 240px;
+      padding: 28px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      height: 34px;
+      padding: 0 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.055);
+      color: #dce7f3;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 15px;
+      white-space: nowrap;
+    }
+
+    .path-card h3, .file-card h3 {
+      margin: 18px 0 10px;
+      font-size: clamp(25px, 2.3vw, 34px);
+      letter-spacing: 0;
+    }
+
+    .path-card p, .file-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(17px, 1.4vw, 22px);
+      line-height: 1.32;
+    }
+
+    .arrow {
+      color: var(--muted);
+      font-size: 34px;
+    }
+
+    .code-line {
+      display: inline-flex;
+      align-items: center;
+      max-width: 100%;
+      margin-top: 30px;
+      padding: 18px 22px;
+      border: 1px solid rgba(85,216,141,0.32);
+      border-radius: 8px;
+      background: rgba(4, 9, 13, 0.74);
+      color: #dfffea;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: clamp(18px, 1.8vw, 28px);
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .truth-stack {
+      display: grid;
+      gap: 14px;
+      margin-top: 38px;
+      max-width: 760px;
+    }
+
+    .truth {
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      gap: 14px;
+      align-items: center;
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.04);
+      font-size: clamp(18px, 1.55vw, 24px);
+    }
+
+    .truth b {
+      color: var(--green);
+    }
+
+    .diagram {
+      min-height: 460px;
+      display: grid;
+      align-content: center;
+      gap: 18px;
+    }
+
+    .node {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.045);
+    }
+
+    .node strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 24px;
+    }
+
+    .node span {
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .story {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: clamp(22px, 3vw, 44px);
+      align-items: center;
+    }
+
+    .steps {
+      display: grid;
+      gap: 18px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      gap: 14px;
+      align-items: start;
+      color: #dfe8f2;
+      font-size: clamp(18px, 1.55vw, 24px);
+      line-height: 1.25;
+    }
+
+    .num {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: rgba(109, 183, 255, 0.14);
+      color: var(--blue);
+      font-weight: 800;
+    }
+
+    .file-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .file-card {
+      padding: 20px;
+      min-height: 176px;
+    }
+
+    .file-card.private {
+      border-color: rgba(247, 191, 92, 0.34);
+    }
+
+    .file-card.shared {
+      border-color: rgba(85, 216, 141, 0.34);
+    }
+
+    .memory-flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 16px;
+      align-items: stretch;
+      margin-top: 42px;
+    }
+
+    .mini {
+      min-height: 210px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.04);
+    }
+
+    .mini h3 {
+      margin: 0 0 14px;
+      font-size: clamp(22px, 2vw, 30px);
+    }
+
+    .mini p {
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(16px, 1.35vw, 21px);
+      line-height: 1.3;
+    }
+
+    .proof-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 42px;
+    }
+
+    .proof {
+      min-height: 154px;
+      padding: 24px;
+      border-left: 4px solid var(--green);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.05);
+    }
+
+    .proof.red {
+      border-left-color: var(--red);
+    }
+
+    .proof.blue-border {
+      border-left-color: var(--blue);
+    }
+
+    .proof h3 {
+      margin: 0 0 10px;
+      font-size: clamp(22px, 2vw, 30px);
+    }
+
+    .proof p {
+      margin: 0;
+      color: var(--muted);
+      font-size: clamp(16px, 1.35vw, 21px);
+      line-height: 1.3;
+    }
+
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      color: var(--muted);
+      font-size: clamp(13px, 1.1vw, 16px);
+    }
+
+    .cue {
+      max-width: 960px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      white-space: nowrap;
+    }
+
+    button {
+      width: 38px;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255,255,255,0.055);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 18px;
+    }
+
+    button:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 2px;
+    }
+
+    @media (max-width: 900px) {
+      body { overflow: auto; }
+      .deck {
+        min-height: 100vh;
+        height: auto;
+      }
+      .slide {
+        position: relative;
+        min-height: 100vh;
+        padding: 30px 22px;
+      }
+      .slide.active { display: grid; }
+      .grid-2, .grid-3, .story, .file-grid, .proof-grid, .memory-flow, .path-row {
+        grid-template-columns: 1fr;
+      }
+      .arrow {
+        display: none;
+      }
+      .cue {
+        white-space: normal;
+      }
+      .controls {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck" aria-live="polite">
+    <div class="progress" aria-hidden="true"><span id="progress"></span></div>
+
+    <section class="slide active" data-cue="Open with the punchline: memory is not just personal, teams need a shared brain.">
+      <header class="topline">
+        <div class="brand"><span class="mark"></span> MemexAI</div>
+        <div>Buildathon Demo · 3 minutes</div>
+      </header>
+      <div class="content">
+        <h1>Collective Memory for Agents</h1>
+        <p class="lead">Private user memory stays isolated. Shared project memory gets better as the team works.</p>
+        <div class="code-line">MEMEX_SHARED_WRITE_MODE=rw</div>
+      </div>
+      <footer class="footer">
+        <div class="cue"></div>
+        <div class="controls"><button data-prev aria-label="Previous slide">‹</button><span class="counter"></span><button data-next aria-label="Next slide">›</button></div>
+      </footer>
+    </section>
+
+    <section class="slide" data-cue="Frame the pain: every collaborator teaches the agent from scratch, so the product never compounds.">
+      <header class="topline">
+        <div class="brand"><span class="mark"></span> MemexAI</div>
+        <div>The memory problem</div>
+      </header>
+      <div class="content">
+        <h2>Agents remember users, but teams still repeat themselves.</h2>
+        <div class="grid-3">
+          <div class="panel pain"><strong>Sessions reset</strong><span>Useful project context gets restated across chats and collaborators.</span></div>
+          <div class="panel pain"><strong>Knowledge silos</strong><span>Each user profile learns privately, but shared canon does not compound.</span></div>
+          <div class="panel pain"><strong>Trust gets blurry</strong><span>Prompt-only memory rules are easy for agents to misunderstand.</span></div>
+        </div>
+      </div>
+      <footer class="footer">
+        <div class="cue"></div>
+        <div class="controls"><button data-prev aria-label="Previous slide">‹</button><span class="counter"></span><button data-next aria-label="Next slide">›</button></div>
+      </footer>
+    </section>
+
+    <section class="slide" data-cue="Explain the existing model before the new feature: user is private writable, shared is global safe context.">
+      <header class="topline">
+        <div class="brand"><span class="mark"></span> MemexAI</div>
+        <div>Scoped memory model</div>
+      </header>
+      <div class="content">
+        <h2>Memory is a scoped filesystem.</h2>
+        <div class="path-row">
+          <div class="path-card">
+            <span class="chip">user/**</span>
+            <h3>Private + writable</h3>
+            <p>Each user gets isolated files like <span class="chip">user/profile.md</span>. Agents can write here by default.</p>
+          </div>
+          <div class="arrow">→</div>
+          <div class="path-card">
+            <span class="chip">shared/**</span>
+            <h3>Global + read-only by default</h3>
+            <p>Every user can read shared context. Without RW mode, agent writes fail with <span class="chip">READ_ONLY_MOUNT</span>.</p>
+          </div>
+        </div>
+      </div>
+      <footer class="footer">
+        <div class="cue"></div>
+        <div class="controls"><button data-prev aria-label="Previous slide">‹</button><span class="counter"></span><button data-next aria-label="Next slide">›</button></div>
+      </footer>
+    </section>
+
+    <section class="slide" data-cue="This is the technical heart: one config flag, one resolved permission truth, three surfaces.">
+      <header class="topline">
+        <div class="brand"><span class="mark"></span> MemexAI</div>
+        <div>What changed</div>
+      </header>
+      <div class="content grid-2">
+        <div>
+          <h2>One flag makes shared memory writable.</h2>
+          <div class="code-line">MEMEX_SHARED_WRITE_MODE=rw</div>
+          <div class="truth-stack">
+            <div class="truth"><b>1</b><span>Prompt tells the agent what is writable.</span></div>
+            <div class="truth"><b>2</b><span>Tool descriptions match the deployed mode.</span></div>
+            <div class="truth"><b>3</b><span>Runtime validation enforces the same permission.</span></div>
+          </div>
+        </div>
+        <div class="panel diagram">
+          <div class="node"><strong>Config</strong><span>Resolve once: read-only or rw.</span></div>
+          <div class="node"><strong>Agent context</strong><span>“Writable memory lives under user/** and shared/**.”</span></div>
+          <div class="node"><strong>Tool execution</strong><span>Path checks still decide what actually writes.</span></div>
+        </div>
+      </div>
+      <footer class="footer">
+        <div class="cue"></div>
+        <div class="controls"><button data-prev aria-label="Previous slide">‹</button><span class="counter"></span><button data-next aria-label="Next slide">›</button></div>
+      </footer>
+    </section>
+
+    <section class="slide" data-cue="Walk through the screenplay story. Emphasize private preference versus safe shared canon.">
+      <header class="topline">
+        <div class="brand"><span class="mark"></span> MemexAI</div>
+        <div>Demo story · The Glass Orchard</div>
+      </header>
+      <div class="content story">
+        <div>
+          <h2>Two writers. One evolving project brain.</h2>
+          <div class="steps">
+            <div class="step"><span class="num">A</span><span>Writer A gives Mira a private fear of forgetting her brother.</span></div>
+            <div class="step"><span class="num">B</span><span>Writer B adds canon: blue leaves mean grief, silver leaves mean joy.</span></div>
+            <div class="step"><span class="num">A</span><span>Writer A returns and benefits from Writer B’s canon automatically.</span></div>
+          </div>
+        </div>
+        <div class="file-grid">
+          <div class="file-card private">
+            <span class="chip">user/profile.md</span>
+            <h3>Private</h3>
+            <p>“Writer A wants Mira to fear forgetting her brother.”</p>
+          </div>
+          <div class="file-card shared">
+            <span class="chip">shared/screenplay-canon.md</span>
+            <h3>Shared</h3>
+            <p>“Mira’s missing brother is an emotional anchor for Act I.”</p>
+          </div>
+          <div class="file-card private">
+            <span class="chip">user/profile.md</span>
+            <h3>Private</h3>
+            <p>“Writer B prefers lyrical dialogue.”</p>
+          </div>
+          <div class="file-card shared">
+            <span class="chip">shared/screenplay-canon.md</span>
+            <h3>Shared</h3>
+            <p>“Leaf color encodes emotion: blue = grief, silver = joy.”</p>
+          </div>
+        </div>
+      </div>
+      <footer class="footer">
+        <div class="cue"></div>
+        <div class="controls"><button data-prev aria-label="Previous slide">‹</button><span class="counter"></span><button data-next aria-label="Next slide">›</button></div>
+      </footer>
+    </section>
+
+    <section class="slide" data-cue="Make the product value concrete: it is not shared private data, it is shared project understanding.">
+      <header class="topline">
+        <div class="brand"><span class="mark"></span> MemexAI</div>
+        <div>Why it matters</div>
+      </header>
+      <div class="content">
+        <h2>Collective memory without profile leakage.</h2>
+        <div class="memory-flow">
+          <div class="mini">
+            <h3>Private signals</h3>
+            <p>User preferences, personal facts, and collaborator-specific style notes stay under <span class="chip">user/**</span>.</p>
+          </div>
+          <div class="arrow">→</div>
+          <div class="mini">
+            <h3>Safe abstraction</h3>
+            <p>The agent turns private input into durable project lessons only when appropriate.</p>
+          </div>
+          <div class="arrow">→</div>
+          <div class="mini">
+            <h3>Shared canon</h3>
+            <p>Policies, project rules, workflow lessons, and cross-user insights live under <span class="chip">shared/**</span>.</p>
+          </div>
+        </div>
+        <p class="lead">The product gets smarter collectively while each user’s private memory remains scoped.</p>
+      </div>
+      <footer class="footer">
+        <div class="cue"></div>
+        <div class="controls"><button data-prev aria-label="Previous slide">‹</button><span class="counter"></span><button data-next aria-label="Next slide">›</button></div>
+      </footer>
+    </section>
+
+    <section class="slide" data-cue="Close with trust: default safe, enforced in code, auditable. Then land the one-sentence pitch.">
+      <header class="topline">
+        <div class="brand"><span class="mark"></span> MemexAI</div>
+        <div>Proof + close</div>
+      </header>
+      <div class="content">
+        <h2>Default safe. Opt-in collaborative. Fully auditable.</h2>
+        <div class="proof-grid">
+          <div class="proof red">
+            <h3>Default read-only</h3>
+            <p>Without the flag, shared writes fail with <span class="chip">READ_ONLY_MOUNT</span>.</p>
+          </div>
+          <div class="proof">
+            <h3>Runtime authority</h3>
+            <p>Prompt and tool descriptions inform the agent; path validation enforces the truth.</p>
+          </div>
+          <div class="proof blue-border">
+            <h3>Revision history</h3>
+            <p>Every shared update records actor, reason, user, and tool call metadata.</p>
+          </div>
+          <div class="proof">
+            <h3>Product payoff</h3>
+            <p>Teams can nurture one shared agent brain without merging private user memory.</p>
+          </div>
+        </div>
+        <p class="lead"><span class="accent">MemexAI turns memory from a chat feature into infrastructure.</span></p>
+      </div>
+      <footer class="footer">
+        <div class="cue"></div>
+        <div class="controls"><button data-prev aria-label="Previous slide">‹</button><span class="counter"></span><button data-next aria-label="Next slide">›</button></div>
+      </footer>
+    </section>
+  </main>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const progress = document.getElementById("progress");
+    let index = 0;
+
+    function clamp(value) {
+      return Math.max(0, Math.min(slides.length - 1, value));
+    }
+
+    function render(nextIndex, pushHash = true) {
+      index = clamp(nextIndex);
+      slides.forEach((slide, i) => {
+        const active = i === index;
+        slide.classList.toggle("active", active);
+        slide.setAttribute("aria-hidden", active ? "false" : "true");
+        const counter = slide.querySelector(".counter");
+        const cue = slide.querySelector(".cue");
+        if (counter) counter.textContent = `${index + 1} / ${slides.length}`;
+        if (cue) cue.textContent = slide.dataset.cue || "";
+      });
+      progress.style.width = `${((index + 1) / slides.length) * 100}%`;
+      if (pushHash) history.replaceState(null, "", `#slide-${index + 1}`);
+    }
+
+    function fromHash() {
+      const match = location.hash.match(/^#slide-(\d+)$/);
+      if (!match) return 0;
+      return clamp(Number(match[1]) - 1);
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (["ArrowRight", " ", "Enter"].includes(event.key)) {
+        event.preventDefault();
+        render(index + 1);
+      }
+      if (["ArrowLeft", "Backspace"].includes(event.key)) {
+        event.preventDefault();
+        render(index - 1);
+      }
+      if (event.key === "Home") {
+        event.preventDefault();
+        render(0);
+      }
+      if (event.key === "End") {
+        event.preventDefault();
+        render(slides.length - 1);
+      }
+    });
+
+    document.querySelectorAll("[data-next]").forEach((button) => button.addEventListener("click", () => render(index + 1)));
+    document.querySelectorAll("[data-prev]").forEach((button) => button.addEventListener("click", () => render(index - 1)));
+    window.addEventListener("hashchange", () => render(fromHash(), false));
+
+    render(fromHash(), !location.hash);
+  </script>
+</body>
+</html>

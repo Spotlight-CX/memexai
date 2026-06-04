@@ -12,6 +12,31 @@ Shared memory is not just a place to store reusable facts. It is the primary lev
 
 Operators can enable collective shared memory with `MEMEX_SHARED_WRITE_MODE=rw`. In that mode, agent tools can write or patch `shared/**`, and the prompt block/tool descriptions tell agents that shared memory is writable. Use this for project canon, policies, product facts, team workflows, style guides, and learned procedures. Do not store private user facts, secrets, raw transcripts, or untrusted external content in `shared/**`.
 
+## Why collective shared memory resonates
+
+Most AI memory starts as personal memory: the agent learns a user's preferences, constraints, and corrections. That is useful, but team products also need a memory surface that compounds across collaborators.
+
+Shared writable mode turns `shared/` into an opt-in collective memory surface. A trusted agent can translate a private user signal into a safe project-level update:
+
+```txt
+user/profile.md
+  Writer A privately wants Mira to fear forgetting her brother.
+
+shared/screenplay-canon.md
+  Mira's missing brother is an emotional anchor for Act I.
+```
+
+Later, another collaborator can add project-wide canon:
+
+```txt
+shared/screenplay-canon.md
+  Leaf color encodes emotional category: blue = grief, silver = joy.
+```
+
+When Writer A returns, their agent benefits from the blue/silver leaf canon without reading Writer B's private profile. That is the core pattern: private memory stays scoped, while shared canon, policy, style, and workflow knowledge improve for everyone.
+
+Because shared writes go through the same tool path as user writes, every update still creates a revision and access log. You can inspect who changed the shared brain, why, and through which tool call.
+
 ## The always-in-context guarantee
 
 Every prompt block built by `getSystemPrompt()` or `getPromptBlock()` automatically includes:

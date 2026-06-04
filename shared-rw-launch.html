@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shared Writable Memory — memexai</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --border: #1e1e2e;
+    --accent: #7c6af7;
+    --accent2: #a78bfa;
+    --green: #34d399;
+    --red: #f87171;
+    --yellow: #fbbf24;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --code-bg: #0d1117;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .deck {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 60px 80px;
+    opacity: 0;
+    transform: translateY(32px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    pointer-events: none;
+  }
+
+  .slide.active {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: all;
+  }
+
+  .slide.exit {
+    opacity: 0;
+    transform: translateY(-32px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+
+  /* Navigation */
+  .nav {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 100;
+  }
+
+  .nav button {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .nav button:hover { background: var(--border); border-color: var(--accent); }
+  .nav button:disabled { opacity: 0.3; cursor: default; }
+
+  .nav .counter {
+    font-size: 13px;
+    color: var(--muted);
+    min-width: 48px;
+    text-align: center;
+  }
+
+  /* Dots */
+  .dots {
+    position: fixed;
+    top: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+  }
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: background 0.3s, transform 0.3s;
+  }
+  .dot.active { background: var(--accent); transform: scale(1.4); }
+
+  /* Common slide elements */
+  .eyebrow {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    margin-bottom: 20px;
+    font-weight: 600;
+  }
+
+  h1 {
+    font-size: clamp(36px, 5vw, 60px);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    text-align: center;
+    max-width: 860px;
+  }
+
+  h2 {
+    font-size: clamp(28px, 3.5vw, 44px);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    text-align: center;
+    max-width: 760px;
+  }
+
+  .subtitle {
+    font-size: clamp(16px, 2vw, 20px);
+    color: var(--muted);
+    text-align: center;
+    margin-top: 20px;
+    max-width: 600px;
+    line-height: 1.6;
+  }
+
+  .tag {
+    display: inline-block;
+    background: rgba(124,106,247,0.15);
+    border: 1px solid rgba(124,106,247,0.3);
+    color: var(--accent2);
+    padding: 4px 14px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 24px;
+  }
+
+  /* Code block */
+  .code-block {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 14px;
+    line-height: 1.7;
+    margin-top: 32px;
+    width: 100%;
+    max-width: 680px;
+    position: relative;
+  }
+
+  .code-block .filename {
+    position: absolute;
+    top: -1px;
+    left: 20px;
+    background: var(--accent);
+    color: white;
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 0 0 6px 6px;
+    font-family: inherit;
+    letter-spacing: 0.05em;
+  }
+
+  .kw { color: #c792ea; }
+  .str { color: #c3e88d; }
+  .fn { color: #82aaff; }
+  .cmt { color: #546e7a; font-style: italic; }
+  .num { color: #f78c6c; }
+  .type { color: #ffcb6b; }
+  .env { color: var(--green); font-weight: 600; }
+
+  /* Two-column layout */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    width: 100%;
+    max-width: 900px;
+    margin-top: 40px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+  }
+
+  .card.accent { border-color: rgba(124,106,247,0.4); background: rgba(124,106,247,0.06); }
+  .card.green  { border-color: rgba(52,211,153,0.3); background: rgba(52,211,153,0.05); }
+  .card.red    { border-color: rgba(248,113,113,0.3); background: rgba(248,113,113,0.05); }
+  .card.yellow { border-color: rgba(251,191,36,0.3); background: rgba(251,191,36,0.05); }
+
+  .card-icon { font-size: 28px; margin-bottom: 12px; }
+  .card-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .card-body { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+  /* Timeline */
+  .timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: 100%;
+    max-width: 640px;
+    margin-top: 36px;
+  }
+
+  .timeline-item {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    padding-bottom: 28px;
+    position: relative;
+  }
+
+  .timeline-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: 38px;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+  }
+
+  .timeline-dot {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .timeline-dot.done { border-color: var(--accent); background: rgba(124,106,247,0.15); }
+  .timeline-item:last-child .timeline-dot { border-color: var(--green); background: rgba(52,211,153,0.15); }
+
+  .timeline-text { padding-top: 8px; }
+  .timeline-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .timeline-desc { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+  /* Permission table */
+  .perm-table {
+    width: 100%;
+    max-width: 720px;
+    border-collapse: collapse;
+    margin-top: 36px;
+    font-size: 14px;
+  }
+
+  .perm-table th {
+    text-align: left;
+    padding: 10px 16px;
+    color: var(--muted);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .perm-table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(30,30,46,0.6);
+    vertical-align: middle;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .badge.green { background: rgba(52,211,153,0.15); color: var(--green); }
+  .badge.red   { background: rgba(248,113,113,0.15); color: var(--red); }
+  .badge.yellow { background: rgba(251,191,36,0.15); color: var(--yellow); }
+
+  /* Diagram */
+  .diagram {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-top: 40px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .node {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+    min-width: 120px;
+  }
+
+  .node.agent { border-color: var(--accent2); color: var(--accent2); }
+  .node.core  { border-color: var(--green); color: var(--green); }
+  .node.db    { border-color: var(--yellow); color: var(--yellow); }
+  .node.perm  { border-color: rgba(124,106,247,0.5); color: var(--accent); background: rgba(124,106,247,0.08); }
+
+  .arrow {
+    color: var(--muted);
+    font-size: 20px;
+  }
+
+  /* Slide 1 — Hero */
+  #s1 { background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(124,106,247,0.12) 0%, transparent 70%), var(--bg); }
+
+  .hero-glyph {
+    font-size: 64px;
+    margin-bottom: 24px;
+    filter: drop-shadow(0 0 32px rgba(124,106,247,0.5));
+  }
+
+  /* Slide 9 — closing */
+  #s9 { background: radial-gradient(ellipse 80% 60% at 50% 100%, rgba(52,211,153,0.08) 0%, transparent 70%), var(--bg); }
+
+  /* Guardrails list */
+  .guardrails {
+    width: 100%;
+    max-width: 640px;
+    margin-top: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .guardrail-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+  }
+
+  .guardrail-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .guardrail-text { font-size: 14px; line-height: 1.5; color: var(--text); }
+  .guardrail-text strong { color: var(--accent2); }
+
+  /* keyboard hint */
+  .kbd-hint {
+    position: fixed;
+    top: 28px;
+    right: 40px;
+    font-size: 12px;
+    color: var(--muted);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .kbd { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<div class="dots" id="dots"></div>
+
+<div class="kbd-hint">
+  <span class="kbd">←</span><span class="kbd">→</span> or click nav
+</div>
+
+<div class="deck" id="deck">
+
+  <!-- Slide 1: Hero -->
+  <section class="slide" id="s1">
+    <div class="hero-glyph">🧠</div>
+    <div class="tag">memexai · shipped Jun 2026</div>
+    <h1>Shared Writable Memory</h1>
+    <p class="subtitle">
+      Agents no longer forget what they learn together.<br>
+      <code style="color:var(--accent2);font-size:0.85em">MEMEX_SHARED_WRITE_MODE=rw</code> — one env var, collective intelligence.
+    </p>
+  </section>
+
+  <!-- Slide 2: The Old World -->
+  <section class="slide" id="s2">
+    <div class="eyebrow">The problem</div>
+    <h2>Memory was private by design — and that created a blind spot</h2>
+    <div class="two-col" style="margin-top:36px">
+      <div class="card green">
+        <div class="card-icon">👤</div>
+        <div class="card-title">user/ — great</div>
+        <div class="card-body">Everything an agent learns about <em>a specific user</em> stays private. Works perfectly.</div>
+      </div>
+      <div class="card red">
+        <div class="card-icon">🔒</div>
+        <div class="card-title">shared/ — locked</div>
+        <div class="card-body">Global knowledge visible to all agents, but <strong>no agent could write here</strong>. Only an admin with direct DB access could update shared files.</div>
+      </div>
+    </div>
+    <p class="subtitle" style="margin-top:28px">
+      If your product learns something universally useful — a policy change, a new pattern, a discovered fact — there was no clean way to persist it into shared context.
+    </p>
+  </section>
+
+  <!-- Slide 3: The Insight -->
+  <section class="slide" id="s3">
+    <div class="eyebrow">The insight</div>
+    <h2>Some knowledge should be shared.<br>Let agents earn that right.</h2>
+    <div class="two-col" style="margin-top:36px">
+      <div class="card accent">
+        <div class="card-icon">📖</div>
+        <div class="card-title">Project canon</div>
+        <div class="card-body">Style guides, tone rules, factual policies — facts that every agent should know.</div>
+      </div>
+      <div class="card accent">
+        <div class="card-icon">🔄</div>
+        <div class="card-title">Workflow lessons</div>
+        <div class="card-body">Patterns discovered in practice — how to handle edge cases, team norms, recurring corrections.</div>
+      </div>
+      <div class="card accent">
+        <div class="card-icon">📜</div>
+        <div class="card-title">Cross-user insights</div>
+        <div class="card-body">Aggregated, anonymised learnings that improve quality for everyone.</div>
+      </div>
+      <div class="card accent">
+        <div class="card-icon">⚙️</div>
+        <div class="card-title">Opt-in, not on by default</div>
+        <div class="card-body">Private deployments stay locked. Operators explicitly unlock collective write when they need it.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 4: The API -->
+  <section class="slide" id="s4">
+    <div class="eyebrow">The API</div>
+    <h2>One env var. One option. Done.</h2>
+    <div class="code-block" style="max-width:740px">
+      <span class="filename">docker-compose / .env</span>
+      <div style="margin-top:8px">
+        <span class="cmt"># Default — shared/ stays admin-only</span><br>
+        <span class="env">MEMEX_SHARED_WRITE_MODE</span>=<span class="str">read_only</span><br><br>
+        <span class="cmt"># Enable collective agent writes to shared/</span><br>
+        <span class="env">MEMEX_SHARED_WRITE_MODE</span>=<span class="str">rw</span>
+      </div>
+    </div>
+    <div class="code-block" style="margin-top:20px; max-width:740px">
+      <span class="filename">direct-postgres mode</span>
+      <div style="margin-top:8px">
+        <span class="kw">const</span> memex = <span class="fn">createMemex</span>({<br>
+        &nbsp;&nbsp;databaseUrl: process.env.<span class="env">DATABASE_URL</span>,<br>
+        &nbsp;&nbsp;<span class="type">sharedWriteMode</span>: <span class="str">"rw"</span>,<br>
+        })
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 5: How it works -->
+  <section class="slide" id="s5">
+    <div class="eyebrow">Under the hood</div>
+    <h2>Permissions flow through the entire stack</h2>
+    <div class="diagram">
+      <div class="node agent">AI Agent</div>
+      <div class="arrow">→</div>
+      <div class="node perm">MemoryPermissions<br><span style="font-size:11px;color:var(--muted)">resolveMemoryPermissions()</span></div>
+      <div class="arrow">→</div>
+      <div class="node core">assertWritableVirtualPath()<br><span style="font-size:11px;color:var(--muted)">packages/core/paths.ts</span></div>
+      <div class="arrow">→</div>
+      <div class="node db">mx_file / mx_revision<br><span style="font-size:11px;color:var(--muted)">Postgres</span></div>
+    </div>
+    <div style="margin-top:40px; width:100%; max-width:720px">
+      <table class="perm-table">
+        <tr>
+          <th>Mode</th>
+          <th>user/ read</th>
+          <th>user/ write</th>
+          <th>shared/ read</th>
+          <th>shared/ write</th>
+        </tr>
+        <tr>
+          <td><code style="color:var(--muted)">read_only</code> (default)</td>
+          <td><span class="badge green">✓</span></td>
+          <td><span class="badge green">✓</span></td>
+          <td><span class="badge green">✓</span></td>
+          <td><span class="badge red">✗ READ_ONLY_MOUNT</span></td>
+        </tr>
+        <tr>
+          <td><code style="color:var(--green)">rw</code></td>
+          <td><span class="badge green">✓</span></td>
+          <td><span class="badge green">✓</span></td>
+          <td><span class="badge green">✓</span></td>
+          <td><span class="badge green">✓</span></td>
+        </tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- Slide 6: The guardrails -->
+  <section class="slide" id="s6">
+    <div class="eyebrow">Safety</div>
+    <h2>Power, but with guardrails baked in</h2>
+    <div class="guardrails">
+      <div class="guardrail-item">
+        <div class="guardrail-icon">🔐</div>
+        <div class="guardrail-text"><strong>Runtime enforcement, not just prompt guidance.</strong> <code>assertWritableVirtualPath()</code> is the authoritative gate — regardless of what the prompt says.</div>
+      </div>
+      <div class="guardrail-item">
+        <div class="guardrail-icon">🩹</div>
+        <div class="guardrail-text"><strong>Prefer <code>memory_patch</code> over full rewrites</strong> for shared files. Tool descriptions now guide the model toward safer, auditable incremental updates.</div>
+      </div>
+      <div class="guardrail-item">
+        <div class="guardrail-icon">🚫</div>
+        <div class="guardrail-text"><strong>Never store private user facts in <code>shared/**</code>.</strong> Enforced in system prompt, tool descriptions, and <code>memory_memorize</code> guardrails.</div>
+      </div>
+      <div class="guardrail-item">
+        <div class="guardrail-icon">📋</div>
+        <div class="guardrail-text"><strong>Full audit trail.</strong> Every write to <code>mx_revision</code> captures actor, reason, and tool call ID — shared writes are fully inspectable.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 7: What changed -->
+  <section class="slide" id="s7">
+    <div class="eyebrow">The diff</div>
+    <h2>34 files, 524 insertions — cleanly layered</h2>
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-dot done">🗂️</div>
+        <div class="timeline-text">
+          <div class="timeline-title">New type: <code>MemoryPermissions</code></div>
+          <div class="timeline-desc"><code>packages/core/src/paths.ts</code> — <code>resolveMemoryPermissions()</code> derives <code>writableMounts</code> and <code>readOnlyMounts</code> from a single <code>SharedWriteMode</code> string.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot done">🔧</div>
+        <div class="timeline-text">
+          <div class="timeline-title">Tools are permission-aware</div>
+          <div class="timeline-desc"><code>memory_write</code>, <code>memory_patch</code>, <code>memory_memorize</code> — all accept permissions and thread them through. Tool descriptions update dynamically to tell the model what it can actually do.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot done">⚙️</div>
+        <div class="timeline-text">
+          <div class="timeline-title">Service config + compose</div>
+          <div class="timeline-desc"><code>MEMEX_SHARED_WRITE_MODE</code> env var wired into Zod config schema, passed from server startup through every tool execution.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot done">📦</div>
+        <div class="timeline-text">
+          <div class="timeline-title">SDK adapters updated</div>
+          <div class="timeline-desc">Vercel AI, Anthropic, LangChain, and OpenAI adapters all surface the new <code>sharedWriteMode</code> option cleanly.</div>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot">✅</div>
+        <div class="timeline-text">
+          <div class="timeline-title">Shipped with full test coverage</div>
+          <div class="timeline-desc">Paths, embed-write, patch routes, auth routes, and config tests all updated. 36+ new assertions.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Slide 8: When to use it -->
+  <section class="slide" id="s8">
+    <div class="eyebrow">When to use it</div>
+    <h2>The right tool for the right scope</h2>
+    <div style="width:100%;max-width:720px;margin-top:36px">
+      <table class="perm-table">
+        <tr>
+          <th>Write to shared/**</th>
+          <th>Keep in user/**</th>
+        </tr>
+        <tr>
+          <td>Style guides, tone rules, vocabulary</td>
+          <td>Individual user preferences</td>
+        </tr>
+        <tr>
+          <td>Project canon and factual policies</td>
+          <td>Private conversation context</td>
+        </tr>
+        <tr>
+          <td>Workflow lessons, recurring patterns</td>
+          <td>Secrets, PII, raw transcripts</td>
+        </tr>
+        <tr>
+          <td>Cross-user product discoveries</td>
+          <td>Per-session scratch notes</td>
+        </tr>
+        <tr>
+          <td>Shared FAQ / reference docs</td>
+          <td>User-specific history or logs</td>
+        </tr>
+      </table>
+    </div>
+    <p class="subtitle" style="margin-top:24px;font-size:14px">
+      Think of <code style="color:var(--accent2)">shared/</code> as the team's shared notebook — facts that should be true for everyone, permanently.
+    </p>
+  </section>
+
+  <!-- Slide 9: Closing -->
+  <section class="slide" id="s9">
+    <div class="hero-glyph" style="font-size:52px">🚀</div>
+    <div class="tag">Available now · memexai.space</div>
+    <h1 style="font-size:clamp(32px,4vw,52px)">Agents that remember together, think better together</h1>
+    <p class="subtitle">
+      Private memory stays private. Shared knowledge grows over time.<br>
+      One flag to unlock it — the same rock-solid audit trail either way.
+    </p>
+    <div class="code-block" style="margin-top:36px;max-width:520px;text-align:center">
+      <span class="env">MEMEX_SHARED_WRITE_MODE</span>=<span class="str">rw</span>
+    </div>
+  </section>
+
+</div>
+
+<div class="nav">
+  <button id="prev" onclick="go(-1)">← Prev</button>
+  <span class="counter" id="counter">1 / 9</span>
+  <button id="next" onclick="go(1)">Next →</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const dotsEl = document.getElementById('dots');
+  const total = slides.length;
+  let cur = 0;
+
+  // Create dots
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.onclick = () => goTo(i);
+    d.style.cursor = 'pointer';
+    dotsEl.appendChild(d);
+  });
+
+  function goTo(n) {
+    const prev = slides[cur];
+    prev.classList.remove('active');
+    prev.classList.add('exit');
+    setTimeout(() => prev.classList.remove('exit'), 350);
+
+    cur = Math.max(0, Math.min(n, total - 1));
+    slides[cur].classList.add('active');
+
+    document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === cur));
+    document.getElementById('counter').textContent = `${cur + 1} / ${total}`;
+    document.getElementById('prev').disabled = cur === 0;
+    document.getElementById('next').disabled = cur === total - 1;
+  }
+
+  function go(dir) { goTo(cur + dir); }
+
+  // Init
+  slides[0].classList.add('active');
+  document.getElementById('prev').disabled = true;
+
+  // Keyboard
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') go(1);
+    if (e.key === 'ArrowLeft') go(-1);
+  });
+</script>
+</body>
+</html>

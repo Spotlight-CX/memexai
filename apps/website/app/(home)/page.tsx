@@ -34,6 +34,11 @@ const features = [
     text: 'Agents work with virtual paths like user/profile.md and shared/policy.md while MemexAI enforces isolation.',
   },
   {
+    icon: Network,
+    title: 'Collective memory when you want it',
+    text: 'Keep shared/ read-only by default, or opt into shared writable mode so trusted agents can grow project canon, policies, and team workflows together.',
+  },
+  {
     icon: ListChecks,
     title: 'The memorize tool is opinionated',
     text: 'The common failure is agents writing task context into durable memory because the write tool is available. The memorize tool decides what is worth keeping — scoped paths enforce the rest.',
@@ -122,7 +127,7 @@ export default function HomePage() {
               </div>
               <div className="memory-file">
                 <span className="memory-path">shared/policy.md</span>
-                <span className="memory-meta">read-only</span>
+                <span className="memory-meta">global</span>
               </div>
             </div>
           </div>
@@ -229,6 +234,36 @@ export default function HomePage() {
               <strong>{item}</strong>
             </div>
           ))}
+        </Reveal>
+      </section>
+
+      <section className="section contrast-section">
+        <Reveal>
+          <div className="section-kicker">Collective memory</div>
+          <h2>Your team should not teach the same agent the same lesson twice.</h2>
+          <p className="section-lede">
+            MemexAI now supports opt-in shared writable memory. Personal facts stay in <code>user/**</code>, while
+            trusted deployments can let agents patch <code>shared/**</code> with durable project canon, policy updates,
+            style guides, and workflow lessons that help every collaborator later.
+          </p>
+        </Reveal>
+        <Reveal stagger className="comparison">
+          <div className="comparison-panel muted-panel">
+            <h3>Default safe</h3>
+            <p>
+              Agents can read shared memory but write only to user memory. A shared write without the flag fails with{' '}
+              <code>READ_ONLY_MOUNT</code>.
+            </p>
+            <pre>{`user/profile.md      # writable\nshared/policy.md     # read-only`}</pre>
+          </div>
+          <div className="comparison-panel strong-panel">
+            <h3>Opt-in collaborative</h3>
+            <p>
+              Set <code>MEMEX_SHARED_WRITE_MODE=rw</code> and the prompt, tool descriptions, and runtime validator agree
+              that <code>shared/**</code> can be patched.
+            </p>
+            <pre>{`shared/screenplay-canon.md\nshared/style-guide.md\nshared/continuity-log.md`}</pre>
+          </div>
         </Reveal>
       </section>
 

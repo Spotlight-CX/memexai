@@ -269,9 +269,10 @@ export default function DreamingMemoryBlogPage() {
             <h2>Why we built it this way</h2>
             <p>
               MemexAI stores memory as scoped virtual files such as <code>user/profile.md</code> and{' '}
-              <code>shared/company.md</code>. Agents can list, read, write, patch, and search those files. Humans can
-              inspect them in the admin UI. Postgres stores the current file state, revisions, access logs, and runtime
-              dream configuration.
+              <code>shared/company.md</code>. Agents can list, read, patch, search, and write files according to the
+              resolved scope permissions: <code>user/**</code> is writable, while <code>shared/**</code> is read-only by
+              default and writable only in shared RW mode. Humans can inspect them in the admin UI. Postgres stores the
+              current file state, revisions, access logs, and runtime dream configuration.
             </p>
 
             <p>

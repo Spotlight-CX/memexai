@@ -143,7 +143,7 @@ This is the same in both modes — the difference is whether step 3 crosses an H
 
 4.  Path validation
     "user/profile.md"  →  validated as writable (user/ prefix)
-    "shared/index.md"  →  read-only, write blocked
+    "shared/index.md"  →  read-only by default; writable only when shared RW is enabled
 
 5.  Virtual → physical translation
     "user/profile.md"  →  "users/user_123/profile.md"

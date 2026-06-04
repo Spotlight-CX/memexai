@@ -41,7 +41,9 @@ Operators can opt into collective shared memory:
 MEMEX_SHARED_WRITE_MODE=rw
 ```
 
-When this is enabled, `memory_write` and `memory_patch` can target `shared/**`, and the prompt block/tool descriptions tell the agent that shared memory is writable. Use it only for durable global knowledge. Keep private user facts, secrets, raw transcripts, and untrusted external content out of `shared/**`.
+When this is enabled, `memory_write` and `memory_patch` can target `shared/**`, and the prompt block/tool descriptions tell the agent that shared memory is writable. This is useful when a team wants shared project memory to improve over time from real usage: canon, policies, style rules, procedures, and cross-user insights can be patched once and benefit every later user.
+
+Use it only for durable global knowledge. Keep private user facts, secrets, raw transcripts, and untrusted external content out of `shared/**`.
 
 ## Blocked paths
 

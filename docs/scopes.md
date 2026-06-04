@@ -24,7 +24,7 @@ Virtual paths starting with `shared/` are visible to every user. By default agen
 
 ```
 shared/index.md
-shared/property-guidelines.md
+shared/screenplay-canon.md
 shared/faq.md
 ```
 
@@ -115,7 +115,7 @@ const memex = createMemex({
 
 When shared writable mode is enabled, `memory_write` and `memory_patch` can target `shared/**`. The prompt block and tool descriptions also tell the agent that `shared/**` is writable. Runtime validation remains authoritative; prompt text is guidance, not the security boundary.
 
-Use shared writable mode for project canon, policies, product facts, team workflows, style guides, and learned procedures. Do not write private user facts, secrets, raw transcripts, or untrusted external content into `shared/**`. Prefer `memory_patch` over full rewrites so revisions stay easy to inspect and roll back.
+Use shared writable mode for project canon, policies, product facts, team workflows, style guides, and learned procedures. This lets a trusted deployment turn safe cross-user insights into shared memory that helps later users without exposing private `user/**` profiles. Do not write private user facts, secrets, raw transcripts, or untrusted external content into `shared/**`. Prefer `memory_patch` over full rewrites so revisions stay easy to inspect and roll back.
 
 ---
 

@@ -29,9 +29,9 @@ MemexAI translates virtual paths into physical paths:
 | Virtual path | Physical path | Agent access |
 | --- | --- | --- |
 | `user/profile.md` | `users/{userId}/profile.md` | read and write |
-| `shared/policy.md` | `shared/policy.md` | read-only for agents |
+| `shared/policy.md` | `shared/policy.md` | read-only by default; writable only with `MEMEX_SHARED_WRITE_MODE=rw` |
 
-Agents do not see physical paths. They work with `user/` and `shared/` paths, and MemexAI validates writes so agent tools cannot write into `shared/`.
+Agents do not see physical paths. They work with `user/` and `shared/` paths, and MemexAI validates writes before touching the database. In the default mode, agent tools cannot write into `shared/`. In shared writable mode, the same runtime validator allows trusted agent writes to `shared/**`.
 
 ## What your app enforces
 
@@ -55,7 +55,9 @@ Do not expose the admin secret to untrusted browsers. If you serve admin workflo
 
 ## Shared memory
 
-`shared/` memory is global guidance. It is useful for policies, tool instructions, and product-level behavior guides. Because agents can read it for every user, avoid placing user-private or tenant-private facts in `shared/` unless that is intentional.
+`shared/` memory is global guidance. It is useful for policies, tool instructions, product-level behavior guides, project canon, and team workflow lessons. Because agents can read it for every user, avoid placing user-private or tenant-private facts in `shared/` unless that is intentional.
+
+If you enable `MEMEX_SHARED_WRITE_MODE=rw`, treat `shared/` like a collaborative project brain: use `memory_patch`, review revisions, and keep private user facts in `user/**`.
 
 ## Operational checklist
 
