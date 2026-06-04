@@ -325,14 +325,6 @@ export function SetupWizard({ secret, onComplete }: { secret: string; onComplete
           throw new Error(body?.error?.message ?? `Failed to write ${file.path}`)
         }
       }
-      await fetch(`/v1/admin/files/${encodeURIComponent("shared/.setup-complete")}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json", "x-memex-admin-secret": secret },
-        body: JSON.stringify({
-          content: `Setup completed at ${new Date().toISOString()}\n\nProduct: ${productDescription}\nDomain: ${domain}`,
-          reason: "Setup wizard complete",
-        }),
-      })
       setStep(4)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Apply failed")

@@ -1,3 +1,4 @@
+import { SEED_SHARED_INDEX_MD } from "./lib/seed-hashes"
 import "@mantine/core/styles.css"
 import "@mantine/code-highlight/styles.css"
 import "@mantine/dates/styles.css"
@@ -129,16 +130,25 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
   )
   const files = useMemo(() => filesData?.files ?? [], [filesData])
 
+  // Fetch shared/index.md content only after the file list has loaded.
+  // Used to detect whether the operator has customized shared memory from the seed default.
+  const { data: sharedIndexData } = useAdminData<{ file: { content: string } }>(
+    filesData ? "/v1/admin/files/shared/index.md" : null,
+    secret,
+  )
+
   const activePage = (PAGES.find((p) => location.pathname === "/" + p) ?? "files") as Page
 
-  // Redirect to setup wizard if shared/.setup-complete marker is missing
+  // Redirect to setup wizard if shared/index.md still contains the migration seed content.
+  // Any write via the wizard, CLI, or API modifies it → implicitly marks setup done.
   useEffect(() => {
-    if (!filesData) return
-    const hasSetupComplete = files.some((f) => f.physicalPath === "shared/.setup-complete")
-    if (!hasSetupComplete && location.pathname !== "/setup") {
+    if (!filesData || !sharedIndexData) return
+    const content = sharedIndexData.file?.content ?? ""
+    const isSetupDone = content.trim() !== SEED_SHARED_INDEX_MD.trim()
+    if (!isSetupDone && location.pathname !== "/setup") {
       navigate("/setup")
     }
-  }, [filesData, files, location.pathname, navigate])
+  }, [filesData, sharedIndexData, location.pathname, navigate])
 
   return (
     <Layout>
