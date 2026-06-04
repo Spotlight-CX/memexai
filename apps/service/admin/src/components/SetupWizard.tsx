@@ -12,6 +12,7 @@ import {
   Title,
 } from "@mantine/core"
 import { useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { AdminProfilePanel } from "./WelcomeModal"
 import welcomeImage from "../assets/welcome-memory.png"
 
@@ -240,6 +241,7 @@ function FileLabel(path: string, fallback: string) {
 }
 
 export function SetupWizard({ secret, onComplete }: { secret: string; onComplete: () => void }) {
+  const queryClient = useQueryClient()
   const [step, setStep] = useState<Step>(0)
   const [productDescription, setProductDescription] = useState("")
   const [domain, setDomain] = useState("")
@@ -325,6 +327,9 @@ export function SetupWizard({ secret, onComplete }: { secret: string; onComplete
           throw new Error(body?.error?.message ?? `Failed to write ${file.path}`)
         }
       }
+      // Invalidate the file list and shared/index.md content so the setup
+      // completion check in main.tsx sees fresh data when navigating away.
+      await queryClient.invalidateQueries()
       setStep(4)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Apply failed")
