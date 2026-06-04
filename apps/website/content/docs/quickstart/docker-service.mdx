@@ -143,7 +143,18 @@ OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-4.1-mini
 ```
 
-Without a service model, `memory_search` still works through Postgres full-text search. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.
+Without a service model, `memory_search` still works through Postgres full-text search, or hybrid pgvector search when embeddings are configured. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.
+
+## Search configuration
+
+MemexAI uses BM25 Postgres full-text search by default. With `MEMEX_SEARCH_MODE=auto` and a Gemini API key, the service also stores pgvector embeddings for memory files and runs hybrid BM25 + vector search with reciprocal rank fusion.
+
+```bash
+MEMEX_SEARCH_MODE=auto
+GEMINI_API_KEY=...
+```
+
+Set `MEMEX_SEARCH_MODE=bm25` to force full-text search only.
 
 ## Anonymous telemetry
 

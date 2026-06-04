@@ -29,7 +29,7 @@ const result = await memory.search("What does this user prefer?")
 console.log(result.answer ?? result.results)
 ```
 
-`memory.search()` falls back to Postgres full-text search when the service has no model configured. `memory.memorize()` requires a service-side model and returns `MODEL_NOT_CONFIGURED` when none is available.
+When the service has no model configured, `memory.search()` still works through Postgres full-text search, or hybrid pgvector search when embeddings are configured. `memory.memorize()` requires a service-side model and returns `MODEL_NOT_CONFIGURED` when none is available.
 
 ## Agentic Toolset
 

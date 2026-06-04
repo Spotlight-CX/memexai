@@ -24,6 +24,7 @@ const routes = [
   '/compare',
   '/compare/mem0',
   '/compare/zep',
+  '/compare/maximem',
   '/compare/vector-database',
   '/walkthroughs',
   '/legal/terms',

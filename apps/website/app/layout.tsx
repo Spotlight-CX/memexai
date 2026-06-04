@@ -32,6 +32,7 @@ export const metadata: Metadata = {
     'AI personalization',
     'Mem0 alternative',
     'Zep alternative',
+    'Maximem alternative',
   ],
   alternates: {
     canonical: '/',

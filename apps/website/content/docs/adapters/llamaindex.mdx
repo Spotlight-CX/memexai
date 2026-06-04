@@ -51,7 +51,7 @@ await memex.close()
 | `memory_write` | Create or overwrite a user file |
 | `memory_patch` | Apply targeted updates (append, replace) |
 | `memory_smart_read` | Read all memory into a bounded context block |
-| `memory_search` | BM25 full-text search over memory |
+| `memory_search` | BM25 or hybrid pgvector search over memory |
 | `memory_memorize` | Feed raw text and let MemexAI decide what to write |
 
 This example exposes all tools so you can see the full adapter shape. For most assistants, passing only `memory_memorize` and `memory_search` is enough. Include the full set when the agent needs direct file control.

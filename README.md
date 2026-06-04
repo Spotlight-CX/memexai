@@ -58,7 +58,7 @@ const tools = memory.createAgenticToolset()
 ```
 
 - `memory_memorize` extracts durable facts and writes or patches memory.
-- `memory_search` recalls relevant memory. Without a model, it falls back to Postgres full-text search. With a configured model, it resolves over memory files and returns grounded answers with source paths.
+- `memory_search` recalls relevant memory. Without a model, it falls back to Postgres full-text search or hybrid pgvector search when embeddings are configured. With a configured model, it resolves over memory files and returns grounded answers with source paths.
 
 ### Raw Tools: Explicit File Control
 
@@ -207,7 +207,7 @@ curl -s -X POST http://localhost:8080/v1/tools/memory_memorize/execute \
 bun run --cwd apps/benchmark docker-smoke -- --limit 1 --max-sessions 3
 ```
 
-Without a service model, `memory_search` still works through Postgres full-text search. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.
+Without a service model, `memory_search` still works through Postgres full-text search, or hybrid pgvector search when embeddings are configured. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.
 
 Open the admin UI at `http://localhost:8080/admin`.
 
@@ -443,7 +443,7 @@ bun run demo:agent -- --smoke
 
 ## Status
 
-Early stage. The core loop works: Postgres-backed files, scoped agent tools, prompt-block injection, Postgres full-text search, model-backed memorize/search, revisions, access logs, SDKs, and admin UI.
+Early stage. The core loop works: Postgres-backed files, scoped agent tools, prompt-block injection, Postgres full-text search, optional pgvector hybrid search, model-backed memorize/search, revisions, access logs, SDKs, and admin UI.
 
 ## Community
 

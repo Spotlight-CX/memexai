@@ -26,6 +26,7 @@ const shipped = [
   'TypeScript and Python SDKs',
   'MCP over SSE and stdio',
   'Scoped user/ and shared/ memory',
+  'Hybrid pgvector search with reciprocal rank fusion',
 ];
 
 const nextFeatures: RoadmapInterestFeature[] = [
@@ -97,12 +98,6 @@ const exploringFeatures: RoadmapInterestFeature[] = [
     title: 'Named mounts — team, org, workspace scopes',
     stage: 'Exploring',
     text: 'Register additional memory scopes at init time. A team agent writes to team/itinerary.md and user/prefs.md simultaneously — both isolated, both in the same call. No migration needed.',
-  },
-  {
-    id: 'vector-search',
-    title: 'Hybrid search with reciprocal rank fusion',
-    stage: 'Exploring',
-    text: 'Run BM25 and vector search in parallel, then combine results with Reciprocal Rank Fusion. Queries like "user prefers greenery" find memories written as "loves parks and open space" — no keyword overlap needed. BM25 results are preserved, not replaced. The embedding function is injected at init so there is no hard dependency on any provider. Falls back to BM25-only if no embed function is configured.',
   },
   {
     id: 'reranking-improvements',

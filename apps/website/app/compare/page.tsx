@@ -1,16 +1,16 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { ArrowRight, BookOpen, CheckCircle2, Database, FileClock, Network, Search, XCircle } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle2, Cloud, Database, FileClock, Network, Search, XCircle } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'MemexAI vs Mem0, Zep, and Vector Memory',
+  title: 'MemexAI vs Mem0, Zep, Maximem, and Vector Memory',
   description:
-    'Compare MemexAI with Mem0, Zep, and vector-store memory for AI products that need persistent, inspectable user memory.',
+    'Compare MemexAI with Mem0, Zep, Maximem, and vector-store memory for AI products that need persistent, inspectable user memory.',
   alternates: {
     canonical: '/compare',
   },
   openGraph: {
-    title: 'MemexAI vs Mem0, Zep, and Vector Memory',
+    title: 'MemexAI vs Mem0, Zep, Maximem, and Vector Memory',
     description:
       'A practical comparison for AI products choosing between inspectable memory files, vector retrieval, and graph memory.',
     url: 'https://memexai.space/compare',
@@ -61,7 +61,7 @@ export default function ComparePage() {
             <Database size={15} aria-hidden />
             AI memory comparison
           </div>
-          <h1>MemexAI vs Mem0, Zep, and vector-store memory.</h1>
+          <h1>MemexAI vs Mem0, Zep, Maximem, and vector-store memory.</h1>
           <p className="section-lede">
             Most memory tools optimize for retrieving old text. MemexAI optimizes for maintaining a clean, inspectable
             model of each user that your AI product can read, update, and trust.
@@ -82,9 +82,9 @@ export default function ComparePage() {
         <div className="section-kicker">Short version</div>
         <h2>If memory changes behavior, memory has to be legible.</h2>
         <p className="section-lede">
-          Mem0, Zep, and vector databases can be good retrieval systems. MemexAI is different: it gives the agent
-          scoped memory files in Postgres, then records revisions and reads so your team can operate memory like product
-          data and behavioral context.
+          Mem0, Zep, Maximem, and vector databases can be good retrieval systems. MemexAI is different: it gives the
+          agent scoped memory files in Postgres, then records revisions and reads so your team can operate memory like
+          product data and behavioral context.
         </p>
 
         <div className="compare-table" role="table" aria-label="AI memory comparison table">
@@ -200,6 +200,11 @@ export default function ComparePage() {
             <Network size={24} aria-hidden />
             <h3>MemexAI vs Zep</h3>
             <p>For teams comparing graph-oriented memory against a self-hosted user memory workspace.</p>
+          </Link>
+          <Link className="feature link-card" href="/compare/maximem">
+            <Cloud size={24} aria-hidden />
+            <h3>MemexAI vs Maximem</h3>
+            <p>For teams comparing managed graph/vector memory against Postgres-native memory records.</p>
           </Link>
           <Link className="feature link-card" href="/compare/vector-database">
             <Database size={24} aria-hidden />

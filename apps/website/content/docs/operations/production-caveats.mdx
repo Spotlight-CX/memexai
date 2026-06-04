@@ -31,11 +31,13 @@ This removes old revision snapshots only. Current file contents and access logs 
 
 Automated retention and retention settings in the admin UI are on the roadmap.
 
-## Search language support
+## Search modes
 
-The built-in fallback search uses Postgres full-text search. It is useful for English-like keyword search and simple durable memory recall, but it is not semantic search and it does not guarantee strong recall across all languages, paraphrases, or domain-specific phrasing.
+The built-in fallback search uses Postgres full-text search. It is useful for English-like keyword search and simple durable memory recall, but by itself it is not semantic search and it does not guarantee strong recall across all languages, paraphrases, or domain-specific phrasing.
 
-If recall quality is critical, configure model-backed `memory_search`, keep memory files clear and explicit, and test your app's real queries. Hybrid vector and Postgres full-text search is a roadmap item.
+In service mode, `MEMEX_SEARCH_MODE=auto` enables pgvector-backed hybrid search when a Gemini API key is configured. Hybrid search keeps BM25 results and adds semantic candidates inside Postgres using reciprocal rank fusion. If no embedding adapter is configured, MemexAI falls back to BM25-only search.
+
+If recall quality is critical, configure hybrid search and model-backed `memory_search`, keep memory files clear and explicit, and test your app's real queries.
 
 ## Dreaming token cost
 

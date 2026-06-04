@@ -21,6 +21,7 @@ const footerGroups = [
       { label: 'AI memory tools', href: '/compare' },
       { label: 'Mem0 alternative', href: '/compare/mem0' },
       { label: 'Zep alternative', href: '/compare/zep' },
+      { label: 'Maximem alternative', href: '/compare/maximem' },
       { label: 'Vector DB alternative', href: '/compare/vector-database' },
     ],
   },
