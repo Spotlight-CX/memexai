@@ -1,6 +1,8 @@
 import Fastify, { type FastifyInstance } from "fastify"
+import swagger from "@fastify/swagger"
 import { ZodError } from "zod"
 import { getAdminFile, listAdminAccessLogs, listAdminDreamUsers, listAdminFiles, listAdminRevisions, listAdminUsers, pruneAdminRevisions, writeAdminFile } from "./admin"
+import { getDoc, listDocs } from "./docs"
 import { handleConfigureChat } from "./admin-configure"
 import {
   getFileObservability,
@@ -22,6 +24,7 @@ import type { Db } from "./db"
 import { errorResponse, HttpError } from "./errors"
 import { buildPromptBlock } from "./prompt-block"
 import { executeToolRequestSchema, promptBlockQuerySchema } from "./schemas"
+import { searchStatus, type SearchRuntime } from "./search-config"
 import { executeTool, listTools } from "./tools"
 import { registerAdminStaticRoutes } from "./static-admin"
 import { countBucket, createNoopTelemetry, durationBucket, type TelemetryClient } from "./telemetry"
@@ -30,9 +33,11 @@ import { newId } from "./ids"
 import { activeMcpSessions, createConnectionScopedMcpServer } from "./mcp"
 import { readDreamConfig, runDreamCycle, triggerUserDream } from "@memexai/core"
 
-export function buildServer(input: { db: Db; config: Config; model?: unknown; telemetry?: TelemetryClient }): FastifyInstance {
+export async function buildServer(input: { db: Db; config: Config; model?: unknown; telemetry?: TelemetryClient; search?: SearchRuntime }): Promise<FastifyInstance> {
   const app = Fastify({ logger: true })
   const { db, config } = input
+  const searchRuntime = input.search
+  const embeddingOptions = () => searchRuntime?.mode === "hybrid" ? searchRuntime.embedding : undefined
   const telemetry = input.telemetry ?? createNoopTelemetry()
   const apiAuth = requireApiKey(config.MEMEX_API_KEY)
   const adminAuth = requireAdminSecret(config.MEMEX_ADMIN_SECRET)
@@ -48,6 +53,37 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
     }
     throw new HttpError(401, "UNAUTHORIZED", "Missing or invalid API key")
   }
+
+  await app.register(swagger, {
+    openapi: {
+      openapi: "3.0.3",
+      info: {
+        title: "MemexAI Admin API",
+        description: "Admin API for inspecting and managing MemexAI agent memory. All /v1/admin/* routes require x-memex-admin-secret header. All /v1/* agent routes require Authorization: Bearer <key>.",
+        version: "1.0.0",
+      },
+      components: {
+        securitySchemes: {
+          adminSecret: { type: "apiKey", in: "header", name: "x-memex-admin-secret" },
+          agentKey: { type: "http", scheme: "bearer" },
+        },
+      },
+      tags: [
+        { name: "admin-users", description: "User management" },
+        { name: "admin-files", description: "Memory file management" },
+        { name: "admin-revisions", description: "Revision history and time-travel" },
+        { name: "admin-logs", description: "Access log inspection" },
+        { name: "admin-dream", description: "Dream cycle management" },
+        { name: "admin-observability", description: "Observability and analytics" },
+        { name: "admin-setup", description: "Memory bootstrap and setup" },
+        { name: "agent-tools", description: "Agent memory tools" },
+        { name: "health", description: "Health checks" },
+      ],
+    },
+  })
+
+  // Expose spec at /v1/openapi.json (admin auth)
+  app.get("/v1/openapi.json", { preHandler: adminAuth }, async () => app.swagger())
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {
@@ -86,7 +122,13 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
     const transport = new SSEServerTransport(`/v1/mcp/messages?connectionId=${connectionId}`, reply.raw)
 
     const ctx = { userId, actor }
-    const mcpServer = createConnectionScopedMcpServer(db, ctx, input.model)
+    const mcpServer = createConnectionScopedMcpServer(db, ctx, {
+      model: input.model,
+      ...embeddingOptions(),
+      rrfK: searchRuntime?.rrfK,
+      bm25CandidateLimit: searchRuntime?.bm25CandidateLimit,
+      vectorCandidateLimit: searchRuntime?.vectorCandidateLimit,
+    })
 
     await mcpServer.connect(transport)
     telemetry.capture("mcp_session_started", { transport: "sse" })
@@ -136,7 +178,13 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
     try {
       const body = executeToolRequestSchema.parse(request.body)
       context = body.context
-      const result = await executeTool(db, params.toolName, body.arguments, body.context, { model: input.model })
+      const result = await executeTool(db, params.toolName, body.arguments, body.context, {
+        model: input.model,
+        ...embeddingOptions(),
+        rrfK: searchRuntime?.rrfK,
+        bm25CandidateLimit: searchRuntime?.bm25CandidateLimit,
+        vectorCandidateLimit: searchRuntime?.vectorCandidateLimit,
+      })
       await recordObservationEvent(db, {
         eventType: "tool_execution",
         status: "success",
@@ -239,31 +287,107 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
     }
   })
 
-  app.get("/v1/admin/health", { preHandler: adminAuth }, async () => ({ ok: true, admin: true }))
-  app.get("/v1/admin/users", { preHandler: adminAuth }, async (request) => {
+  app.get("/v1/admin/health", { preHandler: adminAuth, schema: { tags: ["health"], summary: "Admin health check" } }, async () => ({ ok: true, admin: true }))
+  app.get("/v1/admin/search/status", { preHandler: adminAuth }, async () => {
+    return searchRuntime
+      ? searchStatus(searchRuntime)
+      : { mode: "bm25", provider: null, model: null, dimensions: null }
+  })
+  app.get("/v1/admin/users", {
+    preHandler: adminAuth,
+    schema: {
+      tags: ["admin-users"],
+      summary: "List all users with file counts and activity timestamps",
+      querystring: {
+        type: "object",
+        properties: {
+          q: { type: "string", description: "Filter by userId substring (case-insensitive)" },
+          limit: { type: "integer", minimum: 1, maximum: 200, description: "Max results (default 50)" },
+        },
+      },
+    },
+  }, async (request) => {
     const query = request.query as { q?: string; limit?: string }
     const limit = query.limit ? Number(query.limit) : undefined
     return listAdminUsers(db, { q: query.q, limit })
   })
-  app.get("/v1/admin/files", { preHandler: adminAuth }, async (request) => {
-    const query = request.query as { prefix?: string }
-    return listAdminFiles(db, { prefix: query.prefix })
+  app.get("/v1/admin/files", {
+    preHandler: adminAuth,
+    schema: {
+      tags: ["admin-files"],
+      summary: "List memory files",
+      querystring: {
+        type: "object",
+        properties: {
+          prefix: { type: "string", description: "Filter by path prefix (e.g. shared/ or users/alice/)" },
+          asOf: { type: "string", format: "date-time", description: "Return file state at this timestamp (time-travel)" },
+        },
+      },
+    },
+  }, async (request) => {
+    const query = request.query as { prefix?: string; asOf?: string }
+    return listAdminFiles(db, { prefix: query.prefix, asOf: parseAsOf(query.asOf) })
   })
   app.get("/v1/admin/files/:physicalPath/observability", { preHandler: adminAuth }, async (request) => {
     const params = request.params as { physicalPath: string }
     const query = request.query as { bucket?: string }
     return getFileObservability(db, decodeURIComponent(params.physicalPath), { bucket: query.bucket })
   })
-  app.get("/v1/admin/files/*", { preHandler: adminAuth }, async (request) => {
+  app.get("/v1/admin/files/*", {
+    preHandler: adminAuth,
+    schema: {
+      tags: ["admin-files"],
+      summary: "Get a memory file by physical path",
+      description: "Returns full content, metadata, latest revision info, and revision count",
+    },
+  }, async (request) => {
     const params = request.params as { "*": string }
-    return getAdminFile(db, decodeURIComponent(params["*"]))
+    const query = request.query as { asOf?: string }
+    return getAdminFile(db, decodeURIComponent(params["*"]), {
+      asOf: parseAsOf(query.asOf),
+      embedding: embeddingOptions(),
+      includeEmbedding: searchRuntime?.mode === "hybrid",
+    })
   })
-  app.put("/v1/admin/files/*", { preHandler: adminAuth }, async (request) => {
+  app.put("/v1/admin/files/*", {
+    preHandler: adminAuth,
+    schema: {
+      tags: ["admin-files"],
+      summary: "Write or overwrite a memory file",
+      body: {
+        type: "object",
+        required: ["content"],
+        properties: {
+          content: { type: "string", description: "File content (Markdown)" },
+          reason: { type: "string", description: "Reason for write (stored in revision history)" },
+        },
+      },
+    },
+  }, async (request) => {
     const params = request.params as { "*": string }
     const { content, reason } = request.body as { content: string; reason?: string }
-    return writeAdminFile(db, decodeURIComponent(params["*"]), content, reason)
+    return writeAdminFile(db, decodeURIComponent(params["*"]), content, reason, embeddingOptions())
   })
-  app.get("/v1/admin/revisions", { preHandler: adminAuth }, async (request) => {
+  app.get("/v1/admin/revisions", {
+    preHandler: adminAuth,
+    schema: {
+      tags: ["admin-revisions"],
+      summary: "List revision history",
+      description: "Full write audit trail. Use physicalPath to get time-travel snapshots. tool_call_id links to access logs for agentic tracing.",
+      querystring: {
+        type: "object",
+        properties: {
+          physicalPath: { type: "string", description: "Filter by exact physical path" },
+          userId: { type: "string", description: "Filter by userId" },
+          actor: { type: "string", description: "Filter by actor (e.g. dream-agent, admin)" },
+          from: { type: "string", format: "date-time", description: "Start timestamp (ISO 8601)" },
+          to: { type: "string", format: "date-time", description: "End timestamp (ISO 8601)" },
+          limit: { type: "integer", minimum: 1, maximum: 200 },
+          offset: { type: "integer", minimum: 0 },
+        },
+      },
+    },
+  }, async (request) => {
     const query = request.query as {
       physicalPath?: string
       actor?: string
@@ -287,9 +411,44 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
     const { olderThanDays } = (request.body ?? {}) as { olderThanDays?: number }
     return pruneAdminRevisions(db, { olderThanDays: Number(olderThanDays) })
   })
-  app.get("/v1/admin/access-logs", { preHandler: adminAuth }, async (request) => {
-    const query = request.query as { physicalPath?: string }
-    return listAdminAccessLogs(db, { physicalPath: query.physicalPath })
+  app.get("/v1/admin/access-logs", {
+    preHandler: adminAuth,
+    schema: {
+      tags: ["admin-logs"],
+      summary: "List access logs (reads and writes)",
+      description: "Every memory tool call is logged here. Use toolCallId to correlate with revisions for agentic tracing.",
+      querystring: {
+        type: "object",
+        properties: {
+          physicalPath: { type: "string", description: "Filter by exact physical path" },
+          userId: { type: "string" },
+          toolCallId: { type: "string", description: "Filter by tool call ID for agentic tracing" },
+          from: { type: "string", format: "date-time" },
+          to: { type: "string", format: "date-time" },
+          limit: { type: "integer", minimum: 1, maximum: 500 },
+          offset: { type: "integer", minimum: 0 },
+        },
+      },
+    },
+  }, async (request) => {
+    const query = request.query as {
+      physicalPath?: string
+      userId?: string
+      toolCallId?: string
+      from?: string
+      to?: string
+      limit?: string
+      offset?: string
+    }
+    return listAdminAccessLogs(db, {
+      physicalPath: query.physicalPath,
+      userId: query.userId,
+      toolCallId: query.toolCallId,
+      from: query.from,
+      to: query.to,
+      limit: query.limit ? Number(query.limit) : undefined,
+      offset: query.offset ? Number(query.offset) : undefined,
+    })
   })
   app.get("/v1/admin/observability/summary", { preHandler: adminAuth }, async (request) => {
     return getObservabilitySummary(db, parseObservabilityQuery(request.query))
@@ -461,6 +620,13 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
     return handleConfigureChat(db, input.model, { message, history: (history ?? []) as Array<{ role: "user" | "assistant"; content: string }> })
   })
 
+  // Public docs endpoint — no auth required
+  app.get("/v1/docs", async () => listDocs())
+  app.get("/v1/docs/*", async (request) => {
+    const params = request.params as { "*": string }
+    return getDoc(decodeURIComponent(params["*"]))
+  })
+
   registerAdminStaticRoutes(app)
 
   return app
@@ -504,6 +670,7 @@ function observationAttributesForResult(result: unknown): Record<string, unknown
 function adminRouteGroup(url: string): string | null {
   if (!url.startsWith("/v1/admin/")) return null
   if (url.startsWith("/v1/admin/dream/")) return "dreams"
+  if (url.startsWith("/v1/admin/search")) return "search"
   if (url.startsWith("/v1/admin/observability")) return "observability"
   if (url.startsWith("/v1/admin/files")) return "files"
   if (url.startsWith("/v1/admin/revisions")) return "revisions"
@@ -531,4 +698,13 @@ function parseObservabilityQuery(query: unknown): ObservabilityFilters {
     limit: input.limit ? Number(input.limit) : undefined,
     offset: input.offset ? Number(input.offset) : undefined,
   }
+}
+
+function parseAsOf(value: string | undefined): Date | undefined {
+  if (!value) return undefined
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) {
+    throw new HttpError(400, "INVALID_AS_OF", "asOf must be a valid UTC ISO timestamp")
+  }
+  return date
 }

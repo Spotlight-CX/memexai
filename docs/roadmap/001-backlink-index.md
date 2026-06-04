@@ -1,6 +1,6 @@
 # Bidirectional Backlink Index with Hub Scoring
 
-## Status: Planned
+## Status: Done — shipped 2026-06-01 (`feat(core): bidirectional backlink index with hub scoring`, commit `62303d6`)
 
 ## Problem
 

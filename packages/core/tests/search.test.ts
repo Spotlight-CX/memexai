@@ -26,6 +26,11 @@ describe("executeMemorySearch", () => {
 
     expect(result.query).toBe("neighborhood")
     expect(result.results.map((item) => item.path)).toEqual(["user/profile.md", "shared/index.md"])
+    expect(result.results[0]).toMatchObject({
+      matchReason: "lexical",
+      bm25Rank: 1,
+      bm25Score: 0.4,
+    })
     expect(result.truncated).toBe(false)
   })
 

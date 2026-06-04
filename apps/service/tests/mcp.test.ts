@@ -14,7 +14,7 @@ const config = {
   MEMEX_ADMIN_SECRET: "admin-secret",
 }
 
-async function listenOnRandomPort(app: ReturnType<typeof buildServer>) {
+async function listenOnRandomPort(app: Awaited<ReturnType<typeof buildServer>>) {
   const address = await app.listen({ port: 0, host: "127.0.0.1" })
   return new URL(address)
 }
@@ -29,7 +29,7 @@ afterEach(async () => {
 describe("MCP Routes", () => {
   test("returns 401 on /v1/mcp/sse without auth", async () => {
     const { db } = createMemoryDb()
-    const app = buildServer({ db: db as never, config })
+    const app = await buildServer({ db: db as never, config })
 
     const response = await app.inject({
       method: "GET",
@@ -42,7 +42,7 @@ describe("MCP Routes", () => {
 
   test("returns 401 on /v1/mcp/messages without auth", async () => {
     const { db } = createMemoryDb()
-    const app = buildServer({ db: db as never, config })
+    const app = await buildServer({ db: db as never, config })
 
     const response = await app.inject({
       method: "POST",
@@ -55,7 +55,7 @@ describe("MCP Routes", () => {
 
   test("returns 400 on /v1/mcp/messages without connectionId", async () => {
     const { db } = createMemoryDb()
-    const app = buildServer({ db: db as never, config })
+    const app = await buildServer({ db: db as never, config })
 
     const response = await app.inject({
       method: "POST",
@@ -71,7 +71,7 @@ describe("MCP Routes", () => {
 
   test("returns 404 on /v1/mcp/messages with valid auth but unknown connectionId", async () => {
     const { db } = createMemoryDb()
-    const app = buildServer({ db: db as never, config })
+    const app = await buildServer({ db: db as never, config })
 
     const response = await app.inject({
       method: "POST",
@@ -86,7 +86,7 @@ describe("MCP Routes", () => {
 
   test("lists and calls tools over real MCP SSE transport", async () => {
     const { db, files } = createMemoryDb()
-    const app = buildServer({ db: db as never, config })
+    const app = await buildServer({ db: db as never, config })
     const baseUrl = await listenOnRandomPort(app)
     const client = new Client({ name: "memexai-test", version: "0.1.0" })
     const transport = new SSEClientTransport(new URL("/v1/mcp/sse?apiKey=agent-key&userId=user_test&actor=tester", baseUrl), {
@@ -126,7 +126,7 @@ describe("MCP Routes", () => {
 
   test("removes active SSE sessions when the client closes", async () => {
     const { db } = createMemoryDb()
-    const app = buildServer({ db: db as never, config })
+    const app = await buildServer({ db: db as never, config })
     const baseUrl = await listenOnRandomPort(app)
     const client = new Client({ name: "memexai-test", version: "0.1.0" })
     const transport = new SSEClientTransport(new URL("/v1/mcp/sse?apiKey=agent-key&userId=user_cleanup", baseUrl), {

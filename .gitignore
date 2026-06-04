@@ -1,6 +1,8 @@
 node_modules
 dist
 coverage
+storybook-static
+tmp/agent-browser-shots/
 .env
 .env.vertex.local
 .secrets/

@@ -1,6 +1,7 @@
 import type { Db } from "./db"
 import { HttpError } from "./errors"
 import { newId } from "./ids"
+import { SearchError, contentHash, prepareFileEmbedding, storePreparedEmbedding, type EmbeddingConfig } from "@memexai/search"
 
 type QueryResult<T> = { rows: T[] }
 const DREAM_STATUSES = new Set(["idle", "running", "completed", "failed"])
@@ -70,8 +71,26 @@ export async function listAdminUsers(db: Db, input: { q?: string; limit?: number
   }
 }
 
-export async function listAdminFiles(db: Db, input: { prefix?: string }) {
+export async function listAdminFiles(db: Db, input: { prefix?: string; asOf?: Date }) {
   const prefix = input.prefix?.trim()
+  if (input.asOf) {
+    const values: unknown[] = [input.asOf]
+    const filters = ["created_at <= $1"]
+    if (prefix) {
+      values.push(prefix, `${prefix.endsWith("/") ? prefix : `${prefix}/`}%`)
+      filters.push(`(physical_path = $${values.length - 1} OR physical_path LIKE $${values.length})`)
+    }
+    const { rows } = await db.query<AdminRevisionFileRow>(
+      `SELECT DISTINCT ON (physical_path)
+         id, file_id, physical_path, content_text, created_at, operation, actor, reason, user_id, tool_call_id
+       FROM mx_revision
+       WHERE ${filters.join(" AND ")}
+       ORDER BY physical_path ASC, created_at DESC, id DESC`,
+      values,
+    )
+    return { files: rows.map(toHistoricalAdminFileSummary) }
+  }
+
   const query = prefix
     ? db.query<AdminFileRow>(
         `SELECT id, physical_path, content_text, created_at, updated_at
@@ -90,8 +109,39 @@ export async function listAdminFiles(db: Db, input: { prefix?: string }) {
   return { files: rows.map(toAdminFileSummary) }
 }
 
-export async function getAdminFile(db: Db, physicalPath: string) {
+export async function getAdminFile(db: Db, physicalPath: string, input: { asOf?: Date; includeEmbedding?: boolean; embedding?: EmbeddingConfig } = {}) {
   if (!physicalPath) throw new HttpError(400, "PHYSICAL_PATH_REQUIRED", "physicalPath is required")
+
+  if (input.asOf) {
+    const { rows } = await db.query<AdminRevisionFileRow>(
+      `SELECT id, file_id, physical_path, content_text, created_at, operation, actor, reason, user_id, tool_call_id
+       FROM mx_revision
+       WHERE physical_path = $1 AND created_at <= $2
+       ORDER BY created_at DESC, id DESC
+       LIMIT 1`,
+      [physicalPath, input.asOf],
+    )
+
+    const revision = rows[0]
+    if (!revision) throw new HttpError(404, "FILE_NOT_FOUND", `File not found at selected timestamp: ${physicalPath}`)
+
+    return {
+      file: {
+        ...toHistoricalAdminFileSummary(revision),
+        content: revision.content_text,
+        latestRevision: toRevisionMeta(revision),
+        matchedRevision: toMatchedRevisionMeta(revision),
+        revisionCount: 1,
+      },
+    }
+  }
+
+  const embeddingSelect = input.includeEmbedding
+    ? `f.embedding_model, f.embedding_dimensions, f.embedding_strategy,
+       f.embedding_chunk_count, f.embedding_content_hash, f.embedding_updated_at,`
+    : `NULL::text AS embedding_model, NULL::integer AS embedding_dimensions,
+       NULL::text AS embedding_strategy, NULL::integer AS embedding_chunk_count,
+       NULL::text AS embedding_content_hash, NULL::timestamptz AS embedding_updated_at,`
 
   const { rows } = await db.query<AdminFileRow & {
     latest_op: string | null
@@ -102,6 +152,7 @@ export async function getAdminFile(db: Db, physicalPath: string) {
   }>(
     `SELECT
        f.id, f.physical_path, f.content_text, f.created_at, f.updated_at,
+       ${embeddingSelect}
        r.operation AS latest_op, r.actor AS latest_actor,
        r.reason AS latest_reason, r.created_at AS latest_rev_at,
        (SELECT COUNT(*) FROM mx_revision WHERE file_id = f.id) AS revision_count
@@ -122,7 +173,7 @@ export async function getAdminFile(db: Db, physicalPath: string) {
 
   return {
     file: {
-      ...toAdminFileSummary(file),
+        ...toAdminFileSummary(file, input.includeEmbedding ? input.embedding : undefined),
       content: file.content_text,
       latestRevision: file.latest_op
         ? {
@@ -307,9 +358,17 @@ export async function writeAdminFile(
   physicalPath: string,
   content: string,
   reason?: string,
+  embedding?: EmbeddingConfig,
 ) {
   if (!physicalPath) throw new HttpError(400, "PHYSICAL_PATH_REQUIRED", "physicalPath is required")
   if (typeof content !== "string") throw new HttpError(400, "CONTENT_REQUIRED", "content is required")
+  let preparedEmbedding
+  try {
+    preparedEmbedding = await prepareFileEmbedding(content, embedding)
+  } catch (error) {
+    if (error instanceof SearchError) throw new HttpError(400, error.code, error.message)
+    throw error
+  }
 
   const { rows } = await db.query<{ id: string; created: boolean }>(
     `INSERT INTO mx_file (id, physical_path, content_text)
@@ -321,6 +380,7 @@ export async function writeAdminFile(
   )
 
   const file = rows[0]
+  await storePreparedEmbedding(db, file.id, preparedEmbedding)
   await db.query(
     `INSERT INTO mx_revision (id, file_id, physical_path, operation, content_text, reason, actor, user_id, tool_call_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
@@ -330,24 +390,51 @@ export async function writeAdminFile(
   return { physicalPath, created: file.created, updated: !file.created }
 }
 
-export async function listAdminAccessLogs(db: Db, input: { physicalPath?: string }) {
-  const query = input.physicalPath
-    ? db.query<AdminAccessLogRow>(
-        `SELECT id, file_id, physical_path, operation, actor, user_id, tool_call_id, created_at
-         FROM mx_access_log
-         WHERE physical_path = $1
-         ORDER BY created_at DESC
-         LIMIT 300`,
-        [input.physicalPath],
-      )
-    : db.query<AdminAccessLogRow>(
-        `SELECT id, file_id, physical_path, operation, actor, user_id, tool_call_id, created_at
-         FROM mx_access_log
-         ORDER BY created_at DESC
-         LIMIT 300`,
-      )
+export async function listAdminAccessLogs(db: Db, input: {
+  physicalPath?: string
+  userId?: string
+  toolCallId?: string
+  from?: string
+  to?: string
+  limit?: number
+  offset?: number
+} = {}) {
+  const values: unknown[] = []
+  const filters: string[] = []
+  const limit = clampInt(input.limit, 200, 1, 500)
+  const offset = clampInt(input.offset, 0, 0, 100_000)
 
-  const { rows } = await query
+  if (input.physicalPath) {
+    values.push(input.physicalPath)
+    filters.push(`physical_path = $${values.length}`)
+  }
+  if (input.userId) {
+    values.push(input.userId)
+    filters.push(`user_id = $${values.length}`)
+  }
+  if (input.toolCallId) {
+    values.push(input.toolCallId)
+    filters.push(`tool_call_id = $${values.length}`)
+  }
+  addDateFilter(filters, values, "created_at", ">=", input.from)
+  addDateFilter(filters, values, "created_at", "<=", input.to)
+
+  const where = filters.length ? `WHERE ${filters.join(" AND ")}` : ""
+  const totalValues = [...values]
+  const { rows: countRows } = await db.query<{ total: string }>(
+    `SELECT COUNT(*) AS total FROM mx_access_log ${where}`,
+    totalValues,
+  )
+  values.push(limit, offset)
+  const { rows } = await db.query<AdminAccessLogRow>(
+    `SELECT id, file_id, physical_path, operation, actor, user_id, tool_call_id, created_at
+     FROM mx_access_log
+     ${where}
+     ORDER BY created_at DESC
+     LIMIT $${values.length - 1} OFFSET $${values.length}`,
+    values,
+  )
+  const total = Number(countRows[0]?.total ?? 0)
   return {
     accessLogs: rows.map((row) => ({
       id: row.id,
@@ -359,6 +446,12 @@ export async function listAdminAccessLogs(db: Db, input: { physicalPath?: string
       toolCallId: row.tool_call_id,
       createdAt: row.created_at,
     })),
+    pagination: {
+      limit,
+      offset,
+      total,
+      hasMore: offset + limit < total,
+    },
   }
 }
 
@@ -368,9 +461,28 @@ type AdminFileRow = {
   content_text: string
   created_at: Date
   updated_at: Date
+  embedding_model?: string | null
+  embedding_dimensions?: number | null
+  embedding_strategy?: string | null
+  embedding_chunk_count?: number | null
+  embedding_content_hash?: string | null
+  embedding_updated_at?: Date | null
 }
 
 type AdminRevisionRow = {
+  id: string
+  file_id: string
+  physical_path: string
+  operation: string
+  content_text: string
+  reason: string | null
+  actor: string | null
+  user_id: string | null
+  tool_call_id: string | null
+  created_at: Date
+}
+
+type AdminRevisionFileRow = {
   id: string
   file_id: string
   physical_path: string
@@ -406,13 +518,66 @@ type AdminDreamRunRow = {
   updated_at: Date
 }
 
-function toAdminFileSummary(row: AdminFileRow) {
+function embeddingStatus(row: AdminFileRow, embedding?: EmbeddingConfig): "fresh" | "missing" | "stale" | undefined {
+  if (!embedding?.adapter) return undefined
+  if (!row.embedding_content_hash) return "missing"
+  if (row.embedding_model !== embedding.adapter.model) return "stale"
+  if (row.embedding_dimensions !== embedding.adapter.dimensions) return "stale"
+  if (row.embedding_content_hash !== contentHash(row.content_text)) return "stale"
+  return "fresh"
+}
+
+function toAdminFileSummary(row: AdminFileRow, embedding?: EmbeddingConfig) {
+  const status = embeddingStatus(row, embedding)
   return {
     id: row.id,
     physicalPath: row.physical_path,
     size: row.content_text.length,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    ...(status
+      ? {
+          embeddingStatus: status,
+          embeddingModel: row.embedding_model,
+          embeddingDimensions: row.embedding_dimensions,
+          embeddingStrategy: row.embedding_strategy,
+          embeddingChunkCount: row.embedding_chunk_count,
+          embeddingUpdatedAt: row.embedding_updated_at,
+        }
+      : {}),
+  }
+}
+
+function toHistoricalAdminFileSummary(row: AdminRevisionFileRow) {
+  return {
+    id: row.file_id,
+    physicalPath: row.physical_path,
+    size: row.content_text.length,
+    createdAt: row.created_at,
+    updatedAt: row.created_at,
+    matchedRevision: toMatchedRevisionMeta(row),
+  }
+}
+
+function toRevisionMeta(row: AdminRevisionFileRow) {
+  return {
+    operation: row.operation,
+    actor: row.actor,
+    reason: row.reason,
+    createdAt: row.created_at,
+  }
+}
+
+function toMatchedRevisionMeta(row: AdminRevisionFileRow) {
+  return {
+    id: row.id,
+    fileId: row.file_id,
+    operation: row.operation,
+    actor: row.actor,
+    reason: row.reason,
+    userId: row.user_id,
+    toolCallId: row.tool_call_id,
+    createdAt: row.created_at,
   }
 }
 

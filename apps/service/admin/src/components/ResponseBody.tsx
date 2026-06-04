@@ -10,6 +10,72 @@ function asString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null
 }
 
+function asNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function formatScore(value: number): string {
+  if (Math.abs(value) >= 0.01) return value.toFixed(4).replace(/0+$/, "").replace(/\.$/, "")
+  return value.toPrecision(3)
+}
+
+function searchReasonColor(reason: string | null): string {
+  if (reason === "semantic") return "grape"
+  if (reason === "hybrid") return "teal"
+  return "blue"
+}
+
+function SearchRankBadges({ result, sourcePaths }: { result: JsonObject; sourcePaths: Set<string> }) {
+  const reason = asString(result.matchReason)
+  const path = asString(result.path)
+  const fusedScore = asNumber(result.rank)
+  const bm25Rank = asNumber(result.bm25Rank)
+  const vectorRank = asNumber(result.vectorRank)
+  const bm25Score = asNumber(result.bm25Score)
+  const vectorDistance = asNumber(result.vectorDistance)
+  const wasRead = path !== null && sourcePaths.has(path)
+
+  return (
+    <Group gap={4} justify="flex-end">
+      {wasRead && (
+        <Badge size="xs" color="green" variant="light">
+          read by resolver
+        </Badge>
+      )}
+      {reason && (
+        <Badge size="xs" color={searchReasonColor(reason)} variant="light">
+          {reason} candidate
+        </Badge>
+      )}
+      {bm25Rank !== null && (
+        <Badge size="xs" color="blue" variant="light">
+          BM25 #{bm25Rank}
+        </Badge>
+      )}
+      {vectorRank !== null && (
+        <Badge size="xs" color="grape" variant="light">
+          vector #{vectorRank}
+        </Badge>
+      )}
+      {fusedScore !== null && (
+        <Badge size="xs" variant="light">
+          retrieval {formatScore(fusedScore)}
+        </Badge>
+      )}
+      {bm25Score !== null && (
+        <Badge size="xs" color="blue" variant="outline">
+          bm25 {formatScore(bm25Score)}
+        </Badge>
+      )}
+      {vectorDistance !== null && (
+        <Badge size="xs" color="grape" variant="outline">
+          dist {formatScore(vectorDistance)}
+        </Badge>
+      )}
+    </Group>
+  )
+}
+
 function formatResultFlags(result: unknown) {
   if (!isObject(result)) return []
   return [
@@ -104,6 +170,7 @@ function SearchResponse({ body }: { body: JsonObject }) {
   const results = Array.isArray(body.results) ? body.results.filter(isObject) : []
   const answer = asString(body.answer)
   const sources = Array.isArray(body.sources) ? body.sources.filter((source): source is string => typeof source === "string" && source.trim() !== "") : []
+  const sourcePaths = new Set(sources)
   const truncated = typeof body.truncated === "boolean" ? body.truncated : false
 
   return (
@@ -136,10 +203,15 @@ function SearchResponse({ body }: { body: JsonObject }) {
 
       {results.map((result, index) => (
         <Paper key={`${asString(result.path) ?? "result"}-${index}`} withBorder radius={8} p="sm">
-          <Group justify="space-between" gap="xs">
-            <Text size="sm" fw={700} style={{ fontFamily: "monospace" }}>{asString(result.path) ?? "memory"}</Text>
-            {typeof result.rank === "number" && <Badge size="xs" variant="light">rank {result.rank}</Badge>}
+          <Group justify="space-between" gap="xs" align="flex-start">
+            <Text size="sm" fw={700} style={{ fontFamily: "monospace", minWidth: 0 }}>{asString(result.path) ?? "memory"}</Text>
+            <SearchRankBadges result={result} sourcePaths={sourcePaths} />
           </Group>
+          {index === 0 && (
+            <Text size="xs" c="dimmed" mt={6}>
+              Ranking shown here is retrieval-stage candidate scoring, before the resolver reads files and assembles the answer.
+            </Text>
+          )}
           {asString(result.snippet) && (
             <Text size="sm" mt="xs" style={{ whiteSpace: "pre-wrap" }}>{asString(result.snippet)}</Text>
           )}

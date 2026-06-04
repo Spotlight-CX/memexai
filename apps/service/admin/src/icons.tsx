@@ -1,3 +1,5 @@
+import React from "react"
+
 export function ChevronIcon({ expanded }: { expanded: boolean }) {
   return (
     <svg

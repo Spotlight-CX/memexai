@@ -1,0 +1,27 @@
+{
+  "name": "@memexai/search",
+  "version": "0.1.5",
+  "description": "Search and embedding primitives for MemexAI.",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "package.json"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --platform node --target node20 --out-dir dist --clean",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.25",
+    "tsup": "^8.5.1",
+    "vitest": "^4.0.15"
+  }
+}
