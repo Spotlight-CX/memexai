@@ -6,7 +6,7 @@ REGISTRY="${BUN_REGISTRY:-https://registry.npmmirror.com}"
 ASSUME_YES=false
 RESTORE_DUMP=""
 NO_RESTORE=false
-DEFAULT_DUMP="apps/benchmark/data/memex-ingested-20260602121703.pgdump"
+DEFAULT_DUMP="apps/benchmark/data/memex-ingested-20260604105900.pgdump"
 
 usage() {
   cat <<'EOF'
