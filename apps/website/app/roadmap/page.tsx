@@ -7,7 +7,7 @@ import { RoadmapInterestCard, type RoadmapInterestFeature } from './roadmap-inte
 export const metadata: Metadata = {
   title: 'Roadmap',
   description:
-    'MemexAI roadmap for persistent user memory: dreaming, PII hooks, source scopes, vector search, reranking, and production memory workflows.',
+    'MemexAI roadmap for persistent user memory: audit snapshots, time travel, memory health, ownership, and production memory workflows.',
   alternates: {
     canonical: '/roadmap',
   },
@@ -30,34 +30,28 @@ const shipped = [
 
 const nextFeatures: RoadmapInterestFeature[] = [
   {
-    id: 'optimistic-locking',
-    title: 'Optimistic locking for memory files',
+    id: 'files-time-travel',
+    title: 'Files time travel',
     stage: 'Next',
-    text: 'Add file versions and expectedVersion writes so concurrent agents can detect conflicts instead of silently last-write-wins on high-value memory files.',
+    text: 'Add an As of timestamp view to the Files tab using existing revision history, so operators can browse historical memory and diff it against current files without new database schema.',
   },
   {
-    id: 'revision-retention',
-    title: 'Automated retention policies',
+    id: 'memory-context-snapshots',
+    title: 'Memory context snapshots',
     stage: 'Next',
-    text: 'Move beyond manual revision pruning with configurable retention for mx_revision and mx_access_log, including admin UI controls for teams that need bounded storage growth.',
+    text: 'Record per-request memory exposure for prompt builds, recall tools, smart reads, memorize internals, and dream runs so teams can see which memory actually influenced an agent or model call.',
   },
   {
-    id: 'dreaming-budgets',
-    title: 'Per-user dreaming budgets',
+    id: 'memory-health-signals',
+    title: 'Memory health signals',
     stage: 'Next',
-    text: 'Track daily background consolidation spend per user and skip dream cycles once the configured budget is exhausted.',
+    text: 'Surface review-worthy memory such as files never used in 30 days, written by one-off agents, missing owners, frequently injected but never updated, or possibly contradicted by newer memory.',
   },
   {
-    id: 'dreaming-exclusions',
-    title: 'Per-file dreaming exclusions',
+    id: 'ownership-ttl-controls',
+    title: 'Ownership and TTL controls',
     stage: 'Next',
-    text: 'Let operators mark sensitive or hand-curated memory files as excluded from background dreaming without relying only on global path rules.',
-  },
-  {
-    id: 'sidecar-memory-writes',
-    title: 'Sidecar memory writes',
-    stage: 'Next',
-    text: 'Pass a raw_data argument to memory_write and MemexAI stores the payload directly to Postgres without routing it through the model context window — ideal for bulk transcripts, documents, or structured data. memory_memorize gains a sidecar path: after its reasoning pass it issues a direct write to the designated target without re-injecting the full content into the LLM turn.',
+    text: 'Give memory files owners, review status, and expiry windows so stale or ownerless memory becomes a visible governance workflow instead of silent drift.',
   },
   {
     id: 'pii-hooks',
@@ -66,20 +60,38 @@ const nextFeatures: RoadmapInterestFeature[] = [
     text: 'Redact, block, or review sensitive memory before writes land in service mode or direct Postgres mode.',
   },
   {
-    id: 'post-write-hooks',
-    title: 'Post-write hooks',
-    stage: 'Next',
-    text: 'Trigger webhooks after memory changes so Slack, n8n, Zapier, app events, and audit stores can stay in sync.',
-  },
-  {
     id: 'team-memory-proposals',
     title: 'Team memory proposals',
     stage: 'Next',
     text: 'Let agents propose updates to shared memory while admins review, accept, reject, or auto-approve contributions.',
   },
+  {
+    id: 'post-write-hooks',
+    title: 'Post-write hooks',
+    stage: 'Next',
+    text: 'Trigger webhooks after memory changes so Slack, n8n, Zapier, app events, and audit stores can stay in sync.',
+  },
 ];
 
 const exploringFeatures: RoadmapInterestFeature[] = [
+  {
+    id: 'sidecar-memory-writes',
+    title: 'Sidecar memory writes',
+    stage: 'Exploring',
+    text: 'Pass a raw_data argument to memory_write so bulk transcripts, documents, or structured payloads can be written directly to Postgres without routing the full payload through the model context window.',
+  },
+  {
+    id: 'dreaming-budgets',
+    title: 'Per-user dreaming budgets',
+    stage: 'Exploring',
+    text: 'Track daily background consolidation spend per user and skip dream cycles once the configured budget is exhausted.',
+  },
+  {
+    id: 'dreaming-exclusions',
+    title: 'Per-file dreaming exclusions',
+    stage: 'Exploring',
+    text: 'Let operators mark sensitive or hand-curated memory files as excluded from background dreaming without relying only on global path rules.',
+  },
   {
     id: 'named-mounts',
     title: 'Named mounts — team, org, workspace scopes',
@@ -129,8 +141,8 @@ const doneFeatures = [
 
 const deprioritizedFeatures = [
   {
-    title: 'Memory health',
-    text: 'De-prioritized as a standalone roadmap item because dreaming now covers the highest-value health work: duplicates, stale contradictions, fragmented notes, and low-signal cleanup between sessions.',
+    title: 'Automatic-only memory health',
+    text: 'De-prioritized as a standalone cleanup-only feature because dreaming covers part of the background maintenance loop. Diagnostics, audit snapshots, health signals, and operator review are now reprioritized as production trust features.',
   },
   {
     title: 'Memory compaction',

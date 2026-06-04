@@ -1,5 +1,6 @@
 import "@mantine/core/styles.css"
 import "@mantine/code-highlight/styles.css"
+import "@mantine/dates/styles.css"
 import { CodeHighlightAdapterProvider, createHighlightJsAdapter } from "@mantine/code-highlight"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import hljs from "highlight.js/lib/core"

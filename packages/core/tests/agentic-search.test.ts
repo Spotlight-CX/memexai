@@ -82,6 +82,48 @@ describe("agentic memory search", () => {
     expect(sqlCalls.some((sql) => sql.includes("mx_revision"))).toBe(false)
   })
 
+  test("uses hybrid candidates when an embedding adapter is configured", async () => {
+    const db = {
+      query: vi.fn(async (sql: string) => {
+        if (sql.includes("mx_access_log")) return { rows: [] }
+        if (sql.includes("<=>")) {
+          return {
+            rows: [{
+              physical_path: "users/u1/preferences.md",
+              content_text: "loves forests and open meadows",
+              distance: 0.04,
+              updated_at: updatedAt,
+            }],
+          }
+        }
+        if (sql.includes("ts_headline")) return { rows: [] }
+        if (sql.includes("ORDER BY physical_path ASC")) {
+          return { rows: [fileRow("users/u1/preferences.md", "loves forests and open meadows")] }
+        }
+        if (sql.includes("WHERE physical_path = $1")) return { rows: [] }
+        return { rows: [] }
+      }),
+      connect: vi.fn(),
+      end: vi.fn(),
+    } as unknown as import("../src/db").Db
+
+    generateTextMock.mockImplementationOnce(async () => ({ text: "Source: user/preferences.md" }))
+
+    const result = await executeMemorySearch(
+      db,
+      { query: "greenery sanctuary", maxReads: 1 },
+      { userId: "u1" },
+      {
+        model: { id: "mock-model" },
+        adapter: { model: "mock-embedding", dimensions: 3, embed: vi.fn(async () => [1, 0, 0]) },
+      },
+    )
+
+    expect(result.results).toMatchObject([
+      { path: "user/preferences.md", matchReason: "semantic" },
+    ])
+  })
+
   test("rejects physical paths requested by the inner resolver", async () => {
     const db = createDb()
     generateTextMock.mockImplementationOnce(async (input) => {

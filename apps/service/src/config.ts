@@ -34,6 +34,11 @@ const envSchema = z.object({
   MEMEX_TELEMETRY_DISABLED: optionalBoolean,
   MEMEX_TELEMETRY_POSTHOG_KEY: optionalNonEmptyString,
   MEMEX_TELEMETRY_POSTHOG_HOST: optionalNonEmptyString,
+  MEMEX_SEARCH_MODE: z.preprocess((value) => value === "" || value === undefined ? "auto" : value, z.enum(["auto", "bm25"]).default("auto")),
+  MEMEX_RRF_K: z.coerce.number().positive().default(60),
+  MEMEX_BM25_CANDIDATE_LIMIT: z.coerce.number().int().positive().default(50),
+  MEMEX_VECTOR_CANDIDATE_LIMIT: z.coerce.number().int().positive().default(50),
+  MEMEX_EMBEDDING_MAX_CHARS: z.coerce.number().int().positive().default(8_000),
 })
 
 export type Config = z.infer<typeof envSchema> & {

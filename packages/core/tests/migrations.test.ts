@@ -70,6 +70,34 @@ describe("runMigrations", () => {
     expect(client.query).not.toHaveBeenCalled()
   })
 
+  test("skips pgvector migration unless vector mode is enabled", async () => {
+    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql", "006_observation_events.sql"])
+
+    await runMigrations(db)
+
+    expect(client.query).not.toHaveBeenCalled()
+  })
+
+  test("includes pgvector embedding migration when vector mode is enabled", async () => {
+    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql", "006_observation_events.sql"])
+
+    await runMigrations(db, { vectorEnabled: true })
+
+    const migrationSql = client.query.mock.calls
+      .map(([sql]) => sql)
+      .filter((sql): sql is string => typeof sql === "string")
+      .join("\n")
+
+    expect(migrationSql).toContain("CREATE EXTENSION IF NOT EXISTS vector")
+    expect(migrationSql).toContain("ADD COLUMN IF NOT EXISTS embedding vector(768)")
+    expect(migrationSql).toContain("embedding_strategy TEXT")
+    expect(migrationSql).toContain("USING hnsw (embedding vector_cosine_ops)")
+    expect(client.query.mock.calls).toContainEqual([
+      "INSERT INTO mx_migration (id) VALUES ($1)",
+      ["007_pgvector_embeddings.sql"],
+    ])
+  })
+
   test("includes dream table and config migration", async () => {
     const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql"])
 

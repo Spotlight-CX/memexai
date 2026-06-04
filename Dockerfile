@@ -7,6 +7,7 @@ WORKDIR /app
 COPY package.json bun.lock tsconfig.base.json ./
 COPY apps/service/package.json apps/service/package.json
 COPY packages/core/package.json packages/core/package.json
+COPY packages/search/package.json packages/search/package.json
 COPY packages/sdk/package.json packages/sdk/package.json
 COPY packages/admin-cli/package.json packages/admin-cli/package.json
 RUN printf 'packages:\n  - "apps/service"\n  - "packages/*"\n' > pnpm-workspace.yaml \
@@ -15,7 +16,8 @@ RUN printf 'packages:\n  - "apps/service"\n  - "packages/*"\n' > pnpm-workspace.
 
 FROM deps AS build
 COPY . .
-RUN pnpm --config.package-manager-strict=false --filter @memexai/core build \
+RUN pnpm --config.package-manager-strict=false --filter @memexai/search build \
+  && pnpm --config.package-manager-strict=false --filter @memexai/core build \
   && pnpm --config.package-manager-strict=false --filter @memexai/service build \
   && pnpm --config.package-manager-strict=false --filter @memexai/admin build:cli-only
 
@@ -23,6 +25,8 @@ FROM node:20-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=build /app/packages/search/dist ./packages/search/dist
+COPY --from=build /app/packages/search/package.json ./packages/search/package.json
 COPY --from=build /app/packages/core/dist ./packages/core/dist
 COPY --from=build /app/packages/core/package.json ./packages/core/package.json
 COPY --from=build /app/apps/service/dist ./apps/service/dist

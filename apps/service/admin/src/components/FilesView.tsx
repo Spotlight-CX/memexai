@@ -21,6 +21,7 @@ import {
   getTreeExpandedState,
   useTree,
 } from "@mantine/core"
+import { DateTimePicker } from "@mantine/dates"
 import { useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import ReactMarkdown from "react-markdown"
@@ -28,13 +29,16 @@ import { useSearchParams } from "react-router-dom"
 import { useAdminData, adminQueryKey } from "../hooks"
 import { FileTreeItem } from "./FileTree"
 import { PencilIcon, PlusIcon } from "../icons"
-import type { AdminFile, AdminRevision, FileObservability } from "../types"
+import type { AdminFile, AdminRevision, AdminSearchStatus, FileObservability } from "../types"
 import { deriveTree, formatDate, isCodeLike, relativeTime } from "../utils"
 import { ErrorText } from "./TableViews"
 
 export function FilesView({ secret }: { secret: string }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedPath = searchParams.get("path")
+  const asOf = searchParams.get("asOf")
+  const isTimeTravel = Boolean(asOf)
+  const asOfLocal = asOf ? utcIsoToLocalPickerValue(asOf) : null
   const [search, setSearch] = useState("")
   const [selectedRevision, setSelectedRevision] = useState<AdminRevision | null>(null)
   const [sidebarTab, setSidebarTab] = useState<string | null>("activity")
@@ -44,19 +48,31 @@ export function FilesView({ secret }: { secret: string }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [newFilePath, setNewFilePath] = useState<string | null>(null)
+  const [centerPanel, setCenterPanel] = useState<"document" | "diff">("document")
   const queryClient = useQueryClient()
 
-  const { data, error } = useAdminData<{ files: AdminFile[] }>("/v1/admin/files", secret)
+  const filesUrl = `/v1/admin/files${asOf ? `?asOf=${encodeURIComponent(asOf)}` : ""}`
+  const selectedUrl = selectedPath
+    ? `/v1/admin/files/${encodeURIComponent(selectedPath)}${asOf ? `?asOf=${encodeURIComponent(asOf)}` : ""}`
+    : null
+  const currentSelectedUrl = selectedPath && isTimeTravel ? `/v1/admin/files/${encodeURIComponent(selectedPath)}` : null
+
+  const { data, error } = useAdminData<{ files: AdminFile[] }>(filesUrl, secret)
+  const { data: searchStatus } = useAdminData<AdminSearchStatus>("/v1/admin/search/status", secret)
   const { data: selected } = useAdminData<{ file: AdminFile }>(
-    selectedPath ? `/v1/admin/files/${encodeURIComponent(selectedPath)}` : null,
+    selectedUrl,
+    secret,
+  )
+  const { data: currentSelected } = useAdminData<{ file: AdminFile }>(
+    currentSelectedUrl,
     secret,
   )
   const { data: revisions, error: revisionsError } = useAdminData<{ revisions: AdminRevision[] }>(
-    selectedPath ? `/v1/admin/revisions?physicalPath=${encodeURIComponent(selectedPath)}` : null,
+    selectedPath && !isTimeTravel ? `/v1/admin/revisions?physicalPath=${encodeURIComponent(selectedPath)}` : null,
     secret,
   )
   const { data: fileObservability, error: fileObservabilityError } = useAdminData<FileObservability>(
-    selectedPath ? `/v1/admin/files/${encodeURIComponent(selectedPath)}/observability?bucket=hour` : null,
+    selectedPath && !isTimeTravel ? `/v1/admin/files/${encodeURIComponent(selectedPath)}/observability?bucket=hour` : null,
     secret,
   )
 
@@ -67,6 +83,20 @@ export function FilesView({ secret }: { secret: string }) {
   const filteredTree = useMemo(() => filterTreeData(fileTree, search.trim()), [fileTree, search])
   const visibleContent = selectedRevision?.content ?? selected?.file?.content ?? ""
   const selectedFile = selected?.file
+  const currentFile = currentSelected?.file ?? (!isTimeTravel ? selectedFile : null)
+  const hasCurrentFile = Boolean(currentFile)
+  const changedSinceCurrent = Boolean(isTimeTravel && selectedFile && currentFile && selectedFile.content !== currentFile.content)
+
+  useEffect(() => {
+    if (isTimeTravel) {
+      setSelectedRevision(null)
+      setSidebarTab(null)
+      setIsEditing(false)
+      return
+    }
+    setCenterPanel("document")
+    if (!sidebarTab) setSidebarTab("activity")
+  }, [isTimeTravel, sidebarTab])
 
   useEffect(() => {
     if (selectedPath) tree.select(selectedPath)
@@ -90,12 +120,44 @@ export function FilesView({ secret }: { secret: string }) {
     })
   }, [filteredTree, search, selectedPath])
 
+  useEffect(() => {
+    if (!selectedPath || filePaths.has(selectedPath) || !files[0]) return
+    setFileSearchParams(setSearchParams, { path: files[0].physicalPath, asOf })
+  }, [asOf, filePaths, files, selectedPath, setSearchParams])
+
   const handleSelectPath = (path: string) => {
     setSelectedRevision(null)
     setIsEditing(false)
     setSaveError(null)
-    setSearchParams({ path })
+    setCenterPanel("document")
+    setFileSearchParams(setSearchParams, { path, asOf })
     tree.select(path)
+  }
+
+  const handleSetAsOf = (value: string | null) => {
+    if (!value) return
+    setSelectedRevision(null)
+    setIsEditing(false)
+    setSaveError(null)
+    setCenterPanel("document")
+    setFileSearchParams(setSearchParams, {
+      path: selectedPath ?? files[0]?.physicalPath ?? null,
+      asOf: localPickerValueToUtcIso(value),
+    })
+  }
+
+  const handleClearAsOf = () => {
+    setSelectedRevision(null)
+    setIsEditing(false)
+    setSaveError(null)
+    setCenterPanel("document")
+    setFileSearchParams(setSearchParams, { path: selectedPath, asOf: null })
+  }
+
+  const handleOpenLatest = () => {
+    if (!selectedPath) return
+    setCenterPanel("document")
+    setFileSearchParams(setSearchParams, { path: selectedPath, asOf: null })
   }
 
   const handleCopyPath = () => {
@@ -147,16 +209,31 @@ export function FilesView({ secret }: { secret: string }) {
   const revisionCount = selectedFile?.revisionCount ?? 0
 
   return (
-    <Box
-      h="100%"
-      style={{
-        display: "grid",
-        gridTemplateColumns: "264px minmax(520px, 1fr) 296px",
-        minHeight: 0,
-        overflowX: "auto",
-        background: "transparent",
-      }}
-    >
+    <Box h="100%" style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <FilesTimeTravelToolbar
+        asOfLocal={asOfLocal}
+        isTimeTravel={isTimeTravel}
+        onSetAsOf={handleSetAsOf}
+        onClearAsOf={handleClearAsOf}
+      />
+      {searchStatus?.mode === "bm25" ? (
+        <Box px="md" py={8} bg="yellow.0" style={{ borderTop: "1px solid var(--mantine-color-yellow-2)" }}>
+          <Text size="xs" c="yellow.9">
+            Semantic search is not configured. BM25 keyword search is still active.
+          </Text>
+        </Box>
+      ) : null}
+      <Box
+        style={{
+          display: "grid",
+          gridTemplateColumns: "264px minmax(520px, 1fr) 296px",
+          minHeight: 0,
+          flex: 1,
+          overflowX: "auto",
+          background: "transparent",
+          borderTop: "1px solid var(--mantine-color-gray-2)",
+        }}
+      >
       {/* Left: file tree */}
       <Stack gap={0} h="100%" style={{ minHeight: 0, borderRight: "1px solid var(--mantine-color-gray-2)", background: "rgba(255, 255, 255, 0.4)", backdropFilter: "blur(4px)" }}>
         <Box px={12} pt={12} pb={8}>
@@ -164,9 +241,13 @@ export function FilesView({ secret }: { secret: string }) {
             <Text size="xs" fw={600} c="dimmed" tt="uppercase" style={{ letterSpacing: "0.04em" }}>
               Explorer
             </Text>
-            <ActionIcon size="xs" variant="subtle" color="gray" onClick={() => setNewFilePath("")} title="New file">
-              <PlusIcon />
-            </ActionIcon>
+            {isTimeTravel ? (
+              <Badge size="xs" variant="light" color="yellow">Historical tree</Badge>
+            ) : (
+              <ActionIcon size="xs" variant="subtle" color="gray" onClick={() => setNewFilePath("")} title="New file">
+                <PlusIcon />
+              </ActionIcon>
+            )}
           </Group>
           <TextInput
             aria-label="Search files"
@@ -176,6 +257,9 @@ export function FilesView({ secret }: { secret: string }) {
             size="xs"
             styles={{ input: { fontSize: 12 } }}
           />
+          {isTimeTravel ? (
+            <Text size="xs" c="dimmed" mt={6}>Files created after the selected time are hidden.</Text>
+          ) : null}
         </Box>
         <ScrollArea flex={1} offsetScrollbars px={4}>
           {filteredTree.length ? (
@@ -189,7 +273,7 @@ export function FilesView({ secret }: { secret: string }) {
                   isFile={filePaths.has(payload.node.value)}
                   filePaths={filePaths}
                   onSelectPath={handleSelectPath}
-                  onNewFile={setNewFilePath}
+                  onNewFile={isTimeTravel ? undefined : setNewFilePath}
                 />
               )}
             />
@@ -203,6 +287,13 @@ export function FilesView({ secret }: { secret: string }) {
       </Stack>
 
       {/* Center: file content */}
+      {isTimeTravel && centerPanel === "diff" && selectedFile ? (
+        <DiffFromCurrentPanel
+          historicalFile={selectedFile}
+          currentFile={currentFile ?? null}
+          onBack={() => setCenterPanel("document")}
+        />
+      ) : (
       <ScrollArea h="100%">
         <Box px={{ base: "xl", xl: 56 }} py={40}>
           <Box maw={860} mx="auto">
@@ -235,9 +326,11 @@ export function FilesView({ secret }: { secret: string }) {
                   )}
                   {selectedRevision
                     ? <Badge variant="light" color="yellow" size="xs" style={{ flexShrink: 0 }}>historical</Badge>
+                    : isTimeTravel
+                      ? <Badge variant="light" color="yellow" size="xs" style={{ flexShrink: 0 }}>as of</Badge>
                     : <Badge variant="dot" color="green" size="xs" style={{ flexShrink: 0 }}>latest</Badge>
                   }
-                  {!selectedRevision && !isEditing && (
+                  {!selectedRevision && !isEditing && !isTimeTravel && (
                     <ActionIcon size="xs" variant="subtle" color="gray" onClick={handleEdit} title="Edit file">
                       <PencilIcon />
                     </ActionIcon>
@@ -250,6 +343,14 @@ export function FilesView({ secret }: { secret: string }) {
                   )}
                 </Group>
                 {saveError && <Text size="xs" c="red.6">{saveError}</Text>}
+
+                {isTimeTravel && asOf ? (
+                  <Paper withBorder p="sm" radius="sm" bg="yellow.0">
+                    <Text size="sm" c="yellow.9">
+                      Viewing the latest matched revision before {formatDate(asOf)}. Editing is disabled in time-travel mode.
+                    </Text>
+                  </Paper>
+                ) : null}
 
                 {selectedRevision ? (
                   <Paper withBorder p="sm" radius="sm" bg="yellow.0">
@@ -290,9 +391,10 @@ export function FilesView({ secret }: { secret: string }) {
           </Box>
         </Box>
       </ScrollArea>
+      )}
 
       {/* New file modal */}
-      {newFilePath !== null && (
+      {newFilePath !== null && !isTimeTravel && (
         <NewFileModal
           prefixPath={newFilePath}
           secret={secret}
@@ -306,59 +408,311 @@ export function FilesView({ secret }: { secret: string }) {
       )}
 
       {/* Right: observability sidebar */}
-      <Stack gap={0} h="100%" style={{ minHeight: 0, borderLeft: "1px solid var(--mantine-color-gray-2)", background: "rgba(255, 255, 255, 0.4)", backdropFilter: "blur(4px)" }}>
-        <Box px={12} py={10}>
-          <Text size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.04em" }}>File Observability</Text>
-          <Text size="xs" c="dimmed" mt={2} truncate>{selectedPath ?? "Select a file to inspect."}</Text>
-        </Box>
-        <Divider />
-        <Tabs value={sidebarTab} onChange={setSidebarTab} keepMounted={false} style={{ minHeight: 0, display: "flex", flexDirection: "column", flex: 1 }}>
-          <Tabs.List grow>
-            <Tabs.Tab value="activity">Activity</Tabs.Tab>
-            <Tabs.Tab value="users">Users</Tabs.Tab>
-            <Tabs.Tab value="revisions">Revisions</Tabs.Tab>
-          </Tabs.List>
-          <Tabs.Panel value="activity" style={{ minHeight: 0, flex: 1 }}>
-            <ScrollArea h="100%" offsetScrollbars>
-              <ActivitySidebar
-                selectedPath={selectedPath}
-                data={fileObservability}
-                error={fileObservabilityError}
-                onOpenFile={handleSelectPath}
-              />
-            </ScrollArea>
-          </Tabs.Panel>
-          <Tabs.Panel value="users" style={{ minHeight: 0, flex: 1 }}>
-            <ScrollArea h="100%" offsetScrollbars>
-              <UsersSidebar selectedPath={selectedPath} data={fileObservability} error={fileObservabilityError} />
-            </ScrollArea>
-          </Tabs.Panel>
-          <Tabs.Panel value="revisions" style={{ minHeight: 0, flex: 1 }}>
-            <ScrollArea h="100%" offsetScrollbars>
-              <Stack gap={4} p={8}>
-                {revisionsError ? <ErrorText error={revisionsError} /> : null}
-                {!selectedPath ? <Text size="xs" c="dimmed" p="xs">No file selected.</Text> : null}
-                {selectedPath && !revisions?.revisions?.length ? <Text size="xs" c="dimmed" p="xs">No revisions yet.</Text> : null}
-                {(revisions?.revisions ?? []).map((revision) => (
-                  <RevisionRow
-                    key={revision.id}
-                    revision={revision}
-                    selected={selectedRevision?.id === revision.id}
-                    onClick={() => setSelectedRevision(revision)}
-                  />
-                ))}
-              </Stack>
-            </ScrollArea>
-          </Tabs.Panel>
-        </Tabs>
-      </Stack>
+      {isTimeTravel ? (
+        <MatchedRevisionSidebar
+          selectedPath={selectedPath}
+          selectedFile={selectedFile ?? null}
+          currentFile={currentFile ?? null}
+          asOf={asOf}
+          hasCurrentFile={hasCurrentFile}
+          changedSinceCurrent={changedSinceCurrent}
+          onOpenLatest={handleOpenLatest}
+          onShowDiff={() => setCenterPanel("diff")}
+        />
+      ) : (
+        <Stack gap={0} h="100%" style={{ minHeight: 0, borderLeft: "1px solid var(--mantine-color-gray-2)", background: "rgba(255, 255, 255, 0.4)", backdropFilter: "blur(4px)" }}>
+          <Box px={12} py={10}>
+            <Text size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.04em" }}>File Observability</Text>
+            <Text size="xs" c="dimmed" mt={2} truncate>{selectedPath ?? "Select a file to inspect."}</Text>
+          </Box>
+          <Divider />
+          <Tabs value={sidebarTab} onChange={setSidebarTab} keepMounted={false} style={{ minHeight: 0, display: "flex", flexDirection: "column", flex: 1 }}>
+            <Tabs.List grow>
+              <Tabs.Tab value="activity">Activity</Tabs.Tab>
+              <Tabs.Tab value="users">Users</Tabs.Tab>
+              <Tabs.Tab value="revisions">Revisions</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="activity" style={{ minHeight: 0, flex: 1 }}>
+              <ScrollArea h="100%" offsetScrollbars>
+                <ActivitySidebar
+                  selectedPath={selectedPath}
+                  selectedFile={selectedFile ?? null}
+                  searchStatus={searchStatus ?? null}
+                  data={fileObservability}
+                  error={fileObservabilityError}
+                  onOpenFile={handleSelectPath}
+                />
+              </ScrollArea>
+            </Tabs.Panel>
+            <Tabs.Panel value="users" style={{ minHeight: 0, flex: 1 }}>
+              <ScrollArea h="100%" offsetScrollbars>
+                <UsersSidebar selectedPath={selectedPath} data={fileObservability} error={fileObservabilityError} />
+              </ScrollArea>
+            </Tabs.Panel>
+            <Tabs.Panel value="revisions" style={{ minHeight: 0, flex: 1 }}>
+              <ScrollArea h="100%" offsetScrollbars>
+                <Stack gap={4} p={8}>
+                  {revisionsError ? <ErrorText error={revisionsError} /> : null}
+                  {!selectedPath ? <Text size="xs" c="dimmed" p="xs">No file selected.</Text> : null}
+                  {selectedPath && !revisions?.revisions?.length ? <Text size="xs" c="dimmed" p="xs">No revisions yet.</Text> : null}
+                  {(revisions?.revisions ?? []).map((revision) => (
+                    <RevisionRow
+                      key={revision.id}
+                      revision={revision}
+                      selected={selectedRevision?.id === revision.id}
+                      onClick={() => setSelectedRevision(revision)}
+                    />
+                  ))}
+                </Stack>
+              </ScrollArea>
+            </Tabs.Panel>
+          </Tabs>
+        </Stack>
+      )}
+      </Box>
     </Box>
   )
+}
+
+function FilesTimeTravelToolbar({
+  asOfLocal,
+  isTimeTravel,
+  onSetAsOf,
+  onClearAsOf,
+}: {
+  asOfLocal: string | null
+  isTimeTravel: boolean
+  onSetAsOf: (value: string | null) => void
+  onClearAsOf: () => void
+}) {
+  return (
+    <Paper radius={0} px="md" py="xs" bg="rgba(255, 255, 255, 0.75)" style={{ backdropFilter: "blur(6px)" }}>
+      <Group justify="space-between" align="center" wrap="nowrap">
+        <Group gap="xs" wrap="nowrap">
+          <Text size="sm" fw={650}>View</Text>
+          <Badge variant={isTimeTravel ? "light" : "dot"} color={isTimeTravel ? "yellow" : "green"}>
+            {isTimeTravel ? "As of timestamp" : "Current"}
+          </Badge>
+        </Group>
+        <Group gap="xs" wrap="nowrap">
+          <Button size="xs" variant={isTimeTravel ? "light" : "filled"} color="gray" onClick={onClearAsOf}>
+            Current
+          </Button>
+          <DateTimePicker
+            aria-label="As of timestamp"
+            size="xs"
+            value={asOfLocal}
+            placeholder="Select timestamp"
+            valueFormat="YYYY-MM-DD HH:mm:ss"
+            w={250}
+            onChange={onSetAsOf}
+          />
+          <Button size="xs" variant="light" color="gray" disabled={!isTimeTravel} onClick={onClearAsOf}>
+            Clear
+          </Button>
+        </Group>
+      </Group>
+    </Paper>
+  )
+}
+
+function MatchedRevisionSidebar({
+  selectedPath,
+  selectedFile,
+  currentFile,
+  asOf,
+  hasCurrentFile,
+  changedSinceCurrent,
+  onOpenLatest,
+  onShowDiff,
+}: {
+  selectedPath: string | null
+  selectedFile: AdminFile | null
+  currentFile: AdminFile | null
+  asOf: string | null
+  hasCurrentFile: boolean
+  changedSinceCurrent: boolean
+  onOpenLatest: () => void
+  onShowDiff: () => void
+}) {
+  const revision = selectedFile?.matchedRevision ?? null
+
+  return (
+    <Stack gap={0} h="100%" style={{ minHeight: 0, borderLeft: "1px solid var(--mantine-color-gray-2)", background: "rgba(255, 255, 255, 0.4)", backdropFilter: "blur(4px)" }}>
+      <Box px={12} py={10}>
+        <Text size="xs" fw={600} tt="uppercase" c="dimmed" style={{ letterSpacing: "0.04em" }}>Time Travel</Text>
+        <Text size="xs" c="dimmed" mt={2} truncate>{selectedPath ?? "Select a file to inspect."}</Text>
+      </Box>
+      <Divider />
+      <ScrollArea h="100%" offsetScrollbars>
+        <Stack gap="sm" p="sm">
+          {!selectedPath ? <Text size="xs" c="dimmed">No file selected.</Text> : null}
+          <Paper withBorder radius="sm" p="xs" bg="yellow.0">
+            <Text size="xs" fw={650} c="yellow.9" tt="uppercase" style={{ letterSpacing: "0.04em" }}>Matched revision</Text>
+            <Stack gap={4} mt={8}>
+              <InfoRow label="Selected time" value={asOf ? formatDate(asOf) : "n/a"} />
+              <InfoRow label="Revision time" value={revision?.createdAt ? formatDate(revision.createdAt) : "n/a"} />
+              <InfoRow label="Revision" value={revision?.id ?? "n/a"} />
+              <InfoRow label="Actor" value={revision?.actor ?? "unknown"} />
+              <InfoRow label="Reason" value={revision?.reason ?? "none"} />
+              <InfoRow label="Tool call" value={revision?.toolCallId ?? "n/a"} />
+            </Stack>
+          </Paper>
+          <Paper withBorder radius="sm" p="xs">
+            <Text size="xs" fw={650} c="dimmed" tt="uppercase" style={{ letterSpacing: "0.04em" }}>Current status</Text>
+            <Text size="sm" mt={6}>
+              {!hasCurrentFile ? "No current file." : changedSinceCurrent ? "Changed since selected timestamp." : "Unchanged since selected timestamp."}
+            </Text>
+            {currentFile?.latestRevision ? (
+              <Text size="xs" c="dimmed" mt={4}>
+                Latest write {currentFile.latestRevision.actor ? `by ${currentFile.latestRevision.actor} ` : ""}at {formatDate(currentFile.latestRevision.createdAt)}.
+              </Text>
+            ) : null}
+          </Paper>
+          <Group gap="xs">
+            <Button size="xs" variant="light" color="gray" disabled={!hasCurrentFile} onClick={onOpenLatest}>Open latest</Button>
+            <Button size="xs" variant="filled" color="blue" onClick={onShowDiff}>Show diff</Button>
+          </Group>
+        </Stack>
+      </ScrollArea>
+    </Stack>
+  )
+}
+
+function DiffFromCurrentPanel({
+  historicalFile,
+  currentFile,
+  onBack,
+}: {
+  historicalFile: AdminFile
+  currentFile: AdminFile | null
+  onBack: () => void
+}) {
+  const historicalContent = historicalFile.content ?? ""
+  const currentContent = currentFile?.content ?? null
+  const historicalLines = historicalContent.split("\n")
+  const currentLines = currentContent?.split("\n") ?? ["No current file"]
+  const changedLines = getChangedLineIndexes(historicalLines, currentLines)
+  const unchanged = Boolean(currentContent !== null && changedLines.size === 0)
+
+  return (
+    <ScrollArea h="100%">
+      <Box px={{ base: "xl", xl: 40 }} py={36}>
+        <Stack gap="md">
+          <Group justify="space-between" align="flex-start" gap="md">
+            <Box>
+              <Text size="xl" fw={650}>Diff from current</Text>
+              <Text size="sm" c="dimmed">Compare the matched historical revision with the current file.</Text>
+            </Box>
+            <Group gap="xs">
+              {!currentFile ? (
+                <Badge color="gray" variant="light">No current file</Badge>
+              ) : unchanged ? (
+                <Badge color="green" variant="light">Unchanged</Badge>
+              ) : (
+                <Badge color="yellow" variant="light">Changed</Badge>
+              )}
+              <Button size="xs" variant="light" color="gray" onClick={onBack}>Back to file</Button>
+            </Group>
+          </Group>
+          {!currentFile ? (
+            <Paper withBorder radius="sm" p="sm" bg="gray.0">
+              <Text size="sm" c="dimmed">No current file exists for this historical path.</Text>
+            </Paper>
+          ) : unchanged ? (
+            <Paper withBorder radius="sm" p="sm" bg="green.0">
+              <Text size="sm" c="green.9">Unchanged since selected timestamp.</Text>
+            </Paper>
+          ) : null}
+          <Box style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "start" }}>
+            <DiffColumn title="As of timestamp" path={historicalFile.physicalPath} lines={historicalLines} changedLines={changedLines} tone="old" />
+            <DiffColumn title="Current" path={historicalFile.physicalPath} lines={currentLines} changedLines={changedLines} tone="current" />
+          </Box>
+        </Stack>
+      </Box>
+    </ScrollArea>
+  )
+}
+
+function DiffColumn({
+  title,
+  path,
+  lines,
+  changedLines,
+  tone,
+}: {
+  title: string
+  path: string
+  lines: string[]
+  changedLines: Set<number>
+  tone: "old" | "current"
+}) {
+  return (
+    <Paper withBorder radius="sm" bg="white" style={{ overflow: "hidden" }}>
+      <Box px="md" py="sm" bg="gray.0" style={{ borderBottom: "1px solid var(--mantine-color-gray-2)" }}>
+        <Text size="sm" fw={700}>{title}</Text>
+        <Code>{path}</Code>
+      </Box>
+      <Stack gap={0} p="md">
+        {lines.map((line, index) => {
+          const changed = changedLines.has(index)
+          return (
+            <Text
+              key={`${index}-${line}`}
+              ff="monospace"
+              size="sm"
+              px="xs"
+              py={4}
+              bg={changed ? (tone === "current" ? "green.0" : "red.0") : undefined}
+              c={changed ? (tone === "current" ? "green.9" : "red.9") : undefined}
+              style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}
+            >
+              {line || " "}
+            </Text>
+          )
+        })}
+      </Stack>
+    </Paper>
+  )
+}
+
+function getChangedLineIndexes(left: string[], right: string[]) {
+  const changed = new Set<number>()
+  const max = Math.max(left.length, right.length)
+  for (let index = 0; index < max; index += 1) {
+    if ((left[index] ?? "") !== (right[index] ?? "")) changed.add(index)
+  }
+  return changed
 }
 
 function getAncestorPaths(path: string) {
   const parts = path.split("/")
   return parts.slice(0, -1).map((_, index) => parts.slice(0, index + 1).join("/"))
+}
+
+function setFileSearchParams(
+  setSearchParams: ReturnType<typeof useSearchParams>[1],
+  input: { path: string | null; asOf: string | null },
+) {
+  const params: Record<string, string> = {}
+  if (input.path) params.path = input.path
+  if (input.asOf) params.asOf = input.asOf
+  setSearchParams(params)
+}
+
+function utcIsoToLocalPickerValue(value: string) {
+  const date = new Date(value)
+  if (!Number.isFinite(date.getTime())) return null
+  const pad = (part: number) => String(part).padStart(2, "0")
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+  ].join("-") + ` ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
+function localPickerValueToUtcIso(value: string) {
+  return new Date(value.includes("T") ? value : value.replace(" ", "T")).toISOString()
 }
 
 function isRiskyPath(path: string | null) {
@@ -368,11 +722,15 @@ function isRiskyPath(path: string | null) {
 
 function ActivitySidebar({
   selectedPath,
+  selectedFile,
+  searchStatus,
   data,
   error,
   onOpenFile,
 }: {
   selectedPath: string | null
+  selectedFile: AdminFile | null
+  searchStatus: AdminSearchStatus | null
   data: FileObservability | null
   error: string | null
   onOpenFile: (path: string) => void
@@ -403,6 +761,19 @@ function ActivitySidebar({
           <InfoRow label="Revisions" value={String(summary?.revisions ?? 0)} />
         </Stack>
       </Paper>
+      {searchStatus?.mode === "hybrid" ? (
+        <Paper withBorder radius="sm" p="xs">
+          <Text size="xs" fw={650} c="dimmed" tt="uppercase" style={{ letterSpacing: "0.04em" }}>Search index</Text>
+          <Stack gap={4} mt={8}>
+            <InfoRow label="Lexical" value="current" />
+            <InfoRow label="Embedding" value={selectedFile?.embeddingStatus ?? "missing"} />
+            <InfoRow label="Model" value={selectedFile?.embeddingModel ?? searchStatus.model ?? "n/a"} />
+            <InfoRow label="Strategy" value={selectedFile?.embeddingStrategy ?? "n/a"} />
+            <InfoRow label="Chunks" value={selectedFile?.embeddingChunkCount ? String(selectedFile.embeddingChunkCount) : "n/a"} />
+            <InfoRow label="Embedded" value={selectedFile?.embeddingUpdatedAt ? relativeTime(selectedFile.embeddingUpdatedAt) : "n/a"} />
+          </Stack>
+        </Paper>
+      ) : null}
       <Paper withBorder radius="sm" p="xs">
         <Text size="xs" fw={650} c="dimmed" tt="uppercase" style={{ letterSpacing: "0.04em" }}>Frequently accessed nearby</Text>
         <Stack gap={6} mt={8}>

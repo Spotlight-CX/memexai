@@ -1,0 +1,42 @@
+{
+  "name": "@memexai/memex-cli",
+  "version": "0.1.0",
+  "description": "HTTP CLI for MemexAI — query memory, history, dreams, and docs from a running service.",
+  "type": "module",
+  "bin": {
+    "memex-cli": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "package.json"
+  ],
+  "scripts": {
+    "build": "tsup src/cli.ts --format esm --platform node --target node20 --out-dir dist --clean",
+    "prepublishOnly": "bun run build",
+    "dev": "tsx src/cli.ts"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Spotlight-CX/memexai.git",
+    "directory": "packages/memex-cli"
+  },
+  "bugs": {
+    "url": "https://github.com/Spotlight-CX/memexai/issues"
+  },
+  "homepage": "https://github.com/Spotlight-CX/memexai#readme",
+  "keywords": [
+    "ai",
+    "agent",
+    "memory",
+    "admin",
+    "cli"
+  ]
+}

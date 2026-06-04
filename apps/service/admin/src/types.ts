@@ -20,7 +20,30 @@ export type AdminFile = {
     reason: string | null
     createdAt: string
   } | null
+  matchedRevision?: {
+    id: string
+    fileId: string
+    operation: string
+    actor: string | null
+    reason: string | null
+    userId: string | null
+    toolCallId: string | null
+    createdAt: string
+  } | null
   revisionCount?: number
+  embeddingStatus?: "fresh" | "missing" | "stale"
+  embeddingModel?: string | null
+  embeddingDimensions?: number | null
+  embeddingStrategy?: string | null
+  embeddingChunkCount?: number | null
+  embeddingUpdatedAt?: string | null
+}
+
+export type AdminSearchStatus = {
+  mode: "bm25" | "hybrid"
+  provider: "gemini" | null
+  model: string | null
+  dimensions: number | null
 }
 
 export type AdminRevision = {

@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js"
 import { executeTool } from "./tools"
 import type { Db } from "./db"
-import { type ToolContext, toolDefinitions } from "@memexai/core"
+import { type EmbeddingConfig, type ToolContext, toolDefinitions } from "@memexai/core"
 import {
   listArgsSchema,
   readArgsSchema,
@@ -33,7 +33,16 @@ const schemaMap: Record<string, z.ZodTypeAny> = {
   memory_memorize: memorizeArgsSchema,
 }
 
-export function createConnectionScopedMcpServer(db: Db, ctx: ToolContext, model?: unknown): McpServer {
+export function createConnectionScopedMcpServer(
+  db: Db,
+  ctx: ToolContext,
+  options: EmbeddingConfig & {
+    model?: unknown
+    rrfK?: number
+    bm25CandidateLimit?: number
+    vectorCandidateLimit?: number
+  } = {},
+): McpServer {
   const server = new McpServer({
     name: "memexai",
     version: "0.1.0",
@@ -53,7 +62,7 @@ export function createConnectionScopedMcpServer(db: Db, ctx: ToolContext, model?
       },
       async (args) => {
         try {
-          const result = await executeTool(db, def.name, args, ctx, { model })
+          const result = await executeTool(db, def.name, args, ctx, options)
           return {
             content: [
               {
