@@ -1,0 +1,13 @@
+[project]
+name = "memexai-crewai-python-example"
+version = "0.1.0"
+description = "CrewAI service-mode example for MemexAI"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "crewai[google-genai]>=1.14.5,<2.0",
+    "python-dotenv>=1.0.1",
+    "httpx>=0.27.0",
+]
+
+[tool.pyright]
+include = ["main.py"]
