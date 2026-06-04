@@ -58,7 +58,7 @@ The repo is a Bun workspace monorepo with two deployment modes sharing the same 
 | `packages/core` | Core logic: pg pool, migrations, path translation, tool execution, framework adapters |
 | `packages/sdk` | HTTP client for the service: `MemexAI`, `MemexMemory`, adapter re-exports |
 | `apps/service` | Fastify HTTP service + React admin UI (Vite build) |
-| `packages/admin-cli` | `npx @memexai/admin` — standalone admin UI for direct-Postgres mode |
+| `packages/admin-cli` | `npx @memexai/admin` — agent-friendly CLI + admin web UI for direct-Postgres or HTTP proxy mode |
 | `apps/demo-agent` | Integration demo: Vercel AI SDK + Gemini, supports both modes via `--direct` flag |
 
 ### Core data flow
@@ -125,6 +125,106 @@ GET  /admin/*                           → React admin UI static files
 - `PORT` — HTTP port (default: 8080)
 
 **Docker Compose defaults:** Postgres on 5433 (`memexai:memexai@localhost:5433/memexai`), service+admin on 8080.
+
+## Admin CLI (`memex-admin`)
+
+The `@memexai/admin` package provides an agent-friendly CLI for all memory management operations. Use it without a browser for debugging, bootstrapping, and inspection.
+
+### Connection
+
+```bash
+# Direct Postgres (standalone, no service required)
+memex-admin -d $DATABASE_URL <command>
+
+# HTTP proxy (calls a running service)
+memex-admin -s http://localhost:8080 --admin-secret $SECRET <command>
+
+# Docker exec (binary included in runtime image)
+docker exec <container> memex-admin -d $DATABASE_URL <command>
+```
+
+### Key commands
+
+```bash
+# Users
+memex-admin users list [--search <q>]
+memex-admin users show <userId>
+
+# Files
+memex-admin files list [--prefix shared/]
+memex-admin files get <path>                     # raw content to stdout
+memex-admin files write <path> --content "..."   # or --content-file, or stdin
+
+# Revisions + time-travel
+memex-admin revisions list --path <path>
+memex-admin revisions diff <path> --rev-a 1 --rev-b 0
+
+# Access logs
+memex-admin logs list --user <userId> [--from 1h]
+
+# Agentic trace — single call
+memex-admin trace <toolCallId>
+
+# Agentic trace — session view
+memex-admin trace session --user <userId>
+
+# Time-travel — reconstruct memory at past timestamp
+memex-admin memory snapshot --user <userId> --at "2025-06-03T14:22:00Z"
+
+# Memory diff between two revisions
+memex-admin memory diff <path> --rev-a 1 --rev-b 0
+
+# Dream cycle
+memex-admin dream status
+
+# Setup
+memex-admin setup status
+memex-admin setup complete --note "..."
+
+# Raw HTTP passthrough (service mode)
+memex-admin api GET /v1/admin/users
+memex-admin api-spec
+```
+
+Add `--json` to any command for clean JSON output (pipeable to `jq` or `python3 -m json.tool`).
+
+### Debugging a memory issue
+
+```bash
+# 1. Find recent tool calls for a user
+memex-admin -d $DATABASE_URL --json logs list --user alice --from 1h
+
+# 2. Find the suspicious tool_call_id from the output, then trace it
+memex-admin -d $DATABASE_URL trace <toolCallId>
+# Shows: tool name + status + duration, files accessed, revisions written with reasons
+
+# 3. If you need to see what memory looked like at the time the request hit
+memex-admin -d $DATABASE_URL memory snapshot --user alice --at "2025-06-03T14:22:00Z"
+
+# 4. See what changed between two writes
+memex-admin -d $DATABASE_URL memory diff users/alice/notes.md --rev-a 1 --rev-b 0
+```
+
+### Bootstrapping shared memory (onboarding)
+
+The CLI is the executor; the agent is the reasoner. The agent reads the codebase, decides on memory shape, then:
+
+```bash
+memex-admin -d $DATABASE_URL files write shared/index.md \
+  --content "# Memory System\n..." --reason "bootstrap"
+memex-admin -d $DATABASE_URL setup complete --note "<product description>"
+```
+
+After bootstrapping, the agent should write a `MEMEX.md` to the repo documenting the memory schema and CLI quick-reference. See `SETUP.md` for the full onboarding flow.
+
+### MEMEX.md convention
+
+If a `MEMEX.md` file exists in the repo root, read it before working with memory. It documents:
+- What shared memory files exist and what they govern
+- What user memory categories agents are expected to maintain
+- Admin CLI quick-reference commands specific to this project
+
+---
 
 ## Adding a migration
 
