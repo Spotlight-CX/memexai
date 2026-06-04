@@ -18,6 +18,7 @@ function createMockDb(rows: ReturnType<typeof row>[]) {
   return {
     query: vi.fn(async (sql: string, values: unknown[] = []) => {
       if (sql.includes("mx_access_log")) return { rows: [] }
+      if (sql.includes("FROM mx_backlink")) return { rows: [] }
       if (sql.includes("physical_path = ANY")) {
         const paths = values[0] as string[]
         return { rows: rows.filter((file) => paths.includes(file.physical_path)) }
