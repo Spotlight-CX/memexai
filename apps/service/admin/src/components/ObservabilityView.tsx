@@ -738,6 +738,7 @@ function EventTable({ events, compact = false }: { events: ObservabilityEvent[];
             <Table.Th>User</Table.Th>
             {!compact && <Table.Th>Path</Table.Th>}
             <Table.Th>Duration</Table.Th>
+            {!compact && <Table.Th>Trace</Table.Th>}
             <Table.Th>Error</Table.Th>
           </Table.Tr>
         </Table.Thead>
@@ -755,6 +756,7 @@ function EventTable({ events, compact = false }: { events: ObservabilityEvent[];
               <Table.Td>{event.userId ?? ""}</Table.Td>
               {!compact && <Table.Td><Code>{event.physicalPath ?? ""}</Code></Table.Td>}
               <Table.Td>{formatMs(event.durationMs)}</Table.Td>
+              {!compact && <Table.Td><Code>{event.traceId ?? event.toolCallId ?? ""}</Code></Table.Td>}
               <Table.Td>{event.errorCode ?? ""}</Table.Td>
             </Table.Tr>
           ))}

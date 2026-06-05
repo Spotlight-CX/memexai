@@ -28,9 +28,9 @@ export default function Mem0ComparePage() {
           </div>
           <h1>MemexAI vs Mem0 for persistent user memory.</h1>
           <p className="section-lede">
-            Mem0 is useful when you want extracted memories, consolidation, and retrieval. MemexAI is built for AI
-            products that need a human-readable user memory record in Postgres, with revisions, access logs, and admin
-            inspection.
+            Mem0 is strong when you want benchmarked extracted memory, consolidation, token-efficient recall, and a
+            managed retrieval loop. MemexAI is stronger when memory must be editable, auditable, and self-hosted in your
+            own Postgres.
           </p>
           <div className="hero-actions">
             <Link className="site-button site-button-primary" href="/docs/quickstart/docker-service">
@@ -61,8 +61,8 @@ export default function Mem0ComparePage() {
             <h3>Mem0</h3>
             <p>
               The Mem0 paper frames its architecture around dynamically extracting, consolidating, and retrieving
-              salient information from conversations. That can work well for fact recall and personalization, but it is
-              a different operating model than directly edited memory files.
+              salient information from conversations. That can work well for fact recall, personalization, latency, and
+              token savings, but it is a different operating model than directly edited memory files.
             </p>
           </div>
         </div>
@@ -80,6 +80,7 @@ export default function Mem0ComparePage() {
           {[
             ['What is the unit of memory?', 'A path-addressed file such as user/profile.md', 'Extracted memory items and retrieval results'],
             ['How does a human debug it?', 'Open the file, inspect revisions, review reads', 'Inspect via API/dashboard/logs depending on setup'],
+            ['What does the public story emphasize?', 'Owned records, admin inspection, revisions, access logs', 'Benchmarked extracted memory, recall quality, latency, token efficiency'],
             ['What should it store?', 'Durable facts, corrections, policies, project state', 'Salient conversational facts for later recall'],
             ['Where does it fit best?', 'Products where support, ops, or users may need correction', 'Apps that want a managed memory layer quickly'],
           ].map((row) => (
@@ -119,7 +120,8 @@ export default function Mem0ComparePage() {
         <p className="section-lede">
           Mem0&apos;s own paper describes a memory-centric architecture for scalable long-term memory through dynamic
           extraction, consolidation, and retrieval. MemexAI&apos;s differentiation is not that retrieval is bad; it is
-          that some products need the remembered record to be directly editable and auditable.
+          that some products need the remembered record to be directly editable, auditable, and explainable from their
+          own database.
         </p>
         <div className="source-list">
           <a href="https://arxiv.org/abs/2504.19413" target="_blank" rel="noopener noreferrer">

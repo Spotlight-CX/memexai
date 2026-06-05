@@ -6,6 +6,20 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 - Public website hostname: `memexai.space`. Use this for canonical URLs, OpenGraph URLs, sitemap, robots, GTM notes, docs links, and public copy. Do not use `memexai.dev`.
 
+## Product Reasoning
+
+MemexAI is drop-in, inspectable memory infrastructure for multi-tenant AI agents. The default production path is:
+
+```text
+agent/app -> Docker service -> Postgres
+```
+
+- Memory is scoped, human-readable files: `user/` is private per tenant/user, and `shared/` is global guidance.
+- `shared/` is read-only for agents by default; trusted deployments can opt into shared writable mode.
+- Writes should be durable, structured, and worth carrying forward. Retrieval is BM25-first, with optional pgvector hybrid search.
+- The admin surface is not just CRUD: use revisions, access logs, time travel, hot/cold memory, and usage patterns to understand and improve the agent's memory system.
+- Dreaming is background optimization: after user memory goes quiet, it can compact, merge, and clean memory shape behind the scenes.
+
 ## Commands
 
 ```bash

@@ -5,6 +5,14 @@ description: How MemexAI is deployed, how tools flow, and where memory lives.
 
 MemexAI has two runtime modes that share the same Postgres schema. The recommended default is the containerized service. Direct Postgres runtime is available for apps that intentionally own database credentials.
 
+The product flow to keep in mind:
+
+```txt
+agent / SDK / MCP -> MemexAI service -> Postgres
+```
+
+The service path keeps database credentials out of your app, gives every tenant/user the same path isolation rules, and exposes the admin console for inspecting memory files, revisions, access logs, observability, and background dreaming.
+
 ## Containerized service mode
 
 Use service mode when teams or production apps should not hold database credentials.
@@ -22,6 +30,7 @@ The service handles:
 - SQL reads and writes to `mx_file`, `mx_revision`, and `mx_access_log`.
 - The admin UI at `/admin`.
 - MCP transport over SSE and stdio.
+- BM25-first memory search, with optional pgvector hybrid search when embeddings are configured.
 - Optional background memory consolidation.
 
 ## Advanced: direct Postgres runtime mode
@@ -41,8 +50,8 @@ There is no HTTP layer, no service auth, and no separate MemexAI container. Your
 
 | Tool | What it does |
 | --- | --- |
-| `memory_memorize` | Feeds raw text to an inner model that decides what to remember and writes files. |
-| `memory_search` | Recalls relevant memory with BM25 fallback or model-backed answer synthesis. |
+| `memory_memorize` | Feeds raw text to an inner model that decides what durable facts should be written or patched. |
+| `memory_search` | Recalls relevant memory with BM25-first search, optional pgvector hybrid candidates, and model-backed answer synthesis when configured. |
 
 ### Raw tools
 
@@ -86,3 +95,9 @@ See [Background Dreaming](/docs/operations/dreaming) for skip behavior, no-op ru
 7. The result returns to the model or application.
 
 Every step after tool execution is shared by the containerized service, MCP, and in-process runtimes.
+
+## Search and storage flow
+
+MemexAI stores the current memory record in `mx_file`, full write snapshots in `mx_revision`, and every read/write event in `mx_access_log`.
+
+Search starts with Postgres full-text search over the `search_vector` column. In hybrid mode, the service also stores embeddings in Postgres with pgvector and merges lexical and semantic candidates. BM25 remains the default; pgvector is an optional enhancement, not a separate vector database requirement.

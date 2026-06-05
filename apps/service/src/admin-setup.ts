@@ -50,14 +50,6 @@ const setupGenerationSchema = z.object({
   }),
 })
 
-const USER_INFO_CATEGORY_LABELS: Record<string, string> = {
-  "preferences": "Stated preferences and tastes",
-  "constraints": "Hard constraints and disallowed choices",
-  "goals": "Goals and active intentions",
-  "history": "Past activity and user history",
-  "context": "Personal context such as lifestyle, household, work, or routines",
-}
-
 const STABILITY_LABELS: Record<string, string> = {
   "volatile": "Changes often; agents should avoid over-storing and should treat older facts as easy to supersede.",
   "evolving": "Mostly stable but evolves gradually; agents should patch facts when users correct or refine them.",
@@ -69,8 +61,11 @@ export async function handleSetupGenerate(
   input: {
     productDescription: string
     domain: string
-    userInfoCategories: string[]
+    memorableExample?: string
+    neverStore?: string
+    forgettingProblem?: string
     stability?: string
+    includeTimestamps?: boolean
     extra?: string
     revisionInstruction?: string
   },
@@ -114,9 +109,15 @@ export async function handleSetupGenerate(
       "- Include exactly these shared files unless the product strongly needs one extra shared file: shared/index.md, shared/user-memory.md, shared/domain.md.",
       "- shared/index.md must be a concise map of shared files and spaces.",
       "- shared/user-memory.md must tell agents what to remember, what not to remember, how to organize user files, and how to handle corrections.",
-      "- shared/domain.md must encode domain-specific memory categories, examples, and product-specific judgment.",
+      "- shared/domain.md must encode domain-specific memory categories, examples, and product-specific judgment. Ground it in the admin's concrete examples — use similar phrasing and categories they implied.",
       "- File contents should be useful operational instructions, not marketing copy.",
       "- Use Markdown headings and bullets.",
+      "",
+      "Timestamp convention:",
+      "- If includeTimestamps is true: add a section in shared/user-memory.md titled '## Timestamp Convention' with this instruction:",
+      "  'When writing a new fact, append the month it was learned: `- Prefers X [YYYY-MM]`. When patching a fact, update the timestamp to the current month.'",
+      "  'This is the only signal for recency — MemexAI does not track which line was added when.'",
+      "- If includeTimestamps is false: do not include timestamp instructions.",
       "",
       "Example requirements:",
       "- Include at least one example that should be stored and at least one that should not be stored.",
@@ -151,23 +152,30 @@ export async function handleSetupGenerate(
 function buildSetupPrompt(input: {
   productDescription: string
   domain: string
-  userInfoCategories: string[]
+  memorableExample?: string
+  neverStore?: string
+  forgettingProblem?: string
   stability?: string
+  includeTimestamps?: boolean
   extra?: string
   revisionInstruction?: string
 }) {
-  const categoryLines = input.userInfoCategories
-    .map((cat) => `- ${USER_INFO_CATEGORY_LABELS[cat] ?? cat}`)
-    .join("\n")
-
   return [
     `Product description: ${input.productDescription}`,
     `Domain: ${input.domain}`,
     "",
-    "User information categories selected by the admin:",
-    categoryLines || "- Not specified",
+    "Example of something a user might say that agents should DEFINITELY remember (provided by admin):",
+    input.memorableExample?.trim() || "Not provided",
+    "",
+    "What agents should NEVER store (provided by admin):",
+    input.neverStore?.trim() || "Not provided",
+    "",
+    "What goes wrong when agents forget user context (provided by admin):",
+    input.forgettingProblem?.trim() || "Not provided",
     "",
     `Stability: ${STABILITY_LABELS[input.stability ?? ""] ?? "Not specified"}`,
+    "",
+    `Include timestamps: ${input.includeTimestamps === true ? "yes" : "no"}`,
     "",
     "Additional admin guidance:",
     input.extra?.trim() || "None",
@@ -175,7 +183,7 @@ function buildSetupPrompt(input: {
     "Admin-requested revision to the draft:",
     input.revisionInstruction?.trim() || "None",
     "",
-    "Generate a MemexAI shared memory schema for this product.",
+    "Generate a MemexAI shared memory schema for this product. Ground shared/domain.md in the admin's concrete examples above.",
   ].join("\n")
 }
 

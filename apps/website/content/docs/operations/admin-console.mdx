@@ -89,6 +89,10 @@ It includes:
 - Per-user memory hygiene when scoped to a user
 - Sanitized observation event stream
 
+Observation events are local, memory-native traces. Root events track each tool execution; child spans show phases such as DB reads, BM25 or hybrid search, embedding, LLM generation, revision writes, and access-log writes. Use `traceId` or `toolCallId` from a tool response to connect a product incident to the exact files read, revisions written, and timing breakdown.
+
+MemexAI should keep this local record even when you export sanitized spans to OpenTelemetry. External trace tools can show service latency, but the admin console can also reconstruct memory state and explain whether a failure was caused by a missing write, a retrieval miss, stale memory, or answer synthesis.
+
 Use this view when a product question becomes operational: "Which files are being used?", "Which users have noisy memory?", "Are writes failing?", "Did a new tool route get slow?", or "Which memory nodes are becoming hot?"
 
 ## Tool Playground

@@ -73,6 +73,31 @@ describe("Memex", () => {
     expect(queryMock).toHaveBeenCalled()
   })
 
+  test("executeTool() returns trace metadata and records root plus child observations", async () => {
+    const queryMock = vi.fn(async () => ({ rows: [] }))
+    const memex = new Memex(createMockDb({ query: queryMock }))
+    const result = await memex.executeTool("memory_list", {}, { userId: "user_123", actor: "agent" }) as {
+      traceId: string
+      memory_trace_id: string
+      toolCallId: string
+      durationMs: number
+    }
+
+    expect(result.traceId).toMatch(/^trace_/)
+    expect(result.memory_trace_id).toBe(result.traceId)
+    expect(result.toolCallId).toMatch(/^tool_/)
+    expect(result.durationMs).toBeGreaterThanOrEqual(0)
+
+    const observationCalls = queryMock.mock.calls.filter(([sql]) => String(sql).includes("INSERT INTO mx_observation_event"))
+    expect(observationCalls.length).toBeGreaterThanOrEqual(2)
+    expect(observationCalls.some(([, values]) => (values as unknown[])[1] === "tool_execution")).toBe(true)
+    expect(observationCalls.some(([, values]) => (values as unknown[])[1] === "tool_span")).toBe(true)
+
+    const accessLogCall = queryMock.mock.calls.find(([sql]) => String(sql).includes("INSERT INTO mx_access_log"))
+    expect(accessLogCall).toBeDefined()
+    expect(accessLogCall?.[1]).toContain(result.toolCallId)
+  })
+
   test("executeTool() throws MemexError on bad path for memory_write", async () => {
     const memex = new Memex(createMockDb())
     await expect(

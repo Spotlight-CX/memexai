@@ -108,6 +108,14 @@ export class MemexUser {
       query: string
       results: { path: string; snippet: string; rank: number; updatedAt: Date }[]
       truncated: boolean
+      answer?: string
+      sources?: string[]
+      traceId?: string
+      memory_trace_id?: string
+      toolCallId?: string
+      durationMs?: number
+      usage?: { inputTokens?: number | null; outputTokens?: number | null; totalTokens?: number | null }
+      searchStats?: { searchMode?: string; candidateCount?: number; filesReturned?: number; filesRead?: number; sourcesReturned?: number }
     }>(
       "memory_search",
       { query, ...options },
@@ -120,6 +128,11 @@ export class MemexUser {
       text: string
       dryRun: boolean
       writes: { tool: string; path: string; reason?: string; args: unknown; result?: unknown }[]
+      traceId?: string
+      memory_trace_id?: string
+      toolCallId?: string
+      durationMs?: number
+      usage?: { inputTokens?: number | null; outputTokens?: number | null; totalTokens?: number | null }
     }>(
       "memory_memorize",
       { text, ...options },

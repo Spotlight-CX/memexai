@@ -46,7 +46,9 @@ describe("memory_search route", () => {
     expect(response.json().results).toMatchObject([
       { path: "user/profile.md", snippet: "quiet neighborhood", rank: 0.4 },
     ])
-    const observationCall = db.query.mock.calls.find(([sql]) => String(sql).includes("mx_observation_event"))
+    const observationCall = db.query.mock.calls.find(([sql, values]) => (
+      String(sql).includes("mx_observation_event") && (values as unknown[] | undefined)?.[1] === "tool_execution"
+    ))
     expect(observationCall).toBeTruthy()
     expect(observationCall?.[1]).toEqual(expect.arrayContaining([
       "tool_execution",

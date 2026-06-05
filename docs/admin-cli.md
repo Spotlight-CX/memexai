@@ -123,9 +123,9 @@ memex-admin trace <toolCallId>
 memex-admin trace session --user <userId> [--from <iso>] [--limit 50]
 ```
 
-`trace <id>` shows the full picture for one tool call: observation event (tool name, duration, status), files accessed, and revisions written. This is the primary debugging command for understanding what an agent did.
+`trace <id>` shows the full picture for one tool call: root observation event, child spans, duration, status, trace ID, files accessed, and revisions written. This is the primary debugging command for understanding what an agent did.
 
-`trace session` lists all tool calls for a user in reverse-chronological order.
+`trace session` lists root tool calls for a user in reverse-chronological order. Use it to find the `toolCallId`, then drill into the span waterfall with `trace <id>`.
 
 ```bash
 # Find recent tool calls for a user

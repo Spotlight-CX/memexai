@@ -60,6 +60,9 @@ type ObservationEventRow = {
   physical_path: string | null
   tool_call_id: string | null
   error_code: string | null
+  trace_id: string | null
+  span_id: string | null
+  parent_span_id: string | null
   attributes: Record<string, unknown>
   created_at: Date
 }
@@ -601,7 +604,8 @@ export async function getAgenticTrace(db: Db, toolCallId: string) {
   const [eventsResult, logsResult, revisionsResult] = await Promise.all([
     db.query<ObservationEventRow>(
       `SELECT id, event_type, status, duration_ms, user_id, actor, tool_name, operation,
-              physical_path, tool_call_id, error_code, attributes, created_at
+              physical_path, tool_call_id, error_code, trace_id, span_id, parent_span_id,
+              attributes, created_at
        FROM mx_observation_event
        WHERE tool_call_id = $1
        ORDER BY created_at ASC`,
@@ -623,24 +627,50 @@ export async function getAgenticTrace(db: Db, toolCallId: string) {
     ),
   ])
 
-  const event = eventsResult.rows[0]
+  const rootEvent = eventsResult.rows.find((row) => row.event_type === "tool_execution") ?? eventsResult.rows[0]
+  const event = rootEvent
     ? {
-        id: eventsResult.rows[0].id,
-        eventType: eventsResult.rows[0].event_type,
-        status: eventsResult.rows[0].status,
-        durationMs: eventsResult.rows[0].duration_ms,
-        userId: eventsResult.rows[0].user_id,
-        actor: eventsResult.rows[0].actor,
-        toolName: eventsResult.rows[0].tool_name,
-        errorCode: eventsResult.rows[0].error_code,
-        attributes: eventsResult.rows[0].attributes,
-        createdAt: eventsResult.rows[0].created_at,
+        id: rootEvent.id,
+        eventType: rootEvent.event_type,
+        status: rootEvent.status,
+        durationMs: rootEvent.duration_ms,
+        userId: rootEvent.user_id,
+        actor: rootEvent.actor,
+        toolName: rootEvent.tool_name,
+        operation: rootEvent.operation,
+        physicalPath: rootEvent.physical_path,
+        errorCode: rootEvent.error_code,
+        traceId: rootEvent.trace_id,
+        spanId: rootEvent.span_id,
+        parentSpanId: rootEvent.parent_span_id,
+        attributes: rootEvent.attributes,
+        createdAt: rootEvent.created_at,
       }
     : null
+  const spans = eventsResult.rows
+    .filter((row) => row.event_type !== "tool_execution")
+    .map((row) => ({
+      id: row.id,
+      eventType: row.event_type,
+      status: row.status,
+      durationMs: row.duration_ms,
+      userId: row.user_id,
+      actor: row.actor,
+      toolName: row.tool_name,
+      operation: row.operation,
+      physicalPath: row.physical_path,
+      errorCode: row.error_code,
+      traceId: row.trace_id,
+      spanId: row.span_id,
+      parentSpanId: row.parent_span_id,
+      attributes: row.attributes,
+      createdAt: row.created_at,
+    }))
 
   return {
     toolCallId,
     event,
+    spans,
     accessLog: logsResult.rows.map((row) => ({
       physicalPath: row.physical_path,
       operation: row.operation,
@@ -686,12 +716,16 @@ export async function listAgenticTraceSession(db: Db, input: {
     duration_ms: number | null
     operation: string | null
     physical_path: string | null
-    error_code: string | null
-    created_at: Date
-  }>(
-    `SELECT tool_call_id, tool_name, status, duration_ms, operation, physical_path, error_code, created_at
+      error_code: string | null
+      trace_id: string | null
+      span_id: string | null
+      parent_span_id: string | null
+      created_at: Date
+    }>(
+    `SELECT tool_call_id, tool_name, status, duration_ms, operation, physical_path, error_code,
+            trace_id, span_id, parent_span_id, created_at
      FROM mx_observation_event
-     WHERE ${filters.join(" AND ")}
+     WHERE event_type = 'tool_execution' AND ${filters.join(" AND ")}
      ORDER BY created_at DESC
      LIMIT $${values.length}`,
     values,
@@ -707,6 +741,9 @@ export async function listAgenticTraceSession(db: Db, input: {
       operation: row.operation,
       physicalPath: row.physical_path,
       errorCode: row.error_code,
+      traceId: row.trace_id,
+      spanId: row.span_id,
+      parentSpanId: row.parent_span_id,
       createdAt: row.created_at,
     })),
   }

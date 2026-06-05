@@ -28,9 +28,9 @@ export default function ZepComparePage() {
           </div>
           <h1>MemexAI vs Zep for self-hosted AI memory.</h1>
           <p className="section-lede">
-            Zep is a strong fit when you want graph-oriented conversation memory and temporal relationships. MemexAI is
-            the simpler path when your product needs inspectable user memory files, revision history, access logs, and a
-            Postgres-native deployment.
+            Zep and Graphiti are strong when you want temporal graph memory, relationship-aware recall, and a benchmarked
+            graph retrieval story. MemexAI is the simpler path when your product needs file-level operator control,
+            revision history, access logs, and a Postgres-native deployment.
           </p>
           <div className="hero-actions">
             <Link className="site-button site-button-primary" href="/docs/quickstart/docker-service">
@@ -61,7 +61,8 @@ export default function ZepComparePage() {
             <h3>Zep</h3>
             <p>
               Zep&apos;s paper frames Graphiti as a temporally-aware knowledge graph that synthesizes conversational and
-              business data while maintaining historical relationships.
+              business data while maintaining historical relationships. That is powerful when the relationships are the
+              product; it is heavier than a direct memory record your team can open and patch.
             </p>
           </div>
         </div>
@@ -79,6 +80,7 @@ export default function ZepComparePage() {
           {[
             ['What is the unit of memory?', 'A scoped file under user/ or shared/', 'Entities, relationships, episodes, and graph facts'],
             ['What is the strength?', 'Human-legible state and simple self-hosting', 'Temporal relationship modeling and graph retrieval'],
+            ['What does the public story emphasize?', 'Operator control, revisions, access logs, Postgres', 'Temporal graph memory, low-latency retrieval, relationship reasoning'],
             ['What is the risk?', 'Files need curation and naming hygiene', 'Graph memory can add operational and debugging complexity'],
             ['Best fit', 'Product memory, policies, preferences, correction records', 'Conversation intelligence with rich entity relationships'],
           ].map((row) => (
@@ -117,7 +119,7 @@ export default function ZepComparePage() {
         <h2>Zep and MemexAI optimize for different operating models.</h2>
         <p className="section-lede">
           Zep&apos;s public technical story is graph memory. MemexAI&apos;s story is memory that can be opened like a
-          file, corrected like product data, and audited through revisions and access logs.
+          file, corrected like product data, and audited through revisions, access logs, and time-travel snapshots.
         </p>
         <div className="source-list">
           <a href="https://arxiv.org/abs/2501.13956" target="_blank" rel="noopener noreferrer">

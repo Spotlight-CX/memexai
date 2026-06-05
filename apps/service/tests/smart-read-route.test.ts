@@ -46,7 +46,9 @@ describe("memory_smart_read route", () => {
     expect(response.statusCode).toBe(200)
     expect(response.json().filesIncluded).toEqual(["user/profile.md"])
     expect(response.json().content).toContain("## user/profile.md")
-    const observationCall = db.query.mock.calls.find(([sql]) => String(sql).includes("mx_observation_event"))
+    const observationCall = db.query.mock.calls.find(([sql, values]) => (
+      String(sql).includes("mx_observation_event") && (values as unknown[] | undefined)?.[1] === "tool_execution"
+    ))
     expect(observationCall?.[1]).toEqual(expect.arrayContaining([
       "tool_execution",
       "success",
@@ -54,10 +56,10 @@ describe("memory_smart_read route", () => {
       "memory_smart_read",
       "smart_read",
     ]))
-    expect(observationCall?.[1]?.at(-1)).toBe(JSON.stringify({
+    expect(JSON.parse(String(observationCall?.[1]?.at(-1)))).toMatchObject({
       files_included: 1,
       files_omitted: 0,
       truncated: false,
-    }))
+    })
   })
 })

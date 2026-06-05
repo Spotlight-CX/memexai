@@ -50,6 +50,7 @@ export async function traceCommand(
   const result = await client.getAgenticTrace(toolCallId) as {
     toolCallId: string
     event: Record<string, unknown> | null
+    spans?: unknown[]
     accessLog: unknown[]
     revisions: unknown[]
   }
@@ -60,9 +61,15 @@ export async function traceCommand(
     process.stdout.write(`\nTrace: ${result.toolCallId}\n`)
     process.stdout.write(`Tool:     ${e["toolName"] ?? "unknown"}  |  Status: ${e["status"]}  |  Duration: ${e["durationMs"] != null ? `${e["durationMs"]}ms` : "?"}\n`)
     process.stdout.write(`User:     ${e["userId"] ?? "?"}  |  Actor: ${e["actor"] ?? "?"}\n`)
+    if (e["traceId"]) process.stdout.write(`Trace ID: ${e["traceId"]}\n`)
     if (e["errorCode"]) process.stdout.write(`Error:    ${e["errorCode"]}\n`)
   } else {
     process.stdout.write(`\nTrace: ${result.toolCallId}  (no observation event found)\n`)
+  }
+
+  if ((result.spans ?? []).length > 0) {
+    process.stdout.write(`\nSpans (${(result.spans ?? []).length}):\n`)
+    printTable(result.spans as Record<string, unknown>[], ["createdAt", "toolName", "status", "durationMs", "operation", "physicalPath", "parentSpanId"])
   }
 
   if ((result.accessLog as unknown[]).length > 0) {

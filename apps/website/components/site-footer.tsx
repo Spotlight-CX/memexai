@@ -65,9 +65,10 @@ export function SiteFooter() {
       <div className="site-footer-inner">
         <div className="site-footer-cta">
           <p className="site-footer-kicker">Open-source memory infrastructure</p>
-          <h2>Make memory a product surface, not a prompt secret.</h2>
+          <h2>Give agents memory your team can inspect and improve.</h2>
           <p>
-            MemexAI keeps durable memory inspectable, revisioned, and usable by agents that personalize across sessions.
+            MemexAI keeps durable memory in your Postgres, with scoped files, revisions, access logs, and background
+            cleanup for long-running agent products.
           </p>
           <div className="site-footer-actions">
             <Link className="site-footer-button primary" href="/docs/quickstart/docker-service">
@@ -84,7 +85,7 @@ export function SiteFooter() {
         <div className="site-footer-main">
           <div className="site-footer-brand">
             <BrandMark size="footer" />
-            <p>Persistent memory for AI products.</p>
+            <p>Inspectable memory infrastructure for AI agents.</p>
           </div>
 
           <nav className="site-footer-grid" aria-label="Footer navigation">

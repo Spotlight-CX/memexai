@@ -4,6 +4,7 @@ export type ToolContext = {
   userId: string
   actor?: string
   toolCallId?: string
+  traceId?: string
 }
 
 export type SharedWriteMode = "read_only" | "rw"

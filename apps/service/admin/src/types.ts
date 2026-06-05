@@ -209,6 +209,9 @@ export type ObservabilityEvent = {
   physicalPath: string | null
   toolCallId: string | null
   errorCode: string | null
+  traceId: string | null
+  spanId: string | null
+  parentSpanId: string | null
   attributes: Record<string, unknown>
   createdAt: string
 }

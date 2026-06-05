@@ -20,6 +20,18 @@ Every tool call that touches memory creates a row in `mx_access_log`. Unlike rev
 
 Access logs do not store file content. Revisions store content for writes.
 
+## Access logs vs observation events
+
+Access logs answer: "What memory did the agent touch?"
+
+Observation events answer: "How did the memory call behave?"
+
+Every core tool execution records a root observation event in `mx_observation_event` with `trace_id`, `span_id`, `duration_ms`, status, tool name, operation, and sanitized attributes. Internal phases such as database reads, BM25 search, hybrid search, embedding, LLM generation, revision writes, and access-log writes are recorded as child spans when they run inside a traced tool call.
+
+Tool responses include `traceId`, `memory_trace_id`, `toolCallId`, and `durationMs`. Search and agentic calls also include best-effort `searchStats` and provider token `usage` when available.
+
+MemexAI keeps this trace data locally because memory-native observability is part of the product: admin tools can join traces back to access logs, revisions, and time-travel snapshots. Optional OpenTelemetry export should mirror sanitized spans for external systems, not replace the local record.
+
 ## Why access logs matter
 
 Revision history tells you what changed. Access logs tell you what happened.

@@ -8,6 +8,14 @@ import { type ToolName } from "./tool-definitions"
 import { generateText, jsonSchema, stepCountIs } from "ai"
 import { isDreamExcludedPath } from "./dream-paths"
 import {
+  contextWithTrace,
+  usageFromGenerateTextResult,
+  withObservationSpan,
+  withRootObservation,
+  type ObservationSearchStats,
+  type ObservationUsage,
+} from "./observability"
+import {
   SearchError,
   bm25Search,
   hybridSearch,
@@ -32,6 +40,7 @@ type ExecuteToolOptions = EmbeddingConfig & {
   rrfK?: number
   bm25CandidateLimit?: number
   vectorCandidateLimit?: number
+  observeRoot?: boolean
 }
 
 type MemorySearchResult = {
@@ -50,6 +59,15 @@ type MemorySearchResult = {
   truncated: boolean
   answer?: string
   sources?: string[]
+  usage?: ObservationUsage
+  searchStats?: ObservationSearchStats
+}
+
+function modelName(model: unknown): string | null {
+  if (!model || typeof model !== "object") return null
+  const value = model as Record<string, unknown>
+  const id = value.modelId ?? value.model ?? value.id
+  return typeof id === "string" ? id : null
 }
 
 function searchScope(ctx: ToolContext, prefix?: string): SearchScope {
@@ -70,15 +88,18 @@ function searchScope(ctx: ToolContext, prefix?: string): SearchScope {
   }
 }
 
-async function prepareCoreFileEmbedding(content: string, options: EmbeddingConfig) {
-  try {
-    return await prepareFileEmbedding(content, options)
-  } catch (error) {
-    if (error instanceof SearchError) {
-      throw new MemexError(error.code, error.message)
+async function prepareCoreFileEmbedding(db: Db, content: string, options: EmbeddingConfig) {
+  if (!options.adapter) return prepareFileEmbedding(content, options)
+  return withObservationSpan(db, { name: "embedding", operation: "embedding" }, async () => {
+    try {
+      return await prepareFileEmbedding(content, options)
+    } catch (error) {
+      if (error instanceof SearchError) {
+        throw new MemexError(error.code, error.message)
+      }
+      throw error
     }
-    throw error
-  }
+  })
 }
 
 async function logAccess(db: Db, input: {
@@ -87,7 +108,11 @@ async function logAccess(db: Db, input: {
   operation: "list" | "read" | "write" | "patch" | "smart_read" | "search"
   ctx: ToolContext
 }) {
-  await db.query(
+  await withObservationSpan(db, {
+    name: "access_log_write",
+    operation: input.operation,
+    physicalPath: input.physicalPath,
+  }, () => db.query(
     `INSERT INTO mx_access_log (id, file_id, physical_path, operation, actor, user_id, tool_call_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [
@@ -99,7 +124,7 @@ async function logAccess(db: Db, input: {
       input.ctx.userId,
       input.ctx.toolCallId ?? null,
     ],
-  )
+  ))
 }
 
 async function insertRevision(db: Db, input: {
@@ -110,7 +135,12 @@ async function insertRevision(db: Db, input: {
   reason?: string
   ctx: ToolContext
 }) {
-  await db.query(
+  await withObservationSpan(db, {
+    name: "revision_write",
+    operation: input.operation,
+    physicalPath: input.physicalPath,
+    attributes: { write_count: 1 },
+  }, () => db.query(
     `INSERT INTO mx_revision (id, file_id, physical_path, operation, content_text, reason, actor, user_id, tool_call_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
     [
@@ -124,7 +154,7 @@ async function insertRevision(db: Db, input: {
       input.ctx.userId,
       input.ctx.toolCallId ?? null,
     ],
-  )
+  ))
 }
 
 export async function executeMemoryList(db: Db, args: unknown, ctx: ToolContext) {
@@ -140,13 +170,13 @@ export async function executeMemoryList(db: Db, args: unknown, ctx: ToolContext)
     values.push(physicalPrefix, `${physicalPrefix.endsWith("/") ? physicalPrefix : `${physicalPrefix}/`}%`)
   }
 
-  const { rows } = await db.query<FileRow>(
+  const { rows } = await withObservationSpan(db, { name: "db_read", operation: "list", physicalPath: physicalPrefix ?? "*" }, () => db.query<FileRow>(
     `SELECT id, physical_path, content_text, created_at, updated_at
      FROM mx_file
      WHERE ${where}
      ORDER BY physical_path ASC`,
     values,
-  )
+  ))
 
   await logAccess(db, { physicalPath: physicalPrefix ?? "*", operation: "list", ctx })
 
@@ -166,12 +196,12 @@ export async function executeMemoryList(db: Db, args: unknown, ctx: ToolContext)
 export async function executeMemoryRead(db: Db, args: unknown, ctx: ToolContext) {
   const { path } = readArgsSchema.parse(args)
   const physicalPath = virtualToPhysical(path, ctx)
-  const { rows } = await db.query<FileRow>(
+  const { rows } = await withObservationSpan(db, { name: "db_read", operation: "read", physicalPath }, () => db.query<FileRow>(
     `SELECT id, physical_path, content_text, created_at, updated_at
      FROM mx_file
      WHERE physical_path = $1`,
     [physicalPath],
-  )
+  ))
 
   const file = rows[0]
   if (!file) throw new MemexError("FILE_NOT_FOUND", `File not found: ${path}`)
@@ -190,19 +220,19 @@ export async function executeMemoryWrite(db: Db, args: unknown, ctx: ToolContext
   const permissions = options.permissions ?? resolveMemoryPermissions({ sharedWriteMode: options.sharedWriteMode })
   assertWritableVirtualPath(path, permissions)
   const physicalPath = virtualToPhysical(path, ctx)
-  const preparedEmbedding = await prepareCoreFileEmbedding(content, options)
+  const preparedEmbedding = await prepareCoreFileEmbedding(db, content, options)
 
-  const { rows } = await db.query<{ id: string; created: boolean }>(
+  const { rows } = await withObservationSpan(db, { name: "db_write", operation: "write", physicalPath }, () => db.query<{ id: string; created: boolean }>(
     `INSERT INTO mx_file (id, physical_path, content_text)
      VALUES ($1, $2, $3)
      ON CONFLICT (physical_path)
      DO UPDATE SET content_text = EXCLUDED.content_text, updated_at = now()
      RETURNING id, (xmax = 0) AS created`,
     [newId("file"), physicalPath, content],
-  )
+  ))
 
   const file = rows[0]
-  await storePreparedEmbedding(db, file.id, preparedEmbedding)
+  await withObservationSpan(db, { name: "db_write", operation: "embedding", physicalPath }, () => storePreparedEmbedding(db, file.id, preparedEmbedding))
   await insertRevision(db, { fileId: file.id, physicalPath, operation: "write", content, reason, ctx })
   await logAccess(db, { fileId: file.id, physicalPath, operation: "write", ctx })
 
@@ -219,12 +249,12 @@ export async function executeMemoryPatch(db: Db, args: unknown, ctx: ToolContext
   assertWritableVirtualPath(parsed.path, permissions)
   const physicalPath = virtualToPhysical(parsed.path, ctx)
 
-  const { rows } = await db.query<FileRow>(
+  const { rows } = await withObservationSpan(db, { name: "db_read", operation: "patch", physicalPath }, () => db.query<FileRow>(
     `SELECT id, physical_path, content_text, created_at, updated_at
      FROM mx_file
      WHERE physical_path = $1`,
     [physicalPath],
-  )
+  ))
   const file = rows[0]
   if (!file) throw new MemexError("FILE_NOT_FOUND", `File not found: ${parsed.path}`)
 
@@ -233,9 +263,9 @@ export async function executeMemoryPatch(db: Db, args: unknown, ctx: ToolContext
     : replaceExactText(file.content_text, parsed.match, parsed.replacement)
 
   if (result.changed) {
-    const preparedEmbedding = await prepareCoreFileEmbedding(result.content, options)
-    await db.query("UPDATE mx_file SET content_text = $1, updated_at = now() WHERE id = $2", [result.content, file.id])
-    await storePreparedEmbedding(db, file.id, preparedEmbedding)
+    const preparedEmbedding = await prepareCoreFileEmbedding(db, result.content, options)
+    await withObservationSpan(db, { name: "db_write", operation: "patch", physicalPath }, () => db.query("UPDATE mx_file SET content_text = $1, updated_at = now() WHERE id = $2", [result.content, file.id]))
+    await withObservationSpan(db, { name: "db_write", operation: "embedding", physicalPath }, () => storePreparedEmbedding(db, file.id, preparedEmbedding))
     await insertRevision(db, {
       fileId: file.id,
       physicalPath,
@@ -340,12 +370,12 @@ async function fetchVisibleFilesByVirtualPath(db: Db, paths: string[], ctx: Tool
   })
   if (physicalPaths.length === 0) return []
 
-  const { rows } = await db.query<SmartReadRow>(
+  const { rows } = await withObservationSpan(db, { name: "db_read", operation: "read" }, () => db.query<SmartReadRow>(
     `SELECT id, physical_path, content_text, created_at, updated_at
      FROM mx_file
      WHERE physical_path = ANY($1)`,
     [physicalPaths],
-  )
+  ))
 
   return rows.flatMap((row, index) => {
     const file = rowToMemoryContextFile(row, ctx, index, "linked")
@@ -393,7 +423,7 @@ async function fetchSmartReadSeeds(db: Db, input: { query?: string }, ctx: ToolC
     `
   }
 
-  const { rows } = await db.query<SmartReadRow>(sql, values)
+  const { rows } = await withObservationSpan(db, { name: "db_read", operation: input.query ? "search" : "list" }, () => db.query<SmartReadRow>(sql, values))
   return rows.flatMap((row, index) => {
     const file = rowToMemoryContextFile(row, ctx, index, input.query ? "query_match" : "recency")
     return file ? [file] : []
@@ -506,18 +536,29 @@ export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContex
     return executeAgenticMemorySearch(db, parsed, ctx, options)
   }
   if (options.adapter) {
-    const preparedQueryEmbedding = await prepareCoreFileEmbedding(query, { adapter: options.adapter, maxChars: Number.MAX_SAFE_INTEGER })
+    const adapter = options.adapter
+    const preparedQueryEmbedding = await prepareCoreFileEmbedding(db, query, { adapter, maxChars: Number.MAX_SAFE_INTEGER })
     const queryEmbedding = preparedQueryEmbedding?.status === "ready" ? preparedQueryEmbedding.vector : undefined
-    const results = await hybridSearch(db, {
+    const results = await withObservationSpan(db, {
+      name: "hybrid_search",
+      operation: "search",
+      attributes: {
+        search_mode: "hybrid",
+        query_embedding: Boolean(queryEmbedding),
+        bm25_candidate_limit: options.bm25CandidateLimit ?? null,
+        vector_candidate_limit: options.vectorCandidateLimit ?? null,
+        rrf_k: options.rrfK ?? null,
+      },
+    }, () => hybridSearch(db, {
       query,
       queryEmbedding,
       limit,
       rrfK: options.rrfK,
       bm25CandidateLimit: options.bm25CandidateLimit,
       vectorCandidateLimit: options.vectorCandidateLimit,
-      dimensions: options.adapter.dimensions,
+      dimensions: adapter.dimensions,
       scope: searchScope(ctx, prefix),
-    })
+    }))
 
     const logPath = prefix ? prefixToPhysical(prefix, ctx) : "*"
     await logAccess(db, { physicalPath: logPath ?? "*", operation: "search", ctx })
@@ -536,6 +577,11 @@ export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContex
         updatedAt: result.updatedAt,
       })),
       truncated: false,
+      searchStats: {
+        searchMode: "hybrid",
+        candidateCount: results.length,
+        filesReturned: results.length,
+      },
     }
   }
   return executeMemorySearchBm25(db, { query, limit, prefix }, ctx)
@@ -553,6 +599,7 @@ type MemoryLlmPassResult = {
   text: string
   dryRun: boolean
   writes: MemorizeWrite[]
+  usage?: ObservationUsage
 }
 
 async function runMemoryLlmPass(
@@ -667,18 +714,23 @@ async function runMemoryLlmPass(
     },
   }
 
-  const result = await generateText({
+  const result = await withObservationSpan(db, {
+    name: "llm_generate",
+    operation: "memorize",
+    attributes: { model: modelName(options.model), write_count: writes.length },
+  }, () => generateText({
     model: options.model as never,
     system: options.systemPrompt,
     prompt: options.inputPrompt,
     tools: tools as any,
     stopWhen: stepCountIs(Math.max(1, options.maxWrites + maxReads + 1)),
-  })
+  }))
 
   return {
     text: result.text,
     dryRun,
     writes,
+    usage: usageFromGenerateTextResult(result),
   }
 }
 
@@ -769,6 +821,16 @@ export async function executeMemoryConsolidate(
   ctx: ToolContext,
   options: ExecuteToolOptions & { maxWrites?: number; maxFiles?: number; maxInputChars?: number; dryRun?: boolean } = {},
 ): Promise<ConsolidateResult> {
+  if (options.observeRoot !== false) {
+    return withRootObservation(db, {
+      ctx,
+      toolName: "memory_consolidate",
+      operation: "dream_run",
+      attributes: { model: modelName(options.model) },
+    }, (observedCtx) => executeMemoryConsolidate(db, observedCtx, { ...options, observeRoot: false })) as Promise<ConsolidateResult>
+  }
+
+  ctx = contextWithTrace(ctx)
   if (!options.model) {
     throw new MemexError("MODEL_NOT_CONFIGURED", "memory_consolidate requires a configured model")
   }
@@ -831,9 +893,13 @@ export async function executeMemoryConsolidate(
 }
 
 
-async function executeMemorySearchBm25(db: Db, input: { query: string; limit?: number; prefix?: string }, ctx: ToolContext) {
+async function executeMemorySearchBm25(db: Db, input: { query: string; limit?: number; prefix?: string }, ctx: ToolContext): Promise<MemorySearchResult> {
   const { query, limit = 10, prefix } = input
-  const results = await bm25Search(db, { query, limit, scope: searchScope(ctx, prefix) })
+  const results = await withObservationSpan(db, {
+    name: "bm25_search",
+    operation: "search",
+    attributes: { search_mode: "bm25", candidate_count: limit },
+  }, () => bm25Search(db, { query, limit, scope: searchScope(ctx, prefix) }))
 
   const logPath = prefix ? prefixToPhysical(prefix, ctx) : "*"
   await logAccess(db, { physicalPath: logPath ?? "*", operation: "search", ctx })
@@ -850,6 +916,11 @@ async function executeMemorySearchBm25(db: Db, input: { query: string; limit?: n
       updatedAt: result.updatedAt,
     })),
     truncated: false,
+    searchStats: {
+      searchMode: "bm25",
+      candidateCount: results.length,
+      filesReturned: results.length,
+    },
   }
 }
 
@@ -873,7 +944,11 @@ async function executeAgenticMemorySearch(
   let reads = 0
   const sources = new Set<string>()
 
-  const result = await generateText({
+  const result = await withObservationSpan(db, {
+    name: "llm_generate",
+    operation: "search",
+    attributes: { model: modelName(options.model), search_mode: "agentic" },
+  }, () => generateText({
     model: options.model as never,
     system: [
       "You are a read-only memory resolver.",
@@ -936,16 +1011,39 @@ async function executeAgenticMemorySearch(
       },
     },
     stopWhen: stepCountIs(Math.max(1, maxReads + 1)),
-  })
+  }))
 
   return {
     ...candidates,
     answer: result.text.slice(0, maxChars),
     sources: Array.from(sources),
+    usage: usageFromGenerateTextResult(result),
+    searchStats: {
+      searchMode: "agentic",
+      candidateCount: candidates.results.length,
+      filesReturned: candidates.results.length,
+      filesRead: reads,
+      sourcesReturned: sources.size,
+    },
   }
 }
 
-export async function executeTool(db: Db, toolName: string, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}) {
+export async function executeTool(db: Db, toolName: string, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}): Promise<unknown> {
+  if (options.observeRoot !== false) {
+    return withRootObservation(db, {
+      ctx,
+      toolName,
+      operation: toolOperation(toolName),
+      attributes: {
+        search_mode: toolName === "memory_search"
+          ? (options.model ? "agentic" : options.adapter ? "hybrid" : "bm25")
+          : null,
+        model: modelName(options.model),
+      },
+    }, (observedCtx) => executeTool(db, toolName, args, observedCtx, { ...options, observeRoot: false }))
+  }
+
+  ctx = contextWithTrace(ctx)
   const permissions = options.permissions ?? resolveMemoryPermissions({ sharedWriteMode: options.sharedWriteMode })
   const toolOptions = { ...options, permissions }
   switch (toolName as ToolName) {
@@ -966,4 +1064,15 @@ export async function executeTool(db: Db, toolName: string, args: unknown, ctx: 
     default:
       throw new MemexError("UNKNOWN_TOOL", `Unknown tool: ${toolName}`)
   }
+}
+
+function toolOperation(toolName: string): string | null {
+  if (toolName === "memory_list") return "list"
+  if (toolName === "memory_read") return "read"
+  if (toolName === "memory_write") return "write"
+  if (toolName === "memory_patch") return "patch"
+  if (toolName === "memory_smart_read") return "smart_read"
+  if (toolName === "memory_search") return "search"
+  if (toolName === "memory_memorize") return "memorize"
+  return null
 }

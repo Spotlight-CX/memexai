@@ -21,14 +21,35 @@ export type ObservationEventInput = {
 }
 
 const ALLOWED_ATTRIBUTE_KEYS = new Set([
+  "bm25_candidate_limit",
+  "candidate_count",
   "changed",
   "created",
+  "dry_run",
+  "embedding_chunk_count",
+  "embedding_dimensions",
+  "embedding_model",
+  "embedding_ms",
+  "embedding_strategy",
   "files_included",
   "files_omitted",
+  "files_read",
   "files_returned",
+  "input_tokens",
+  "model",
+  "output_tokens",
+  "provider",
+  "query_embedding",
+  "read_count",
+  "rrf_k",
   "route_kind",
+  "search_mode",
+  "sources_returned",
+  "total_tokens",
   "truncated",
   "updated",
+  "vector_candidate_limit",
+  "write_count",
 ])
 
 export async function recordObservationEvent(db: Db, input: ObservationEventInput): Promise<void> {
@@ -510,12 +531,16 @@ export async function listObservabilityEvents(db: Db, input: ObservabilityFilter
     physical_path: string | null
     tool_call_id: string | null
     error_code: string | null
+    trace_id: string | null
+    span_id: string | null
+    parent_span_id: string | null
     attributes: Record<string, unknown>
     created_at: Date
   }>(
     `
       SELECT id, event_type, status, duration_ms, user_id, actor, tool_name, operation,
-             physical_path, tool_call_id, error_code, attributes, created_at
+             physical_path, tool_call_id, error_code, trace_id, span_id, parent_span_id,
+             attributes, created_at
       FROM mx_observation_event
       ${event.where}
       ORDER BY created_at DESC
@@ -537,6 +562,9 @@ export async function listObservabilityEvents(db: Db, input: ObservabilityFilter
       physicalPath: row.physical_path,
       toolCallId: row.tool_call_id,
       errorCode: row.error_code,
+      traceId: row.trace_id,
+      spanId: row.span_id,
+      parentSpanId: row.parent_span_id,
       attributes: row.attributes,
       createdAt: row.created_at,
     })),

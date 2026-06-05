@@ -7,7 +7,6 @@ import {
   CheckCircle,
   Database,
   FileClock,
-  GitPullRequest,
   ListChecks,
   Network,
   Search,
@@ -63,12 +62,12 @@ export default function HomePage() {
           <div>
             <div className="eyebrow">
               <Database size={15} aria-hidden />
-              Make memory a product surface, not a prompt secret
+              Drop-in memory infra for agent products
             </div>
-            <h1>When your AI gets a user wrong, you can fix it.</h1>
+            <h1>Inspectable memory infrastructure for multi-tenant AI agents.</h1>
             <p className="hero-copy">
-              MemexAI stores what your AI remembers as Markdown files in your Postgres. Wrong fact? Edit the line. The
-              next response changes. No black box. No re-indexing.
+              Run a Docker service beside Postgres. Give agents scoped memory tools. Inspect every read, write,
+              revision, and background consolidation.
             </p>
             <div className="hero-actions">
               <Link className="site-button site-button-primary" href="/docs/quickstart/docker-service" data-analytics-event="cta_clicked" data-analytics-label="home_start_with_docker">
@@ -76,58 +75,55 @@ export default function HomePage() {
                 Try the 90-second proof
                 <ArrowRight size={17} aria-hidden />
               </Link>
-              <a className="site-button site-button-secondary" href="https://github.com/Spotlight-CX/memexai" data-analytics-event="cta_clicked" data-analytics-label="home_github">
-                <GitPullRequest size={17} aria-hidden />
-                GitHub
-              </a>
+              <Link className="site-button site-button-secondary" href="/docs/architecture" data-analytics-event="cta_clicked" data-analytics-label="home_architecture">
+                <Network size={17} aria-hidden />
+                See architecture
+              </Link>
             </div>
           </div>
 
           <div className="hero-visual" aria-label="MemexAI product flow">
             <div className="terminal">
               <div className="terminal-header">
-                <span>agent.ts</span>
-                <span>getSystemPrompt</span>
+                <span>production flow</span>
+                <span>service mode</span>
               </div>
               <div className="terminal-body">
                 <div style={{'--i': 0} as React.CSSProperties}>
-                  <span className="dim">const</span> memory = memex.forUser({'{'} userId:{' '}
-                  <span className="accent">&quot;user_123&quot;</span> {'}'})
+                  <span className="accent">Agent / SDK / MCP</span>
                 </div>
-                <br />
                 <div style={{'--i': 1} as React.CSSProperties}>
-                  <span className="dim">const</span> system = <span className="dim">await</span> memory.getSystemPrompt(...)
+                  <span className="dim">-&gt;</span> MemexAI Docker service
                 </div>
                 <div style={{'--i': 2} as React.CSSProperties}>
-                  <span className="dim">await</span> memory.memorize(
+                  <span className="dim">-&gt;</span> Postgres mx_file / mx_revision / mx_access_log
                 </div>
                 <div style={{'--i': 3} as React.CSSProperties}>
-                  &nbsp;&nbsp;<span className="accent">&quot;Prefers quiet neighborhoods near good schools.&quot;</span>
+                  <span className="dim">-&gt;</span> BM25 search, optional pgvector hybrid
                 </div>
-                <div style={{'--i': 4} as React.CSSProperties}>)</div>
                 <br />
-                <div className="dim" style={{'--i': 5} as React.CSSProperties}># user returns next session</div>
-                <div className="dim" style={{'--i': 6} as React.CSSProperties}># system prompt includes MemexAI memory</div>
-                <div className="dim" style={{'--i': 7} as React.CSSProperties}># answer is personalized from turn one</div>
+                <div className="dim" style={{'--i': 4} as React.CSSProperties}># agentic path: memorize + search</div>
+                <div className="dim" style={{'--i': 5} as React.CSSProperties}># raw path: list + read + write + patch</div>
+                <div className="dim" style={{'--i': 6} as React.CSSProperties}># admin path: inspect, time travel, dream</div>
               </div>
             </div>
 
             <div className="memory-plane">
               <div className="memory-plane-header">
-                <span>Memory files</span>
-                <span>Postgres</span>
+                <span>Admin console</span>
+                <span>Inspectable</span>
               </div>
               <div className="memory-file">
-                <span className="memory-path">user/profile.md</span>
-                <span className="memory-meta">updated</span>
+                <span className="memory-path">user/**</span>
+                <span className="memory-meta">private</span>
               </div>
               <div className="memory-file">
-                <span className="memory-path">user/index.md</span>
-                <span className="memory-meta">catalog</span>
-              </div>
-              <div className="memory-file">
-                <span className="memory-path">shared/policy.md</span>
+                <span className="memory-path">shared/**</span>
                 <span className="memory-meta">global</span>
+              </div>
+              <div className="memory-file">
+                <span className="memory-path">revisions + access logs</span>
+                <span className="memory-meta">audit</span>
               </div>
             </div>
           </div>
@@ -155,6 +151,44 @@ export default function HomePage() {
           <div className="for-who-row">
             <CheckCircle size={20} aria-hidden />
             <span>Your team needs to correct a wrong fact the agent is carrying</span>
+          </div>
+        </Reveal>
+      </section>
+
+      <section className="section">
+        <Reveal>
+          <div className="section-kicker">Trust surface</div>
+          <h2>When your AI gets a user wrong, you can open the memory record and fix it.</h2>
+          <p className="section-lede">
+            MemexAI stores what your AI remembers as Markdown-like files in your Postgres. Wrong fact? Edit the line,
+            inspect who wrote it, and see which later reads used it. The next response changes without a hidden memory
+            blob or a re-indexing ritual.
+          </p>
+          <div className="correction-diff" aria-label="Memory file correction example">
+            <div className="correction-panel correction-panel-before">
+              <div className="correction-panel-header">
+                <span className="correction-panel-label">Before correction</span>
+                <span className="correction-panel-filename">user/profile.md</span>
+              </div>
+              <pre className="correction-code">
+                <div className="correction-line">location: Bangalore</div>
+                <div className="correction-line">moved_from: null</div>
+              </pre>
+            </div>
+            <div className="correction-panel correction-panel-after">
+              <div className="correction-panel-header">
+                <span className="correction-panel-label">After correction</span>
+                <span className="correction-panel-filename">user/profile.md</span>
+              </div>
+              <pre className="correction-code">
+                <div className="correction-line correction-line-added">
+                  <span className="correction-marker">+</span>location: Mumbai
+                </div>
+                <div className="correction-line correction-line-added">
+                  <span className="correction-marker">+</span>moved_from: Bangalore
+                </div>
+              </pre>
+            </div>
           </div>
         </Reveal>
       </section>
@@ -351,43 +385,6 @@ export default function HomePage() {
               </div>
             );
           })}
-        </Reveal>
-      </section>
-
-      <section className="section">
-        <Reveal>
-          <div className="section-kicker">Trust surface</div>
-          <h2>If a memory is wrong, you should be able to open it and fix it.</h2>
-          <p className="section-lede">
-            Memory is not just storage. It is behavioral context with an operational record. The admin UI shows what was
-            remembered, when it changed, who touched it, and which reads happened later.
-          </p>
-          <div className="correction-diff" aria-label="Memory file correction example">
-            <div className="correction-panel correction-panel-before">
-              <div className="correction-panel-header">
-                <span className="correction-panel-label">Before correction</span>
-                <span className="correction-panel-filename">user/profile.md</span>
-              </div>
-              <pre className="correction-code">
-                <div className="correction-line">location: Bangalore</div>
-                <div className="correction-line">moved_from: null</div>
-              </pre>
-            </div>
-            <div className="correction-panel correction-panel-after">
-              <div className="correction-panel-header">
-                <span className="correction-panel-label">After correction</span>
-                <span className="correction-panel-filename">user/profile.md</span>
-              </div>
-              <pre className="correction-code">
-                <div className="correction-line correction-line-added">
-                  <span className="correction-marker">+</span>location: Mumbai
-                </div>
-                <div className="correction-line correction-line-added">
-                  <span className="correction-marker">+</span>moved_from: Bangalore
-                </div>
-              </pre>
-            </div>
-          </div>
         </Reveal>
       </section>
 

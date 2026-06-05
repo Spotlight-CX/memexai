@@ -30,18 +30,23 @@ const DOMAINS = [
 
 const SLACK_INVITE_URL = "https://join.slack.com/t/memexaispace/shared_invite/zt-3yy24alf6-t1wRQsErf09JViHww_qlGw"
 
-const USER_INFO_CATEGORIES = [
-  { id: "preferences", label: "Preferences and tastes", hint: "Style, tone, formats, favorite options" },
-  { id: "constraints", label: "Hard constraints", hint: "Budgets, allergies, deal-breakers, do-not-suggest rules" },
-  { id: "goals", label: "Goals and active intentions", hint: "Plans agents should help carry forward" },
-  { id: "history", label: "Useful past activity", hint: "Prior bookings, purchases, completed tasks, or decisions" },
-  { id: "context", label: "Personal context", hint: "Stable details that affect recommendations" },
-]
-
 const STABILITY_OPTIONS = [
   { id: "volatile", label: "Changes often", hint: "Patch quickly and avoid treating old facts as final." },
   { id: "evolving", label: "Evolves gradually", hint: "Good default for preferences that refine over time." },
   { id: "static", label: "Rarely changes", hint: "Stable profile facts with explicit corrections." },
+]
+
+const TIMESTAMP_OPTIONS = [
+  {
+    id: "yes",
+    label: "Yes — stamp facts with date learned",
+    hint: "Agents append [YYYY-MM] to entries. Makes it easy to audit when a belief was formed and reason about recency.",
+  },
+  {
+    id: "no",
+    label: "No — plain facts only",
+    hint: "Cleaner entries. Rely on revision history for date context.",
+  },
 ]
 
 type Step = 0 | 1 | 2 | 3 | 4
@@ -100,9 +105,15 @@ const FALLBACK_FILES: GeneratedFile[] = [
     content: [
       "# User Memory Rules",
       "",
-      "Agents should store durable user preferences, constraints, goals, and corrections.",
-      "Agents should not store one-off lookups, transient searches, or raw transcripts by default.",
+      "Store durable user preferences, constraints, goals, and corrections.",
+      "Do not store one-off lookups, transient searches, or raw transcripts by default.",
       "When a user corrects older memory, patch the existing file instead of duplicating stale facts.",
+      "",
+      "## Timestamp Convention",
+      "",
+      "When writing a new fact, append the month it was learned: `- Prefers X [YYYY-MM]`.",
+      "When patching a fact, update the timestamp to the current month.",
+      "This is the only recency signal — MemexAI does not track which line was added when.",
       "",
     ].join("\n"),
   },
@@ -133,21 +144,21 @@ const FALLBACK_EXPLANATION: SetupExplanation = {
       shouldStore: true,
       reason: "Durable preference.",
       targetFile: "user/preferences.md",
-      memoryLines: ["- Prefers boutique hotels.", "- Avoids large hotel chains."],
+      memoryLines: ["- Prefers boutique hotels [YYYY-MM].", "- Avoids large hotel chains [YYYY-MM]."],
     },
     {
       userMessage: "What time is sunset in Rome next Friday?",
       shouldStore: false,
-      reason: "One-off lookup.",
+      reason: "One-off lookup, no lasting value.",
       targetFile: null,
       memoryLines: [],
     },
     {
       userMessage: "Actually, I am more into city breaks than resorts now.",
       shouldStore: true,
-      reason: "Updates older preference.",
+      reason: "Patches an older preference.",
       targetFile: "user/preferences.md",
-      memoryLines: ["- Prefers city breaks.", "- Supersedes resort preference."],
+      memoryLines: ["- Prefers city breaks [YYYY-MM].", "- (replaced resort preference)"],
     },
   ],
   sharedMemoryIdeas: ["Product features", "Safety rules", "Common queries", "Partner APIs"],
@@ -245,8 +256,11 @@ export function SetupWizard({ secret, onComplete }: { secret: string; onComplete
   const [step, setStep] = useState<Step>(0)
   const [productDescription, setProductDescription] = useState("")
   const [domain, setDomain] = useState("")
-  const [userInfoCategories, setUserInfoCategories] = useState<string[]>([])
+  const [memorableExample, setMemorableExample] = useState("")
+  const [neverStore, setNeverStore] = useState("")
+  const [forgettingProblem, setForgettingProblem] = useState("")
   const [stability, setStability] = useState("")
+  const [includeTimestamps, setIncludeTimestamps] = useState("yes")
   const [extra, setExtra] = useState("")
   const [generatedFiles, setGeneratedFiles] = useState<GeneratedFile[]>([])
   const [explanation, setExplanation] = useState<SetupExplanation | null>(null)
@@ -261,12 +275,6 @@ export function SetupWizard({ secret, onComplete }: { secret: string; onComplete
     () => STABILITY_OPTIONS.find((option) => option.id === stability),
     [stability],
   )
-
-  const toggleCategory = (id: string) => {
-    setUserInfoCategories((prev) =>
-      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
-    )
-  }
 
   const useFallbackSchema = (message: string) => {
     setGeneratedFiles(FALLBACK_FILES)
@@ -287,9 +295,12 @@ export function SetupWizard({ secret, onComplete }: { secret: string; onComplete
         body: JSON.stringify({
           productDescription,
           domain,
-          userInfoCategories,
+          memorableExample: memorableExample.trim() || undefined,
+          neverStore: neverStore.trim() || undefined,
+          forgettingProblem: forgettingProblem.trim() || undefined,
           stability,
-          extra: extra || undefined,
+          includeTimestamps: includeTimestamps === "yes",
+          extra: extra.trim() || undefined,
           revisionInstruction: instruction.trim() || undefined,
         }),
       })
@@ -434,54 +445,58 @@ export function SetupWizard({ secret, onComplete }: { secret: string; onComplete
     return (
       <Box h="100%" style={{ overflowY: "auto" }} p="xl">
         <Stack maw={760} mx="auto" gap="xl">
-          <ProgressLabel step="Step 2 of 3 - Memory Behavior" label="Choose what agents should remember" />
+          <ProgressLabel step="Step 2 of 3 - Memory Behavior" label="Show agents what good memory looks like" />
           <StepNote>
-            These choices shape the shared agent rules: what to store, what to ignore, and when to patch older
-            memories instead of adding duplicates.
+            Concrete examples work better than abstract categories. Describe real interactions from your product — the
+            generator will infer what to store, what to ignore, and how to structure user files from them.
           </StepNote>
 
           <Stack gap="sm">
-            <Text size="sm" fw={650}>What should agents learn about each user?</Text>
-            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
-              {USER_INFO_CATEGORIES.map((cat) => {
-                const selected = userInfoCategories.includes(cat.id)
-                return (
-                  <button
-                    type="button"
-                    key={cat.id}
-                    onClick={() => toggleCategory(cat.id)}
-                    style={{
-                      ...(selected ? OPTION_SELECTED_STYLE : OPTION_DEFAULT_STYLE),
-                      padding: "var(--mantine-spacing-md)",
-                      textAlign: "left",
-                    }}
-                  >
-                    <Stack gap={4}>
-                      <Group gap="sm" wrap="nowrap">
-                        <Box
-                          w={18}
-                          h={18}
-                          style={{
-                            borderRadius: 4,
-                            border: `2px solid ${selected ? "var(--mantine-color-blue-5)" : "var(--mantine-color-gray-4)"}`,
-                            background: selected ? "var(--mantine-color-blue-5)" : "white",
-                            flexShrink: 0,
-                          }}
-                        />
-                        <Text size="sm" fw={600}>{cat.label}</Text>
-                      </Group>
-                      <Text size="xs" c="gray.6">{cat.hint}</Text>
-                    </Stack>
-                  </button>
-                )
-              })}
-            </SimpleGrid>
+            <Text size="sm" fw={650}>Give an example of something a user might say that agents should definitely remember.</Text>
+            <Text size="xs" c="gray.6">
+              Think of a real message in your product that carries a durable fact. The more specific, the better.
+            </Text>
+            <Textarea
+              placeholder='e.g. "I have a nut allergy and a monthly budget of ₹40k" or "I prefer morning calls, I work from home on Tuesdays"'
+              value={memorableExample}
+              onChange={(e) => setMemorableExample(e.target.value)}
+              minRows={3}
+              autosize
+            />
           </Stack>
 
           <Stack gap="sm">
-            <Text size="sm" fw={650}>How stable is this information?</Text>
+            <Text size="sm" fw={650}>What should agents never store from your users?</Text>
             <Text size="xs" c="gray.6">
-              This sets the default update behavior for the categories you selected above.
+              Privacy rules, irrelevant chatter, one-off lookups, or anything that would clutter memory over time.
+            </Text>
+            <Textarea
+              placeholder='e.g. "One-off searches, credit card details, venting messages, or queries that have no impact on future recommendations"'
+              value={neverStore}
+              onChange={(e) => setNeverStore(e.target.value)}
+              minRows={2}
+              autosize
+            />
+          </Stack>
+
+          <Stack gap="sm">
+            <Text size="sm" fw={650}>What goes wrong when your agent forgets user context?</Text>
+            <Text size="xs" c="gray.6">
+              Describe the worst-case experience. This helps the schema prioritize the right facts.
+            </Text>
+            <Textarea
+              placeholder='e.g. "Recommending expensive options to budget-conscious users" or "Asking the same onboarding questions on every session"'
+              value={forgettingProblem}
+              onChange={(e) => setForgettingProblem(e.target.value)}
+              minRows={2}
+              autosize
+            />
+          </Stack>
+
+          <Stack gap="sm">
+            <Text size="sm" fw={650}>How stable is the information your agents will remember?</Text>
+            <Text size="xs" c="gray.6">
+              This sets how aggressively agents should patch vs. accumulate facts over time.
             </Text>
             <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
               {STABILITY_OPTIONS.map((opt) => {
@@ -509,12 +524,42 @@ export function SetupWizard({ secret, onComplete }: { secret: string; onComplete
           </Stack>
 
           <Stack gap="sm">
-            <Text size="sm" fw={650}>Any product-specific user facts agents should prioritize?</Text>
+            <Text size="sm" fw={650}>Should agents stamp facts with when they were learned?</Text>
+            <Text size="xs" c="gray.6">
+              Without line-level diffs in memory files, a timestamp inline is the only way to know when a belief was formed.
+              Example: <Text span ff="monospace" size="xs">- Prefers boutique hotels [2025-01]</Text>
+            </Text>
+            <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="sm">
+              {TIMESTAMP_OPTIONS.map((opt) => {
+                const selected = includeTimestamps === opt.id
+                return (
+                  <button
+                    type="button"
+                    key={opt.id}
+                    onClick={() => setIncludeTimestamps(opt.id)}
+                    style={{
+                      ...(selected ? OPTION_SELECTED_STYLE : OPTION_DEFAULT_STYLE),
+                      padding: "var(--mantine-spacing-md)",
+                      textAlign: "left",
+                    }}
+                  >
+                    <Stack gap={4}>
+                      <Text size="sm" fw={650}>{opt.label}</Text>
+                      <Text size="xs" c="gray.6">{opt.hint}</Text>
+                    </Stack>
+                  </button>
+                )
+              })}
+            </SimpleGrid>
+          </Stack>
+
+          <Stack gap="sm">
+            <Text size="sm" fw={650}>Anything else agents should know? <Text span c="gray.5" fw={400}>(optional)</Text></Text>
             <Textarea
-              placeholder='e.g. "When mentioned, prioritize fit, budget, dietary restrictions, and brands users avoid."'
+              placeholder='e.g. "Agents interact primarily with first-time buyers; never assume prior real-estate experience."'
               value={extra}
               onChange={(e) => setExtra(e.target.value)}
-              minRows={3}
+              minRows={2}
               autosize
             />
           </Stack>
@@ -525,7 +570,7 @@ export function SetupWizard({ secret, onComplete }: { secret: string; onComplete
             <Button variant="subtle" color="gray" onClick={() => setStep(1)}>Back</Button>
             <Button
               loading={generating}
-              disabled={userInfoCategories.length === 0 || !stability}
+              disabled={!stability}
               onClick={() => generateFiles()}
             >
               Draft schema

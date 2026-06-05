@@ -20,11 +20,11 @@ const instrumentSerif = Instrument_Serif({
 export const metadata: Metadata = {
   metadataBase: new URL('https://memexai.space'),
   title: {
-    default: 'MemexAI - Persistent user memory for AI products',
+    default: 'MemexAI - Inspectable memory infrastructure for AI agents',
     template: '%s | MemexAI',
   },
   description:
-    'Persistent user memory for AI products: inspectable memory files, revisions, access logs, and durable personalization.',
+    'Inspectable memory infrastructure for multi-tenant AI agents: scoped Postgres files, revisions, access logs, admin operations, and background dreaming.',
   keywords: [
     'AI memory',
     'agent memory',
@@ -38,18 +38,18 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: 'MemexAI - Persistent user memory for AI products',
+    title: 'MemexAI - Inspectable memory infrastructure for AI agents',
     description:
-      'Inspectable memory files for AI products, with revisions, access logs, and durable personalization.',
+      'Scoped Postgres memory files for AI agents, with revisions, access logs, admin operations, and background dreaming.',
     type: 'website',
     url: 'https://memexai.space',
     siteName: 'MemexAI',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'MemexAI - Persistent user memory for AI products',
+    title: 'MemexAI - Inspectable memory infrastructure for AI agents',
     description:
-      'Inspectable memory files for AI products, with revisions, access logs, and durable personalization.',
+      'Scoped Postgres memory files for AI agents, with revisions, access logs, admin operations, and background dreaming.',
   },
 };
 

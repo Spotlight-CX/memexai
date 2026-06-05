@@ -68,6 +68,20 @@ type ItemResult = {
   f1: number
   ingest_ms: number
   query_ms: number
+  retrieval_latency_ms: number
+  end_to_end_latency_ms: number
+  input_tokens: number | null
+  output_tokens: number | null
+  total_tokens: number | null
+  search_mode: string | null
+  trace_id: string | null
+  tool_call_id: string | null
+  ingest_trace_ids: string[]
+  written: boolean
+  retrieved: boolean
+  cited: boolean
+  answerable: boolean
+  operator_explainable: boolean
   error?: string
 }
 
@@ -75,6 +89,23 @@ type AgenticSearchResult = {
   answer?: string
   query: string
   results: { path: string; snippet: string; rank: number }[]
+  sources?: string[]
+  traceId?: string
+  memory_trace_id?: string
+  toolCallId?: string
+  durationMs?: number
+  usage?: {
+    inputTokens?: number | null
+    outputTokens?: number | null
+    totalTokens?: number | null
+  }
+  searchStats?: {
+    searchMode?: string
+    candidateCount?: number
+    filesReturned?: number
+    filesRead?: number
+    sourcesReturned?: number
+  }
 }
 
 // ── Dataset download ──────────────────────────────────────────────────────────
@@ -135,6 +166,10 @@ function score(predicted: string, expected: string): { em: number; f1: number } 
   const r = overlap / exp.length
   const f1 = p + r === 0 ? 0 : (2 * p * r) / (p + r)
   return { em, f1 }
+}
+
+function percent(count: number, total: number): number {
+  return total > 0 ? (count / total) * 100 : 0
 }
 
 // ── Model factory ─────────────────────────────────────────────────────────────
@@ -203,6 +238,8 @@ async function main() {
     let ingest_ms = 0
     let predicted = ""
     let error: string | undefined
+    const ingest_trace_ids: string[] = []
+    let wroteMemory = false
 
     try {
       // ── Ingest ──────────────────────────────────────────────────────────────
@@ -221,6 +258,8 @@ async function main() {
               item.haystack_dates[s] ?? "unknown date",
             )
             const result = await user.memorize(text, { maxWrites: 3, dryRun: DRY_RUN })
+            if (result.traceId) ingest_trace_ids.push(result.traceId)
+            wroteMemory ||= result.writes.length > 0
             process.stdout.write(` ${Date.now() - st}ms (${result.writes.length} writes)`)
           }
           ingest_ms = Date.now() - t0
@@ -240,17 +279,73 @@ async function main() {
       predicted = searchResult.answer
         ?? searchResult.results.map(r => r.snippet).join(" ")
 
+      const trace_id = searchResult.traceId ?? searchResult.memory_trace_id ?? null
+      const tool_call_id = searchResult.toolCallId ?? null
+      const retrieved = searchResult.results.length > 0 || (searchResult.sources?.length ?? 0) > 0
+      const cited = (searchResult.sources?.length ?? 0) > 0 || /user\/|shared\//.test(searchResult.answer ?? "")
+      const answerable = Boolean(predicted.trim())
+      const operator_explainable = Boolean(trace_id && tool_call_id)
+
       const { em, f1 } = score(predicted, item.answer)
       totalEM += em
       totalF1 += f1
       process.stdout.write(` query=${query_ms}ms EM=${em} F1=${f1.toFixed(2)}\n`)
 
-      results.push({ question_id: item.question_id, question_type: item.question_type, question: item.question, expected: item.answer, predicted, em, f1, ingest_ms, query_ms })
+      results.push({
+        question_id: item.question_id,
+        question_type: item.question_type,
+        question: item.question,
+        expected: item.answer,
+        predicted,
+        em,
+        f1,
+        ingest_ms,
+        query_ms,
+        retrieval_latency_ms: searchResult.durationMs ?? query_ms,
+        end_to_end_latency_ms: query_ms,
+        input_tokens: searchResult.usage?.inputTokens ?? null,
+        output_tokens: searchResult.usage?.outputTokens ?? null,
+        total_tokens: searchResult.usage?.totalTokens ?? null,
+        search_mode: searchResult.searchStats?.searchMode ?? null,
+        trace_id,
+        tool_call_id,
+        ingest_trace_ids,
+        written: SKIP_INGEST ? true : wroteMemory,
+        retrieved,
+        cited,
+        answerable,
+        operator_explainable,
+      })
     } catch (err) {
       error = err instanceof Error ? err.message : String(err)
       errors++
       process.stdout.write(` ERROR: ${error}\n`)
-      results.push({ question_id: item.question_id, question_type: item.question_type, question: item.question, expected: item.answer, predicted: "", em: 0, f1: 0, ingest_ms, query_ms: 0, error })
+      results.push({
+        question_id: item.question_id,
+        question_type: item.question_type,
+        question: item.question,
+        expected: item.answer,
+        predicted: "",
+        em: 0,
+        f1: 0,
+        ingest_ms,
+        query_ms: 0,
+        retrieval_latency_ms: 0,
+        end_to_end_latency_ms: 0,
+        input_tokens: null,
+        output_tokens: null,
+        total_tokens: null,
+        search_mode: null,
+        trace_id: null,
+        tool_call_id: null,
+        ingest_trace_ids,
+        written: wroteMemory,
+        retrieved: false,
+        cited: false,
+        answerable: false,
+        operator_explainable: false,
+        error,
+      })
     }
   }
 
@@ -262,6 +357,7 @@ async function main() {
   console.log(`Items:       ${n}  (${errors} errors)`)
   console.log(`Exact Match: ${((totalEM / n) * 100).toFixed(1)}%`)
   console.log(`F1:          ${((totalF1 / n) * 100).toFixed(1)}%`)
+  console.log(`Explainable: ${(percent(results.filter((r) => r.operator_explainable).length, n)).toFixed(1)}%`)
 
   const byType = new Map<string, { em: number; f1: number; n: number }>()
   for (const r of results) {
@@ -282,6 +378,13 @@ async function main() {
       errors,
       em: totalEM / n,
       f1: totalF1 / n,
+      reliability: {
+        written: percent(results.filter((r) => r.written).length, n) / 100,
+        retrieved: percent(results.filter((r) => r.retrieved).length, n) / 100,
+        cited: percent(results.filter((r) => r.cited).length, n) / 100,
+        answerable: percent(results.filter((r) => r.answerable).length, n) / 100,
+        operator_explainable: percent(results.filter((r) => r.operator_explainable).length, n) / 100,
+      },
       timestamp: new Date().toISOString(),
     },
     by_type: Object.fromEntries(

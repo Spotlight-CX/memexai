@@ -112,7 +112,7 @@ describe("MCP Routes", () => {
 
       expect(result.isError).toBeFalsy()
       expect(result.content[0]).toMatchObject({ type: "text" })
-      expect(JSON.parse(result.content[0].text)).toEqual({
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
         path: "user/profile.md",
         created: true,
         updated: false,
@@ -180,7 +180,7 @@ describe("MCP Routes", () => {
       })
 
       expect(result.isError).toBeFalsy()
-      expect(JSON.parse(result.content[0].text)).toEqual({
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
         path: "user/stdio.md",
         created: true,
         updated: false,

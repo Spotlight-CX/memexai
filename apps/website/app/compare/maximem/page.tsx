@@ -29,8 +29,9 @@ export default function MaximemComparePage() {
           <h1>MemexAI vs Maximem for agent memory infrastructure.</h1>
           <p className="section-lede">
             Maximem Synap is a managed memory platform with graph retrieval, typed extraction, and benchmark-led
-            positioning. MemexAI is built for teams that want agent memory to live in their own Postgres, as inspectable
-            files with revisions, access logs, admin correction workflows, and optional pgvector-backed hybrid search.
+            positioning. MemexAI is the control-plane alternative for teams that want agent memory to live in their own
+            Postgres, as inspectable files with revisions, access logs, admin correction workflows, and optional
+            pgvector-backed hybrid search.
           </p>
           <div className="hero-actions">
             <Link className="site-button site-button-primary" href="/docs/quickstart/docker-service">
@@ -83,6 +84,7 @@ export default function MaximemComparePage() {
             ['Retrieval model', 'BM25 fallback, optional pgvector hybrid search, and optional model-backed resolution over files', 'Fast vector retrieval or accurate vector + graph traversal with re-ranking'],
             ['Hosting model', 'Open-source Docker service or direct Postgres library by default', 'Cloud-first managed service; on-prem is positioned for Enterprise'],
             ['JavaScript fit', 'Native TypeScript SDK and core package', 'JavaScript wrapper requires a Python runtime according to public docs'],
+            ['What does the public story emphasize?', 'Control, Postgres ownership, admin inspection, honest operability', 'Managed context pipeline, typed extraction, graph/vector retrieval, benchmark proof'],
             ['Human correction', 'Open, edit, and revision the memory record directly', 'Managed dashboard/API workflow over extracted memories'],
             ['Best fit', 'Teams that need owned, inspectable, self-hosted memory records', 'Teams that want a managed context pipeline with richer retrieval machinery'],
           ].map((row) => (

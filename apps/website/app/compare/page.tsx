@@ -3,14 +3,14 @@ import type { Metadata } from 'next';
 import { ArrowRight, BookOpen, CheckCircle2, Cloud, Database, FileClock, Network, Search, XCircle } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'MemexAI vs Mem0, Zep, Maximem, and Vector Memory',
+  title: 'MemexAI vs Mem0, Zep, Supermemory, Maximem, and Vector Memory',
   description:
-    'Compare MemexAI with Mem0, Zep, Maximem, and vector-store memory for AI products that need persistent, inspectable user memory.',
+    'Compare MemexAI with Mem0, Zep, Supermemory, Maximem, and vector-store memory for AI products that need inspectable memory infrastructure.',
   alternates: {
     canonical: '/compare',
   },
   openGraph: {
-    title: 'MemexAI vs Mem0, Zep, Maximem, and Vector Memory',
+    title: 'MemexAI vs Mem0, Zep, Supermemory, Maximem, and Vector Memory',
     description:
       'A practical comparison for AI products choosing between inspectable memory files, vector retrieval, and graph memory.',
     url: 'https://memexai.space/compare',
@@ -32,6 +32,7 @@ const researchLinks = [
   ['Mem0 paper', 'https://arxiv.org/abs/2504.19413'],
   ['Zep paper', 'https://arxiv.org/abs/2501.13956'],
   ['MemGPT paper', 'https://arxiv.org/abs/2310.08560'],
+  ['Supermemory MemoryBench', 'https://github.com/supermemoryai/memorybench'],
 ];
 
 const fitCards = [
@@ -61,10 +62,10 @@ export default function ComparePage() {
             <Database size={15} aria-hidden />
             AI memory comparison
           </div>
-          <h1>MemexAI vs Mem0, Zep, Maximem, and vector-store memory.</h1>
+          <h1>MemexAI vs Mem0, Zep, Supermemory, Maximem, and vector-store memory.</h1>
           <p className="section-lede">
-            Most memory tools optimize for retrieving old text. MemexAI optimizes for maintaining a clean, inspectable
-            model of each user that your AI product can read, update, and trust.
+            Most memory tools lead with benchmarked retrieval quality, latency, or graph/vector machinery. MemexAI is
+            narrower: owned Postgres memory that agents can use, admins can inspect, and teams can improve over time.
           </p>
           <div className="hero-actions">
             <Link className="site-button site-button-primary" href="/docs/quickstart/docker-service">
@@ -82,9 +83,9 @@ export default function ComparePage() {
         <div className="section-kicker">Short version</div>
         <h2>If memory changes behavior, memory has to be legible.</h2>
         <p className="section-lede">
-          Mem0, Zep, Maximem, and vector databases can be good retrieval systems. MemexAI is different: it gives the
-          agent scoped memory files in Postgres, then records revisions and reads so your team can operate memory like
-          product data and behavioral context.
+          Mem0, Zep, Supermemory, Maximem, and vector databases can be strong retrieval systems. MemexAI is different:
+          it gives the agent scoped memory files in Postgres, then records revisions and reads so your team can operate
+          memory like product data and behavioral context.
         </p>
 
         <div className="compare-table" role="table" aria-label="AI memory comparison table">
@@ -105,6 +106,17 @@ export default function ComparePage() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="section">
+        <div className="section-kicker">Benchmark story</div>
+        <h2>Benchmarks are useful. Production memory also needs inspectability.</h2>
+        <p className="section-lede">
+          LongMemEval-style scores help measure recall, temporal reasoning, and knowledge updates. They do not explain
+          whether a missed answer failed because the fact was never written, was written but not retrieved, or was
+          retrieved but ignored. MemexAI should publish reproducible benchmark runs alongside operational metrics:
+          write reliability, cited recall, operator explainability, ingest/query latency, and memory hygiene.
+        </p>
       </section>
 
       <section className="section">
