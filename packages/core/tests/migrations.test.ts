@@ -63,7 +63,7 @@ describe("runMigrations", () => {
   })
 
   test("skips already-applied migrations", async () => {
-    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql", "006_observation_events.sql"])
+    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql", "006_observation_events.sql", "008_rich_seed.sql"])
 
     await runMigrations(db)
 
@@ -71,7 +71,7 @@ describe("runMigrations", () => {
   })
 
   test("skips pgvector migration unless vector mode is enabled", async () => {
-    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql", "006_observation_events.sql"])
+    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql", "006_observation_events.sql", "008_rich_seed.sql"])
 
     await runMigrations(db)
 
@@ -79,7 +79,7 @@ describe("runMigrations", () => {
   })
 
   test("includes pgvector embedding migration when vector mode is enabled", async () => {
-    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql", "006_observation_events.sql"])
+    const { db, client } = createMockDb(["001_init.sql", "002_search_vector.sql", "003_baseline_seed.sql", "004_richer_shared_memory.sql", "005_dream_tables.sql", "006_observation_events.sql", "008_rich_seed.sql"])
 
     await runMigrations(db, { vectorEnabled: true })
 

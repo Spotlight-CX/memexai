@@ -21,7 +21,6 @@ import {
   Title,
   UnstyledButton,
 } from "@mantine/core"
-import { useQueryClient } from "@tanstack/react-query"
 import { useState, useMemo, useEffect } from "react"
 import { createRoot } from "react-dom/client"
 import {
@@ -32,13 +31,13 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom"
-import { useAdminData, adminQueryKey } from "./hooks"
+import { useAdminData } from "./hooks"
 import { BrainIcon, ConnectionIcon, DotsHorizontalIcon, ExternalLinkIcon, MemoryNodeIcon } from "./icons"
 import { FilesView } from "./components/FilesView"
 import { ObservabilityView } from "./components/ObservabilityView"
 import { DreamsView } from "./components/DreamsView"
 import { SecretGate } from "./components/SecretGate"
-import { SetupWizard } from "./components/SetupWizard"
+import { FirstRunModal } from "./components/FirstRunModal"
 import { ToolPlayground } from "./components/ToolPlayground"
 import { UsersView, RevisionsView, AccessLogsView } from "./components/TableViews"
 import { AdminSpotlight, SpotlightTrigger } from "./components/Spotlight"
@@ -120,9 +119,12 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
   gateError: string | null
 }) {
   const [overlay, setOverlay] = useState<Overlay>(null)
+  const [isFirstRun, setIsFirstRun] = useState(false)
+  const [firstRunDismissed, setFirstRunDismissed] = useState(
+    () => localStorage.getItem("memexai.firstRunSeen") === "true",
+  )
   const location = useLocation()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
 
   const { data: filesData } = useAdminData<{ files: AdminFile[] }>(
     secret ? "/v1/admin/files" : null,
@@ -139,19 +141,23 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
 
   const activePage = (PAGES.find((p) => location.pathname === "/" + p) ?? "files") as Page
 
-  // Redirect to setup wizard if shared/index.md still contains the migration seed content.
-  // Any write via the wizard, CLI, or API modifies it → implicitly marks setup done.
+  // Show first-run modal if shared/index.md still contains the migration seed content.
+  // Any write via CLI or API modifies it → implicitly marks setup done.
   useEffect(() => {
     if (!filesData || !sharedIndexData) return
     const content = sharedIndexData.file?.content ?? ""
-    const isSetupDone = content.trim() !== SEED_SHARED_INDEX_MD.trim()
-    if (!isSetupDone && location.pathname !== "/setup") {
-      navigate("/setup")
-    }
-  }, [filesData, sharedIndexData, location.pathname, navigate])
+    setIsFirstRun(content.trim() === SEED_SHARED_INDEX_MD.trim())
+  }, [filesData, sharedIndexData])
 
   return (
     <Layout>
+      <FirstRunModal
+        opened={isFirstRun && !firstRunDismissed}
+        onClose={() => {
+          setFirstRunDismissed(true)
+          localStorage.setItem("memexai.firstRunSeen", "true")
+        }}
+      />
       <AdminSpotlight
         files={files}
         onSelectFile={(path) => navigate("/files?path=" + encodeURIComponent(path))}
@@ -231,7 +237,6 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
             <Route path="/observability" element={<ObservabilityView secret={secret} />} />
             <Route path="/playground" element={<ToolPlayground apiKey={apiKey} secret={secret} onApiKeyInvalid={onApiKeyInvalid} />} />
             <Route path="/dreams" element={<DreamsView secret={secret} />} />
-            <Route path="/setup" element={<SetupWizard secret={secret} onComplete={async () => { await queryClient.invalidateQueries({ queryKey: adminQueryKey("/v1/admin/files") }); navigate("/files") }} />} />
             <Route path="*" element={<Navigate to="/files" replace />} />
           </Routes>
         </AppShell.Main>

@@ -28,6 +28,7 @@ describe("service runMigrations", () => {
       "004_richer_shared_memory.sql",
       "005_dream_tables.sql",
       "006_observation_events.sql",
+      "008_rich_seed.sql",
     ])
 
     await runMigrations(db)
@@ -43,6 +44,7 @@ describe("service runMigrations", () => {
       "004_richer_shared_memory.sql",
       "005_dream_tables.sql",
       "006_observation_events.sql",
+      "008_rich_seed.sql",
     ])
 
     await runMigrations(db, { vectorEnabled: true })

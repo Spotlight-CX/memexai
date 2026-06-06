@@ -51,7 +51,7 @@ describe("handleSetupGenerate", () => {
     await expect(handleSetupGenerate(undefined, {
       productDescription: "A shopping assistant",
       domain: "Shopping / Commerce",
-      userInfoCategories: ["preferences"],
+      memorableExample: "I prefer window seats and boutique hotels",
     })).rejects.toMatchObject({ code: "MODEL_NOT_CONFIGURED" })
   })
 
@@ -61,8 +61,11 @@ describe("handleSetupGenerate", () => {
     const result = await handleSetupGenerate({ id: "model" }, {
       productDescription: "A shopping assistant",
       domain: "Shopping / Commerce",
-      userInfoCategories: ["preferences", "constraints"],
+      memorableExample: "I prefer window seats and boutique hotels",
+      neverStore: "One-off price lookups and weather queries",
+      forgettingProblem: "Recommending chain hotels to users who hate chains",
       stability: "evolving",
+      includeTimestamps: true,
       extra: "Track fit and budget.",
       revisionInstruction: "Make budget a hard constraint.",
     }, generate as never)
@@ -101,7 +104,7 @@ describe("handleSetupGenerate", () => {
     await expect(handleSetupGenerate({ id: "model" }, {
       productDescription: "A shopping assistant",
       domain: "Shopping / Commerce",
-      userInfoCategories: ["preferences"],
+      memorableExample: "I prefer window seats and boutique hotels",
     }, generate as never)).rejects.toThrow(/Invalid generated setup path/)
   })
 })

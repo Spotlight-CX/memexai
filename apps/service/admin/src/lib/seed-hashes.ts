@@ -1,21 +1,39 @@
-// The exact content of shared/index.md after a fresh migration (migration 004).
+// The exact content of shared/index.md after migration 008.
 // If the live file matches this, the operator has not yet customized shared memory
-// and the setup wizard should be shown.
-export const SEED_SHARED_INDEX_MD = `# Memory System
+// and the first-run modal should be shown.
+export const SEED_SHARED_INDEX_MD = `# MemexAI Memory
 
-\`shared/\` is operator-controlled context. \`user/\` is each user's writable workspace.
+\`shared/\` is read-only guidance for all agents. \`user/\` is each user's private writable workspace.
 
-## Files in this shared space
+## Shared files
 
-- \`shared/user-memory.md\` — How agents should manage user memory.
+- \`shared/user-memory.md\` — rules for what to store, patch, and ignore
+- \`shared/domain.md\` — product-specific memory categories and examples
 
-## Spaces
+## Expected user files
 
-- \`shared/\` — Operator rules and domain context. Read-only for agents.
-- \`user/\` — User's personal memory workspace. Write freely.
+| File | What belongs here |
+|---|---|
+| \`user/index.md\` | Registry of all user files and what they cover |
+| \`user/preferences.md\` | Durable soft preferences — refinable over time |
+| \`user/constraints.md\` | Hard blockers — budget ceilings, allergies, banned options |
+| \`user/goals.md\` | Active intentions — mark completed when resolved |
+| \`user/history.md\` | Key events and decisions — append-only |
 
-## Quick rules
+## Memory taxonomy
 
-- Prefer \`memory_memorize\` and \`memory_search\` over raw file tools.
-- Use \`memory_list\` before assuming what files exist under \`user/\`.
-- Read \`user/index.md\` on first turn; infer structure if it doesn't exist.`
+- **Preference** — soft, refinable. Patch when updated. \`- Prefers boutique hotels [2025-01]\`
+- **Constraint** — hard blocker. Never override without explicit correction. \`- No peanuts (allergy) [2025-01]\`
+- **Goal** — time-bound. Mark done when resolved. \`- Trip to Bali, Q3 2025 [open]\`
+- **Episode** — what happened. Append to \`history.md\` only; never patch. \`- Booked Seminyak villa [2025-03]\`
+
+## Timestamp convention
+
+Append \`[YYYY-MM]\` when writing a fact. Update the timestamp when patching. This is the only recency signal — revisions track file-level history, not line-level.
+
+## What NOT to store
+
+- One-off lookups (prices, hours, transit schedules)
+- Emotional venting with no durable signal
+- Information about other people the user mentioned
+`
