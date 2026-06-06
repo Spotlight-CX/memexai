@@ -4,15 +4,15 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { FileText, GitCommit, Eye, Clock } from 'lucide-react'
 
 const fileLines = [
-  { key: 'name', text: 'name: Priya Sharma' },
-  { key: 'loc', text: 'location: Mumbai' },
+  { key: 'name', text: 'name: Alex Chen' },
+  { key: 'loc', text: 'location: London' },
   { key: 'pref', text: 'prefers: dark mode, concise replies' },
-  { key: 'tz', text: 'timezone: IST' },
-  { key: 'topic', text: 'last_topic: apartment search in Andheri' },
+  { key: 'tz', text: 'timezone: GMT' },
+  { key: 'topic', text: 'last_topic: apartment search in Shoreditch' },
   { key: 'blank', text: '' },
   { key: 'heading', text: '## History', className: 'heading' },
-  { key: 'h1', text: '- Moved from Bangalore (corrected Rev 2→3)', className: 'corrected' },
-  { key: 'h2', text: '- Prefers 2BHK, budget 45L', className: 'history' },
+  { key: 'h1', text: '- Moved from New York (corrected Rev 2→3)', className: 'corrected' },
+  { key: 'h2', text: '- Prefers 2-bedroom, budget £600k', className: 'history' },
 ]
 
 export function HeroFileAnimation() {

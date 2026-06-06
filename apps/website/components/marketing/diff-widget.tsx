@@ -26,19 +26,19 @@ export function DiffWidget() {
             transition={{ duration: 0.3 }}
           >
             <span className="mx-diff-line mx-diff-unchanged">
-              <span className="mx-diff-marker"> </span>name: Priya Sharma
+              <span className="mx-diff-marker"> </span>name: Alex Chen
             </span>
             <span className="mx-diff-line mx-diff-removed">
-              <span className="mx-diff-marker">−</span>location: Bangalore
+              <span className="mx-diff-marker">−</span>location: New York
             </span>
             <span className="mx-diff-line mx-diff-added">
-              <span className="mx-diff-marker">+</span>location: Mumbai
+              <span className="mx-diff-marker">+</span>location: London
             </span>
             <span className="mx-diff-line mx-diff-removed">
               <span className="mx-diff-marker">−</span>moved_from: null
             </span>
             <span className="mx-diff-line mx-diff-added">
-              <span className="mx-diff-marker">+</span>moved_from: Bangalore
+              <span className="mx-diff-marker">+</span>moved_from: New York
             </span>
             <span className="mx-diff-line mx-diff-unchanged">
               <span className="mx-diff-marker"> </span>prefers: dark mode, concise replies
@@ -51,10 +51,10 @@ export function DiffWidget() {
             transition={{ duration: 0.3 }}
           >
             <span className="mx-diff-line mx-diff-unchanged">
-              <span className="mx-diff-marker"> </span>name: Priya Sharma
+              <span className="mx-diff-marker"> </span>name: Alex Chen
             </span>
             <span className="mx-diff-line mx-diff-unchanged">
-              <span className="mx-diff-marker"> </span>location: Bangalore
+              <span className="mx-diff-marker"> </span>location: New York
             </span>
             <span className="mx-diff-line mx-diff-unchanged">
               <span className="mx-diff-marker"> </span>moved_from: null

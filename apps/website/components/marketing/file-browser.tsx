@@ -16,7 +16,7 @@ const files: MemoryFile[] = [
     name: 'profile.md',
     path: 'user/profile.md',
     scope: 'private',
-    content: `name: Priya Sharma\nlocation: Mumbai\nprefers: dark mode, concise replies\ntimezone: IST\nlast_topic: apartment search in Andheri`,
+    content: `name: Alex Chen\nlocation: London\nprefers: dark mode, concise replies\ntimezone: GMT\nlast_topic: apartment search in Shoreditch`,
     meta: 'Private · Writable · 3 revisions',
   },
   {

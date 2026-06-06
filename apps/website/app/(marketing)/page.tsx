@@ -82,7 +82,7 @@ export default function HomePage() {
               stop coming back. The AI feels like it has amnesia.
             </p>
             <div className="mx-problem-chat">
-              &ldquo;I already told you I moved to Mumbai.&rdquo;
+              &ldquo;I already told you I moved to London.&rdquo;
             </div>
           </div>
 
@@ -147,7 +147,88 @@ export default function HomePage() {
 
       <hr className="mx-divider" />
 
-      {/* ── §4 TRUST SURFACE ─────────────────────────────────────────── */}
+      {/* ── §4 SHARED MEMORY ─────────────────────────────────────────── */}
+      <section className="mx-section">
+        <Reveal>
+          <span className="mx-kicker">Global Knowledge</span>
+          <h2>Give all your agents a shared brain</h2>
+          <p className="mx-lede">
+            The <code>shared/</code> namespace holds global policies, product schemas, and behavioral rules.
+            Update a schema or rule once, and it instantly propagates to every agent session. No code deployments required.
+          </p>
+        </Reveal>
+
+        <Reveal stagger className="mx-problem-grid">
+          <div className="mx-card">
+            <h3 style={{ fontSize: 18, marginBottom: 12 }}>Behavioral Rules</h3>
+            <p style={{ fontSize: 14, color: 'var(--mx-muted)', margin: 0, lineHeight: 1.6 }}>
+              Store <code>shared/playbook.md</code> to define how agents should handle specific situations (e.g., support escalations). The agent reads it before every session.
+            </p>
+          </div>
+          <div className="mx-card">
+            <h3 style={{ fontSize: 18, marginBottom: 12 }}>Memory Schemas</h3>
+            <p style={{ fontSize: 14, color: 'var(--mx-muted)', margin: 0, lineHeight: 1.6 }}>
+              Define what a &quot;good&quot; user profile looks like. If you add a new required field to the schema, agents will automatically start asking users for it.
+            </p>
+          </div>
+          <div className="mx-card">
+            <h3 style={{ fontSize: 18, marginBottom: 12 }}>Auto-Injection</h3>
+            <p style={{ fontSize: 14, color: 'var(--mx-muted)', margin: 0, lineHeight: 1.6 }}>
+              <code>shared/index.md</code> is automatically injected into every prompt block. It acts as a routing catalog for your agent&apos;s collective knowledge.
+            </p>
+          </div>
+          <div className="mx-card">
+            <h3 style={{ fontSize: 18, marginBottom: 12 }}>Collective Memory</h3>
+            <p style={{ fontSize: 14, color: 'var(--mx-muted)', margin: 0, lineHeight: 1.6 }}>
+              Optionally configure <code>shared/</code> as read-write. Trusted agents can update project canon, backed by full audit trails and the ability to revert any change.
+            </p>
+          </div>
+        </Reveal>
+      </section>
+
+      <hr className="mx-divider" />
+
+      {/* ── §5 BACKGROUND DREAMING ─────────────────────────────────────── */}
+      <section className="mx-section">
+        <Reveal>
+          <span className="mx-kicker">Maintenance</span>
+          <h2>Background Dreaming keeps memory clean</h2>
+          <p className="mx-lede">
+            Memory files can get messy over time with duplicate facts or scattered notes.
+            MemexAI&apos;s Dreaming is a background optimization loop that runs when a user session goes quiet.
+          </p>
+        </Reveal>
+
+        <Reveal stagger className="mx-scope-grid">
+          <div className="mx-scope-card" style={{ borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+            <div style={{ color: 'var(--mx-accent)', marginBottom: 12 }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path d="M9 12l2 2 4-4" />
+              </svg>
+            </div>
+            <strong style={{ marginTop: 0 }}>Compaction & Deduplication</strong>
+            <p>
+              Merges repeated preferences, removes outdated or corrected facts, and consolidates fragmented notes into a stable record without blocking the main user request.
+            </p>
+          </div>
+          <div className="mx-scope-card">
+            <div style={{ color: 'var(--mx-muted)', marginBottom: 12 }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <strong style={{ marginTop: 0 }}>Zero Audit Noise</strong>
+            <p>
+              Dream runs that find nothing to change complete silently. When they do make updates, they create normal revisions authored by the <code>dream-agent</code>.
+            </p>
+          </div>
+        </Reveal>
+      </section>
+
+      <hr className="mx-divider" />
+
+      {/* ── §6 TRUST SURFACE ─────────────────────────────────────────── */}
       <section className="mx-section">
         <Reveal>
           <span className="mx-kicker">Debuggability</span>
