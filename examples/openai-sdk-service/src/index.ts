@@ -26,7 +26,7 @@ const memex = new MemexAI({ url: MEMEX_URL, apiKey: MEMEX_API_KEY })
 const memory = memex.forUser({ userId: MEMEX_USER_ID, actor: "openai-sdk-service-example" })
 const openaiTools = createOpenAITools(memory)
 const tools: ChatCompletionFunctionTool[] = toChatCompletionTools(
-  openaiTools.definitions.filter((tool) => tool.name === "memory_memorize" || tool.name === "memory_search"),
+  openaiTools.definitions.filter((tool) => tool.name === "memory_remember" || tool.name === "memory_context"),
 )
 
 const openai = new OpenAI({
@@ -44,19 +44,19 @@ await runRecallTurn(recallQuestion)
 async function runRememberTurn(fact: string) {
   const system = await memory.getSystemPrompt([
     "You are a helpful assistant with durable memory.",
-    "When the user asks you to remember a stable preference, call memory_memorize before answering.",
+    "When the user asks you to remember a stable preference, call memory_remember before answering.",
     "Keep the final answer short and confirm what was remembered.",
   ].join("\n"))
 
   // This example asks the model to memorize during the user turn. Many production agents
   // also run a post-turn memorize pass after the final assistant response; when doing that,
-  // send only compact new facts to memory_memorize to reduce duplicate notes.
+  // send only compact new facts to memory_remember to reduce duplicate notes.
   const messages: ChatCompletionMessageParam[] = [
     { role: "system", content: system },
     { role: "user", content: `Remember this durable preference: ${fact}` },
   ]
 
-  const answer = await completeWithMemoryTools(messages, ["memory_memorize"])
+  const answer = await completeWithMemoryTools(messages, ["memory_remember"])
   console.log("\nTurn 1 - remember")
   console.log(`User: Remember this durable preference: ${fact}`)
   console.log(`Assistant: ${answer}`)
@@ -65,7 +65,7 @@ async function runRememberTurn(fact: string) {
 async function runRecallTurn(question: string) {
   const system = await memory.getSystemPrompt([
     "You are a helpful assistant with durable memory.",
-    "Use memory_search before answering questions that may depend on prior user memory.",
+    "Use memory_context before answering questions that may depend on prior user memory.",
     "If memory contains the answer, answer directly and cite the remembered fact in plain language.",
   ].join("\n"))
 
@@ -74,7 +74,7 @@ async function runRecallTurn(question: string) {
     { role: "user", content: question },
   ]
 
-  const answer = await completeWithMemoryTools(messages, ["memory_search"])
+  const answer = await completeWithMemoryTools(messages, ["memory_context"])
   console.log("\nTurn 2 - recall")
   console.log(`User: ${question}`)
   console.log(`Assistant: ${answer}`)

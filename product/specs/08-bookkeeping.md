@@ -23,7 +23,7 @@ Current state: `user/index.md` maintenance was added (Tier 1 partial). `user/log
 
 ### 1. `user/log.md` — append-only ingestion log
 
-After every `memory_memorize` call that produces writes, append an entry to `user/log.md`.
+After every `memory_remember` call that produces writes, append an entry to `user/log.md`.
 
 Format (grep-parseable with `grep "^-" user/log.md`):
 ```

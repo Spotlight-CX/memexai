@@ -25,7 +25,7 @@ ALTER TABLE mx_file
 
 ### Ranking change
 
-In `memory_search` and `memory_smart_read`, multiply the base score by `confidence`:
+In `memory_context` and `memory_find`, multiply the base score by `confidence`:
 
 ```
 final_score = base_score * confidence
@@ -86,7 +86,7 @@ Zod schemas in `packages/core/src/schemas.ts` updated accordingly.
 - Defaults: memory written without params gets `1.0` / `'explicit'` in DB
 
 **Integration tests** (`packages/core/tests/confidence-ranking.test.ts`):
-- Two memories on same topic, different confidence → `memory_search` returns higher-confidence one first
+- Two memories on same topic, different confidence → `memory_context` returns higher-confidence one first
 - `memory_consolidate` on 3 related memories → merged file has `source_type: 'consolidated'`
 - Pre-migration rows default to `1.0` / `'explicit'` — no regression
 

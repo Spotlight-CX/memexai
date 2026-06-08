@@ -10,8 +10,8 @@
 
 `getPromptBlock()` loads everything — it's a blunt instrument designed for the system prompt at conversation start. But as memory grows, you don't always want everything. Sometimes you need targeted retrieval: "What does this user prefer about commute?" or "What's their budget range?"
 
-`recall()` is surgical where `memory_smart_read` is broad:
-- `memory_smart_read` → use at conversation start, load all/most memory into system prompt
+`recall()` is surgical where `memory_find` is broad:
+- `memory_find` → use at conversation start, load all/most memory into system prompt
 - `recall()` → use mid-conversation, get the most relevant slice for a specific question
 
 This is mem0's core use case (semantic search), but memexai does it without a vector store — BM25 + optional LLM reranking on top of Postgres.
@@ -40,7 +40,7 @@ const context = await user.recall("What does this user prefer for neighborhoods?
 ### Without model (fast path)
 
 ```
-1. memory_smart_read with { query, max_chars: maxChars }
+1. memory_find with { query, max_chars: maxChars }
    → BM25 ranks files by query relevance
    → BFS adds files until budget reached, sorted by BM25 rank
 2. Return merged context block
@@ -51,7 +51,7 @@ Single SQL query, no LLM call. Fast.
 ### With model (reranker pass)
 
 ```
-1. memory_smart_read with { query, max_chars: maxChars * 2 }
+1. memory_find with { query, max_chars: maxChars * 2 }
    → Fetch more than needed (double budget)
 2. LLM call: "Given this query: '{query}', here is the user's memory.
                Extract only the facts that directly answer the query.
@@ -63,9 +63,9 @@ One extra LLM call, much tighter output. Use when precision matters more than la
 
 ---
 
-## Distinction from `memory_smart_read`
+## Distinction from `memory_find`
 
-| | `memory_smart_read` | `recall(query)` |
+| | `memory_find` | `recall(query)` |
 |---|---|---|
 | When to use | System prompt assembly (start of conversation) | Mid-conversation targeted lookup |
 | Returns | All relevant memory up to budget | Targeted slice for a specific query |
@@ -82,7 +82,7 @@ Add to `packages/core/src/tool-definitions.ts`:
 ```ts
 {
   name: "memory_recall",
-  description: "Retrieve the most relevant memory for a specific question. Cheaper than memory_smart_read for mid-conversation lookups. Use when you need to answer a specific question about this user without loading all their memory.",
+  description: "Retrieve the most relevant memory for a specific question. Cheaper than memory_find for mid-conversation lookups. Use when you need to answer a specific question about this user without loading all their memory.",
   inputSchema: {
     type: "object",
     required: ["query"],
@@ -101,7 +101,7 @@ The tool version does not use the LLM reranker (no model available at tool execu
 
 ## Depends on
 
-- Spec 02 (smart context): `memory_smart_read` tool with `query` parameter for BM25 ranking. `recall()` calls this internally.
+- Spec 02 (smart context): `memory_find` tool with `query` parameter for BM25 ranking. `recall()` calls this internally.
 
 ---
 

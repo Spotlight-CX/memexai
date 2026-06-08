@@ -27,7 +27,7 @@ The current LlamaIndex docs use `GoogleGenAI` from `llama_index.llms.google_gena
 
 The Google Gemini docs currently highlight newer quickstart model names, while LlamaIndex's stable Google GenAI page demonstrates `gemini-2.5-flash`. The example defaults to `gemini-2.5-flash` because it is still listed as a stable Gemini model and is the latest model family verified in the current LlamaIndex integration examples. Users can override it with `GEMINI_MODEL`.
 
-The MemexAI Python adapter already returns LlamaIndex `FunctionTool` objects. The example filters that list to `memory_memorize` and `memory_search`, matching MemexAI's own prompt guidance that these two agentic tools are the preferred default.
+The MemexAI Python adapter already returns LlamaIndex `FunctionTool` objects. The example filters that list to `memory_remember` and `memory_context`, matching MemexAI's own prompt guidance that these two agentic tools are the preferred default.
 
 The CLI requires `GEMINI_API_KEY` and passes it explicitly to `GoogleGenAI`. It also removes any ambient `GOOGLE_API_KEY` from the process to avoid the Google SDK warning that appears when both variables are set.
 

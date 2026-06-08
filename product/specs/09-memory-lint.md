@@ -93,7 +93,7 @@ A new agentic tool `memory_lint` that:
     },
   ],
   summary: "Found 3 issues: 1 orphan, 1 missing index entry, 1 stale fact.",
-  writes: [...],  // same structure as memory_memorize writes, if autoFix produced writes
+  writes: [...],  // same structure as memory_remember writes, if autoFix produced writes
 }
 ```
 

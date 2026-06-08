@@ -17,8 +17,8 @@
 
 ADK has a first-class memory abstraction, so the example implements a small `BaseMemoryService` backed by MemexAI service calls instead of exposing direct memory tools as the primary interface.
 
-- `add_session_to_memory(session)` extracts ADK session events and calls `memory_memorize`.
-- `search_memory(app_name, user_id, query)` calls `memory_search` and converts the answer/snippets into ADK `MemoryEntry` values.
+- `add_session_to_memory(session)` extracts ADK session events and calls `memory_remember`.
+- `search_memory(app_name, user_id, query)` calls `memory_context` and converts the answer/snippets into ADK `MemoryEntry` values.
 - The recall agent uses ADK's built-in `load_memory` tool, keeping the example idiomatic for ADK users.
 
 This path is preferable to direct tool ingestion because it maps MemexAI onto the ADK lifecycle: ADK session first, durable memory after the turn, ADK memory lookup in later turns.
@@ -26,7 +26,7 @@ This path is preferable to direct tool ingestion because it maps MemexAI onto th
 ## MemexAI gaps or missing primitives
 
 - The MemexAI public API currently calls the namespace field `userId`/`user_id`; examples comment that this is the agent/user memory namespace and the term may change later.
-- `memory_memorize(dryRun=True)` exists and can help with duplicate checks, but there is no single high-level "post-turn memory policy" helper yet.
+- `memory_remember(dryRun=True)` exists and can help with duplicate checks, but there is no single high-level "post-turn memory policy" helper yet.
 - A packaged `MemexAdkMemoryService` adapter would make ADK integration cleaner than copying this small class into each app.
 
 ## Smoke validation

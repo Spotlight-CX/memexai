@@ -44,8 +44,8 @@ Raw conversation logs can still exist outside MemexAI for replay, audit, or anal
 - Docker compose — Postgres + HTTP service + admin UI
 - Service MCP server — SSE transport over the same tool engine
 - Raw memory tools — `memory_list`, `memory_read`, `memory_write`, `memory_patch`
-- Agentic memory tools — `memory_memorize`, `memory_search`
-- Smart context tool — `memory_smart_read`
+- Agentic memory tools — `memory_remember`, `memory_context`
+- Smart context tool — `memory_find`
 - Postgres full-text search — generated `tsvector`, no vector database required
 - Agentic search path — BM25 shortlist, optional model-backed read-only synthesis
 - Bookkeeping prompts — `user/index.md`, `user/log.md`, and `## See also` links during memorize
@@ -64,7 +64,7 @@ Raw conversation logs can still exist outside MemexAI for replay, audit, or anal
 Priority order. Each item has a spec file with design, test plan, and success criteria.
 
 ### 1. Bidirectional backlink index
-Add an `mx_backlink` table, hub scoring via `importance_score`, and inbound file expansion in `memory_smart_read` so recent notes that reference a hub file can surface in the same context window. Spec: [`docs/roadmap/001-backlink-index.md`](docs/roadmap/001-backlink-index.md)
+Add an `mx_backlink` table, hub scoring via `importance_score`, and inbound file expansion in `memory_find` so recent notes that reference a hub file can surface in the same context window. Spec: [`docs/roadmap/001-backlink-index.md`](docs/roadmap/001-backlink-index.md)
 
 Why now: PR #9 is open and mergeable, but the implementation is not on `main` yet. It should be treated as ready-to-merge work, not shipped product surface.
 
@@ -96,7 +96,7 @@ Why now: Hybrid retrieval adds roughly 8–20 points accuracy on paraphrase-heav
 Scope: Slices 1–4 of the spec only. No new services, no admin UI, no required dependency. BM25 remains the default. Follows memorize quality improvements (items 1–2 above are the larger lever).
 
 ### 7. Memorize quality improvement
-Tune the `memory_memorize` prompt to extract personal facts even when stated as throwaway asides in queries about unrelated topics. Current `maxWrites: 3` per session is conservative for multi-turn conversations.
+Tune the `memory_remember` prompt to extract personal facts even when stated as throwaway asides in queries about unrelated topics. Current `maxWrites: 3` per session is conservative for multi-turn conversations.
 
 Why now: write-time extraction quality is the primary bottleneck in agent memory recall. Analysis of memory benchmark failures shows the majority of missed recalls are facts that were stated clearly but never extracted — a retrieval improvement cannot recover facts that were never written. Research: [`docs/research/agent-memory-retrieval-landscape.md`](docs/research/agent-memory-retrieval-landscape.md)
 

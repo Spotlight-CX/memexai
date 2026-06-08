@@ -1,7 +1,7 @@
 # Spec: Smart Context Assembler
 
 **Priority:** Tier 1 — blocking launch  
-**Tool name:** `memory_smart_read`  
+**Tool name:** `memory_find`  
 **Status:** Not started
 
 ---
@@ -21,7 +21,7 @@ The current `getPromptBlock` always loads the same three hardcoded files (`share
 ## Algorithm
 
 ```
-memory_smart_read({ max_chars, query? })
+memory_find({ max_chars, query? })
 
 1. List all user files + their sizes from mx_file
    (sizes come free — content_text is stored, we can count chars without a separate query)
@@ -71,7 +71,7 @@ memory_smart_read({ max_chars, query? })
 ...
 
 ---
-Note: 2 file(s) omitted (budget limit). Use memory_search to find specific content.
+Note: 2 file(s) omitted (budget limit). Use memory_context to find specific content.
 </memexai_memory>
 ```
 
@@ -83,7 +83,7 @@ Add to `packages/core/src/tool-definitions.ts`:
 
 ```ts
 {
-  name: "memory_smart_read",
+  name: "memory_find",
   description: "Read all (or the most relevant) memory files in a single call, merged into one context block. Cheaper than multiple memory_read calls. Use this instead of memory_list + memory_read loops.",
   inputSchema: {
     type: "object",
@@ -106,7 +106,7 @@ Add to `packages/core/src/tool-definitions.ts`:
 
 ## BM25 search (supporting tool)
 
-In parallel with smart_read, also add a dedicated `memory_search` tool for agents that need to find a specific file by content keyword.
+In parallel with smart_read, also add a dedicated `memory_context` tool for agents that need to find a specific file by content keyword.
 
 **Migration (`002_search_vector.sql`):**
 ```sql
@@ -118,10 +118,10 @@ CREATE INDEX IF NOT EXISTS mx_file_search_idx ON mx_file USING gin(search_vector
 
 Using a `GENERATED ALWAYS AS ... STORED` column means no trigger needed — Postgres updates it automatically on every write. Cleaner than a trigger.
 
-**`memory_search` tool:**
+**`memory_context` tool:**
 ```ts
 {
-  name: "memory_search",
+  name: "memory_context",
   description: "Search memory files by keyword. Returns matching file paths and text snippets ranked by relevance. Use when you know a specific term to look for.",
   inputSchema: {
     type: "object",
@@ -143,7 +143,7 @@ Returns: `{ results: [{ path, snippet, rank }] }` — snippet is a `ts_headline(
 
 ## Impact on `getPromptBlock`
 
-`getPromptBlock` should be updated to call `memory_smart_read` logic internally with a generous `max_chars` (e.g. 32K). This replaces the current hardcoded three-file approach and makes the context block reflect all user memory automatically.
+`getPromptBlock` should be updated to call `memory_find` logic internally with a generous `max_chars` (e.g. 32K). This replaces the current hardcoded three-file approach and makes the context block reflect all user memory automatically.
 
 The current hardcoded files (`shared/index.md`, `shared/claude.md`, `user/index.md`) are superseded — any file in the user's scope is now included up to budget.
 
@@ -154,7 +154,7 @@ The current hardcoded files (`shared/index.md`, `shared/claude.md`, `user/index.
 | File | Change |
 |---|---|
 | `packages/core/src/migrations.ts` | Add `002_search_vector.sql` |
-| `packages/core/src/tool-definitions.ts` | Add `memory_smart_read`, `memory_search` |
+| `packages/core/src/tool-definitions.ts` | Add `memory_find`, `memory_context` |
 | `packages/core/src/tools.ts` | Implement both tool handlers |
 | `packages/core/src/prompt-block.ts` | Rewrite to use smart_read logic |
 | `packages/core/src/index.ts` | No change needed (tools auto-included) |
@@ -167,5 +167,5 @@ The current hardcoded files (`shared/index.md`, `shared/claude.md`, `user/index.
 1. Unit test — budget under threshold: create 3 small files, smart_read returns all 3 merged
 2. Unit test — budget exceeded: create files summing to > max_chars, smart_read returns subset sorted by recency, includes `files_omitted` list
 3. Unit test — search: mock tsvector query, verify ranked results with snippet
-4. Integration: run demo agent with 10 memory files, verify single `memory_smart_read` call instead of list+read loop
+4. Integration: run demo agent with 10 memory files, verify single `memory_find` call instead of list+read loop
 5. Run `bun test packages/core/tests/smart-context.test.ts`

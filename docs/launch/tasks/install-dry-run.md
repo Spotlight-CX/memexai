@@ -39,4 +39,4 @@ Run the full Docker install path as a first-time user would: `docker compose up 
 - Used `agent-browser` to open the admin UI, inspect Files/Revisions/Activity, and capture screenshots.
 
 ## Notes
-- No live model key was present in the shell for this proof, so the external-LLM `memory_memorize` path was not used. The Docker service did load model-provider configuration from local environment, but the install proof used deterministic SDK/raw tool writes to avoid depending on provider credentials.
+- No live model key was present in the shell for this proof, so the external-LLM `memory_remember` path was not used. The Docker service did load model-provider configuration from local environment, but the install proof used deterministic SDK/raw tool writes to avoid depending on provider credentials.

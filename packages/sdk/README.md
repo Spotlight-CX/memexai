@@ -56,7 +56,7 @@ console.log(result.text)
 Exposes:
 
 ```ts
-// memory_memorize, memory_search
+// memory_remember, memory_context
 ```
 
 Tools alone are not the product moment. The model also needs the MemexAI prompt block, either through `memory.getSystemPrompt(...)` or by adding `await memory.getPromptBlock()` to your system prompt.
@@ -67,7 +67,7 @@ Use raw file tools when you want the agent or app to manage memory files explici
 
 ```ts
 const tools = memory.createRawToolset()
-// memory_list, memory_read, memory_write, memory_patch, memory_smart_read
+// memory_list, memory_read, memory_write, memory_patch, memory_find
 ```
 
 You can also call raw file methods directly:

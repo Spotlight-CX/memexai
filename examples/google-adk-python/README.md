@@ -76,7 +76,7 @@ python src/main.py inspect
 Or call the service API directly:
 
 ```bash
-curl -s -X POST "$MEMEX_URL/v1/tools/memory_search/execute" \
+curl -s -X POST "$MEMEX_URL/v1/tools/memory_context/execute" \
   -H "authorization: Bearer $MEMEX_API_KEY" \
   -H "content-type: application/json" \
   -d '{
@@ -91,10 +91,10 @@ The admin UI is available at `$MEMEX_URL/admin` when the service container inclu
 
 ADK has a native memory-service abstraction. This example implements a small `BaseMemoryService` adapter:
 
-- `add_session_to_memory` sends completed ADK session text to `memory_memorize`.
-- `search_memory` maps ADK's memory lookup to `memory_search`.
+- `add_session_to_memory` sends completed ADK session text to `memory_remember`.
+- `search_memory` maps ADK's memory lookup to `memory_context`.
 - ADK's built-in `load_memory` tool remains the recall surface for the agent.
 
-That is more idiomatic for ADK than handing the model raw MemexAI tools for every turn. Raw file tools are still useful when an agent must control exact files such as `user/profile.md`, but most apps should start with `memory_memorize` and `memory_search`.
+That is more idiomatic for ADK than handing the model raw MemexAI tools for every turn. Raw file tools are still useful when an agent must control exact files such as `user/profile.md`, but most apps should start with `memory_remember` and `memory_context`.
 
-For production post-turn memory, save only durable facts after meaningful interactions. Avoid writing every turn. For noisy apps, search first or use `memory_memorize` with `dryRun` when available to reduce duplicates. Deeper duplicate reduction can be handled by a later consolidation pass.
+For production post-turn memory, save only durable facts after meaningful interactions. Avoid writing every turn. For noisy apps, search first or use `memory_remember` with `dryRun` when available to reduce duplicates. Deeper duplicate reduction can be handled by a later consolidation pass.

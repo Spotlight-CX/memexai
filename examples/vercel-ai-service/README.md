@@ -4,8 +4,8 @@ This is a minimal terminal example that uses the containerized MemexAI HTTP serv
 
 The CLI has two turns:
 
-- `remember` asks Gemini, through the Vercel AI SDK, to call MemexAI's `memory_memorize` memory subagent tool.
-- `recall` asks Gemini to call `memory_search` and answer from durable memory.
+- `remember` asks Gemini, through the Vercel AI SDK, to call MemexAI's `memory_remember` memory subagent tool.
+- `recall` asks Gemini to call `memory_context` and answer from durable memory.
 
 ## Setup
 
@@ -62,7 +62,7 @@ Expected output includes the tool calls and the remembered value:
 command: remember
 memex_url: http://localhost:18080
 memex_user_id: example_vercel_ai_service_user
-tools: memory_memorize
+tools: memory_remember
 
 I've remembered that you prefer ceramic pour-over coffee with oat milk before writing code.
 ```
@@ -71,7 +71,7 @@ I've remembered that you prefer ceramic pour-over coffee with oat milk before wr
 command: recall
 memex_url: http://localhost:18080
 memex_user_id: example_vercel_ai_service_user
-tools: memory_search
+tools: memory_context
 
 Your coffee preference is ceramic pour-over coffee with oat milk before writing code.
 ```
@@ -103,6 +103,6 @@ Use the compose development admin secret `dev-admin-secret`, then filter files o
 
 ## Why Memory Subagent
 
-This example uses `memory_memorize` and `memory_search` instead of raw file tools because terminal examples should demonstrate the default agent workflow: the model supplies conversational text, and MemexAI decides which memory files to read, write, or patch. Raw file tools such as `memory_write`, `memory_patch`, and `memory_read` are better when your application owns the file layout and wants exact path-level control.
+This example uses `memory_remember` and `memory_context` instead of raw file tools because terminal examples should demonstrate the default agent workflow: the model supplies conversational text, and MemexAI decides which memory files to read, write, or patch. Raw file tools such as `memory_write`, `memory_patch`, and `memory_read` are better when your application owns the file layout and wants exact path-level control.
 
-The `remember` command is deliberately shaped like a post-turn memorize pass. In a real assistant, you would usually answer the user first, then run a focused follow-up turn that extracts durable facts and calls `memory_memorize`.
+The `remember` command is deliberately shaped like a post-turn memorize pass. In a real assistant, you would usually answer the user first, then run a focused follow-up turn that extracts durable facts and calls `memory_remember`.

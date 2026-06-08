@@ -19,7 +19,7 @@
 
 - The example uses `@memexai/sdk` and `MemexAI({ url, apiKey })`, then scopes memory with `forUser({ userId, actor })`.
 - The example does not import `@memexai/core`, does not connect to Postgres, and does not run migrations. Docker/service mode owns those concerns.
-- The CLI intentionally runs two model turns: one turn that should call `memory_memorize`, then one turn that should call `memory_search`.
+- The CLI intentionally runs two model turns: one turn that should call `memory_remember`, then one turn that should call `memory_context`.
 - Tool execution goes through `createOpenAITools(memory).execute(...)` so MemexAI records the OpenAI tool call ID in service revisions/access logs when available.
 - The code comments call out post-turn memorize as a production pattern and note that duplicate reduction works best when only compact new facts are submitted.
 
@@ -75,7 +75,7 @@ Result:
 The first CLI attempt reached Gemini but failed because the service container had no model configured:
 
 ```text
-MemexAIError: memory_memorize requires a configured model
+MemexAIError: memory_remember requires a configured model
 code: MODEL_NOT_CONFIGURED
 ```
 
@@ -132,7 +132,7 @@ Memory search verification:
 curl -s -H "Authorization: Bearer dev-agent-key" \
   -H "Content-Type: application/json" \
   -d '{"context":{"userId":"openai-sdk-service-demo-user","actor":"smoke"},"arguments":{"query":"apartment size preference","prefix":"user/"}}' \
-  http://localhost:28080/v1/tools/memory_search/execute
+  http://localhost:28080/v1/tools/memory_context/execute
 ```
 
 Result excerpt:

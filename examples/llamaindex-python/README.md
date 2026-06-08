@@ -67,8 +67,8 @@ curl -s -X POST "$MEMEX_URL/v1/tools/memory_list/execute" \
 
 This example exposes only the memory subagent tools from the LlamaIndex adapter:
 
-- `memory_memorize`
-- `memory_search`
+- `memory_remember`
+- `memory_context`
 
 The full adapter also supports raw file tools, but the memory subagent pair is enough for the remember/recall flow and keeps file bookkeeping inside MemexAI.
 

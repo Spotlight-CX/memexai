@@ -44,7 +44,7 @@ MEMEX_API_KEY=dev-agent-key
 MEMEX_USER_ID=crewai_python_service_demo
 ```
 
-If the Docker service should run model-backed `memory_memorize`, pass the same Gemini key to Compose before starting or recreating the service:
+If the Docker service should run model-backed `memory_remember`, pass the same Gemini key to Compose before starting or recreating the service:
 
 ```bash
 GEMINI_API_KEY=... docker compose up -d --build
@@ -62,11 +62,11 @@ Optional arguments override the remembered fact and recall question:
 python main.py "I prefer 2BHK apartments near metro stations." "What apartment preference should you remember for me?"
 ```
 
-The program prints the CrewAI remember response, the post-turn MemexAI write summary, the CrewAI recall response, and a service-side verification payload from `memory_list` and `memory_search`.
+The program prints the CrewAI remember response, the post-turn MemexAI write summary, the CrewAI recall response, and a service-side verification payload from `memory_list` and `memory_context`.
 
 ## Rationale
 
-The example checks the existing `memexai.adapters.crewai.get_crewai_tools()` adapter and confirms the memory subagent tools are available: `memory_memorize` and `memory_search`. That matches the MemexAI prompt block guidance and keeps the agent away from raw file bookkeeping.
+The example checks the existing `memexai.adapters.crewai.get_crewai_tools()` adapter and confirms the memory subagent tools are available: `memory_remember` and `memory_context`. That matches the MemexAI prompt block guidance and keeps the agent away from raw file bookkeeping.
 
 CrewAI documents async tool support in standard crews. In local smoke testing with CrewAI 1.14.6, the async adapter worked for the remember turn, but the terminal flow hit an `Event loop is closed` error when the script immediately performed post-turn MemexAI verification with the same async HTTP client. The CLI therefore uses small synchronous CrewAI tool wrappers around the same MemexAI service methods, with short-lived clients per tool call.
 
@@ -89,10 +89,10 @@ After running the CLI, inspect memory in the admin UI:
 open "${MEMEX_URL:-http://localhost:8080}/admin"
 ```
 
-or use the same service API with `memory_search`.
+or use the same service API with `memory_context`.
 
 ## Current Gaps
 
-- The service must have an LLM configured for `memory_memorize`; without it, MemexAI returns `MODEL_NOT_CONFIGURED`.
+- The service must have an LLM configured for `memory_remember`; without it, MemexAI returns `MODEL_NOT_CONFIGURED`.
 - CrewAI package resolution is still moving quickly, so this example caps CrewAI below 2.0 and records the tested version in `research/crewai_python.md`.
 - The post-turn memorize guardrail can create duplicate or near-duplicate memory entries on repeated runs.

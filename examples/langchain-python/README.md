@@ -4,8 +4,8 @@ Terminal example for using LangChain Python with the containerized MemexAI servi
 
 The CLI runs two turns against Gemini:
 
-1. Remember: the agent stores a durable preference through `memory_memorize`.
-2. Recall: a second turn asks the agent to retrieve that preference through `memory_search`.
+1. Remember: the agent stores a durable preference through `memory_remember`.
+2. Recall: a second turn asks the agent to retrieve that preference through `memory_context`.
 
 This example uses service mode only. Start MemexAI with Docker Compose; the Python app talks to the HTTP API at `MEMEX_URL`.
 
@@ -32,7 +32,7 @@ MEMEX_USER_ID=langchain_python_demo_user
 GEMINI_MODEL=gemini-2.5-flash
 ```
 
-Start MemexAI with the same Gemini key available to the container. `memory_memorize` runs in the service, so the service needs model credentials too.
+Start MemexAI with the same Gemini key available to the container. `memory_remember` runs in the service, so the service needs model credentials too.
 
 ```bash
 set -a
@@ -120,6 +120,6 @@ Use the admin secret from Compose, default `dev-admin-secret`.
 - `MEMEX_URL` defaults to the docs service URL, `http://localhost:8080`.
 - `MEMEX_API_KEY` defaults to the Docker development key, `dev-agent-key`.
 - `MEMEX_USER_ID` is stable by default so repeated runs show persistent memory.
-- `GEMINI_API_KEY` is required because both the example agent and service-backed `memory_memorize` need an LLM.
-- The LangChain adapter exposes all MemexAI tools; this example passes only `memory_memorize` and `memory_search` to keep the agent on the recommended memory subagent path.
-- The first turn asks the agent to store a fact. In a production chat app, you may instead run `memory_memorize` after a user turn or completed exchange. That post-turn pattern is convenient, but it should be gated to avoid feeding the same fact repeatedly and creating duplicate memory churn.
+- `GEMINI_API_KEY` is required because both the example agent and service-backed `memory_remember` need an LLM.
+- The LangChain adapter exposes all MemexAI tools; this example passes only `memory_remember` and `memory_context` to keep the agent on the recommended memory subagent path.
+- The first turn asks the agent to store a fact. In a production chat app, you may instead run `memory_remember` after a user turn or completed exchange. That post-turn pattern is convenient, but it should be gated to avoid feeding the same fact repeatedly and creating duplicate memory churn.

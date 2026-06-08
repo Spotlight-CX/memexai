@@ -69,7 +69,7 @@ const currentFiles: TimeTravelFile[] = [
     ],
     revisionId: "rev_profile_013",
     actor: "assistant",
-    reason: "memory_memorize",
+    reason: "memory_remember",
     createdAt: "2026-06-02T05:52:00.000Z",
   }),
   file({
@@ -150,7 +150,7 @@ const historicalFiles: TimeTravelFile[] = [
     ],
     revisionId: "rev_pref_039",
     actor: "assistant",
-    reason: "memory_memorize",
+    reason: "memory_remember",
     createdAt: "2026-06-02T06:03:00.000Z",
   }),
   file({
@@ -163,7 +163,7 @@ const historicalFiles: TimeTravelFile[] = [
     ],
     revisionId: "rev_profile_012",
     actor: "assistant",
-    reason: "memory_memorize",
+    reason: "memory_remember",
     createdAt: "2026-06-02T05:52:00.000Z",
   }),
   file({

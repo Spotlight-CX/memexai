@@ -33,7 +33,7 @@ Exposes all memexai memory tools over the MCP protocol via stdio. Compatible wit
 }
 ```
 
-After adding this, Claude Desktop has `memory_list`, `memory_read`, `memory_write`, `memory_patch`, `memory_smart_read` available in every conversation.
+After adding this, Claude Desktop has `memory_list`, `memory_read`, `memory_write`, `memory_patch`, `memory_find` available in every conversation.
 
 ---
 
@@ -74,8 +74,8 @@ All tools from `@memexai/core` tool definitions:
 | `memory_read` | Read a file by path |
 | `memory_write` | Create or overwrite a file |
 | `memory_patch` | Append under heading or replace text |
-| `memory_smart_read` | Read all/relevant files merged (see spec 02) |
-| `memory_search` | BM25 keyword search (see spec 02) |
+| `memory_find` | Read all/relevant files merged (see spec 02) |
+| `memory_context` | BM25 keyword search (see spec 02) |
 
 **userId context:** In MCP mode, `userId` is configured at server start (not per-call). The server is scoped to a single user — this matches the "personal assistant" use case where Claude Desktop is your personal agent.
 

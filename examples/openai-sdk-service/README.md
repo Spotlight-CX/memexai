@@ -4,12 +4,12 @@ This example is a tiny TypeScript terminal app that uses the MemexAI container s
 
 The CLI runs two turns:
 
-1. Remember a durable preference with `memory_memorize`.
-2. Recall it with `memory_search`.
+1. Remember a durable preference with `memory_remember`.
+2. Recall it with `memory_context`.
 
 ## Setup
 
-From the repository root, give the MemexAI service a model key. The CLI uses `GEMINI_API_KEY`, and the service also needs it because `memory_memorize` and memory subagent `memory_search` run inside the container:
+From the repository root, give the MemexAI service a model key. The CLI uses `GEMINI_API_KEY`, and the service also needs it because `memory_remember` and memory subagent `memory_context` run inside the container:
 
 ```bash
 cp .env.example .env
@@ -98,7 +98,7 @@ Use the service API:
 curl -s -H "Authorization: Bearer $MEMEX_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"context":{"userId":"openai-sdk-service-demo-user","actor":"smoke"},"arguments":{"query":"apartment size preference","prefix":"user/"}}' \
-  "$MEMEX_URL/v1/tools/memory_search/execute"
+  "$MEMEX_URL/v1/tools/memory_context/execute"
 ```
 
 Or open the admin UI at `http://localhost:8080/admin` and use the Docker default admin secret:

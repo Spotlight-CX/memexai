@@ -77,7 +77,7 @@ Global toolbar
 │   index.md           │ ───────────────────────────────────────────  │ Actor                      │
 │   user-memory.md     │                                              │ assistant                  │
 │ users/user_123/      │ - Prefers 2BHK apartments                    │ Reason                     │
-│   index.md           │ - Budget around ...                          │ memory_memorize            │
+│   index.md           │ - Budget around ...                          │ memory_remember            │
 │   preferences.md     │ - Avoids aggressive upsells                  │                            │
 │   profile.md         │                                              │ Current status             │
 │                      │                                              │ Changed since timestamp    │
@@ -135,9 +135,9 @@ type MemoryContextSnapshot = {
   kind:
     | "prompt_block"
     | "memory_read"
-    | "memory_search"
-    | "memory_smart_read"
-    | "memory_memorize"
+    | "memory_context"
+    | "memory_find"
+    | "memory_remember"
     | "dream_run"
   status: "open" | "complete" | "error"
   userId: string | null
@@ -182,9 +182,9 @@ For v1, keep exposure collection in memory during the request and flush it once 
 Only record files whose content influenced the agent/model:
 - File content inserted into a prompt block: exposure
 - File content returned by `memory_read`: exposure
-- File content used or returned by `memory_search`: exposure
-- File content assembled by `memory_smart_read`: exposure
-- File content read by inner `memory_memorize` or dream-agent reasoning: exposure
+- File content used or returned by `memory_context`: exposure
+- File content assembled by `memory_find`: exposure
+- File content read by inner `memory_remember` or dream-agent reasoning: exposure
 - Search candidate path discovered but content not read: not an exposure
 - Admin UI read by a human: access log, not memory context snapshot
 
@@ -196,9 +196,9 @@ Each memory-producing operation creates its own snapshot:
 |---|---|---|
 | `prompt_block` | `buildPromptBlock()` / `/v1/prompt-block` | `shared/` files and `user/index.md` injected into the system prompt |
 | `memory_read` | Raw file read tool | File content returned to the agent |
-| `memory_search` | Agentic recall/search | Files read for synthesis or returned as cited context |
-| `memory_smart_read` | Smart context assembly | Files included in the bounded merged context |
-| `memory_memorize` | Agentic write path | Files read by the inner model before deciding writes |
+| `memory_context` | Agentic recall/search | Files read for synthesis or returned as cited context |
+| `memory_find` | Smart context assembly | Files included in the bounded merged context |
+| `memory_remember` | Agentic write path | Files read by the inner model before deciding writes |
 | `dream_run` | Background consolidation | Files read by the dream agent before writing revisions |
 
 This means the feature is mostly a **per-request usage snapshot**. Timestamp-based time travel is still useful, but it is the reconstruction layer built from revisions. Memory context snapshots are the audit layer that says which memory actually influenced a specific request.
@@ -273,8 +273,8 @@ Secondary flow:
 4. Opens the right sidebar to inspect snapshot metadata and changed-since indicators.
 
 Third flow:
-1. Operator opens an access-log or observation event for `memory_search`.
-2. Event links to a `memory_search` snapshot.
+1. Operator opens an access-log or observation event for `memory_context`.
+2. Event links to a `memory_context` snapshot.
 3. Snapshot shows which files were read for recall and which were returned to the agent.
 4. Operator can separate "the memory existed" from "the memory influenced this tool response."
 
