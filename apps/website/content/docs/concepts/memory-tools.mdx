@@ -63,7 +63,9 @@ Pass `dryRun: true` to preview what would be written without committing:
 
 ### Write routing
 
-`memory_remember` reads `shared/user-memory.md` if it exists. That file can contain a routing table that tells the agent which file to use for which category of fact (preferences, family, health, visits). This gives your deployment deterministic write routing without hard-coding it in application code.
+Before writing, `memory_remember` pre-fetches two index files if they exist: **`user/index.md`** (the user's file catalog) and **`shared/index.md`** (global guidance and conventions). The agent also receives the full list of visible files and has a small read budget (3 reads) to fetch any additional files it deems relevant before writing.
+
+This means you can place a routing table anywhere in `shared/` — for example `shared/user-memory.md` — and the agent will discover it from the file list and read it within its budget. The file is not pre-fetched by default; it relies on the agent choosing to read it.
 
 ```markdown
 ## Memory File Structure
@@ -74,6 +76,8 @@ Pass `dryRun: true` to preview what would be written without committing:
 | user/health.md      | Allergies, constraints                      |
 | user/visits.md      | Property visits, prices, observations       |
 ```
+
+For routing guidance that should be reliably followed, put it in **`shared/index.md`** — that file is always pre-fetched before any write decision.
 
 ---
 
