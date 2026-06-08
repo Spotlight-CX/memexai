@@ -1,13 +1,20 @@
 import asyncio
 import os
 from types import SimpleNamespace
+from pathlib import Path
 
 from memexai import MemexAI
 from memexai.adapters.google_adk import MemexAdkMemoryService
 
 
+from dotenv import load_dotenv
+
 async def main() -> None:
-    memex = MemexAI(url=os.getenv("MEMEX_URL", "http://localhost:8080"), api_key=os.getenv("MEMEX_API_KEY", "dev-agent-key"))
+    repo_root = Path(__file__).resolve().parents[2]
+    load_dotenv(repo_root / ".env")
+    load_dotenv(Path(__file__).with_name(".env"), override=True)
+    memex_url = os.getenv("MEMEX_URL") or f"http://localhost:{os.getenv('MEMEX_PORT', '8080')}"
+    memex = MemexAI(url=memex_url, api_key=os.getenv("MEMEX_API_KEY", "dev-agent-key"))
     service = MemexAdkMemoryService(memex, actor="google-adk-background-path")
     try:
         session = SimpleNamespace(

@@ -7,7 +7,8 @@ from memexai import MemexAI
 
 async def main() -> None:
     load_dotenv()
-    memex = MemexAI(url=os.getenv("MEMEX_URL", "http://localhost:8080"), api_key=os.getenv("MEMEX_API_KEY", "dev-agent-key"))
+    memex_url = os.getenv("MEMEX_URL") or f"http://localhost:{os.getenv('MEMEX_PORT', '8080')}"
+    memex = MemexAI(url=memex_url, api_key=os.getenv("MEMEX_API_KEY", "dev-agent-key"))
     try:
         memory = memex.for_user(os.getenv("MEMEX_USER_ID", "crewai_background_user"), actor="crewai-background-path")
         print("background_path: after Crew kickoff, extract durable facts from final task output")
