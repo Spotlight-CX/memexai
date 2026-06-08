@@ -35,7 +35,8 @@
     "test:unit": "bun run build:search && vitest run --exclude '**/.claude/**' packages/core/tests/schemas.test.ts packages/core/tests/paths.test.ts packages/core/tests/text-patch.test.ts packages/core/tests/memex.test.ts packages/sdk/tests/client.test.ts packages/sdk/tests/adapters.test.ts apps/service/tests/config.test.ts",
     "test:watch": "vitest",
     "bench:longmemeval": "bun run apps/benchmark/src/longmemeval.ts",
-    "bench:docker-smoke": "node apps/benchmark/src/docker-smoke-eval.mjs"
+    "bench:docker-smoke": "node apps/benchmark/src/docker-smoke-eval.mjs",
+    "test:e2e": "bun scripts/e2e-recall-test.ts"
   },
   "devDependencies": {
     "@types/node": "^20.19.25",

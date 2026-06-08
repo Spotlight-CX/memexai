@@ -559,9 +559,11 @@ async function runMemoryContextLlmPass(
     model: options.model as never,
     system: [
       "You are a memory retrieval agent. Gather the most relevant memory context for the given query.",
-      "Use memory_find to search for relevant files by keyword or concept.",
+      "Start by reading user/index.md (if it exists) to discover all available memory files — this is the catalog.",
+      "Then use memory_find to search for relevant files by keyword or concept.",
       "Use memory_read to read the full content of files you want to include.",
-      "Use memory_list to discover what files exist when needed.",
+      "Use memory_list only if index.md doesn't give you enough to work with.",
+      "For broad queries (summaries, full profiles), read all files referenced in the index.",
       `Keep total context under ${options.maxChars} characters.`,
       "Return the assembled memory context as your final text response.",
     ].join("\n"),
