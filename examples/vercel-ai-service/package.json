@@ -7,6 +7,9 @@
     "start": "tsx src/index.ts",
     "remember": "tsx src/index.ts remember",
     "recall": "tsx src/index.ts recall",
+    "learn-tool-result": "tsx src/index.ts learn-tool-result",
+    "hot-path": "tsx src/hot-path.ts",
+    "background-path": "tsx src/background-path.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

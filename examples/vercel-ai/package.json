@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
+    "hot-path": "tsx src/hot-path.ts",
+    "background-path": "tsx src/background-path.ts",
     "migrate": "tsx src/migrate.ts"
   },
   "dependencies": {

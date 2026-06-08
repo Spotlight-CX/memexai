@@ -1,5 +1,5 @@
 import type { MemexMemory } from "../client"
-import { memoryToolDefinitions } from "../tool-definitions"
+import { selectToolDefinitions, type ToolMode } from "./shared"
 
 export type LangChainStructuredToolLike = {
   name: string
@@ -8,8 +8,8 @@ export type LangChainStructuredToolLike = {
   call: (args: unknown, options?: { toolCallId?: string }) => Promise<unknown>
 }
 
-export function createLangChainTools(memory: MemexMemory): LangChainStructuredToolLike[] {
-  return memoryToolDefinitions.map((tool) => ({
+export function createLangChainTools(memory: MemexMemory, options: { mode?: ToolMode } = {}): LangChainStructuredToolLike[] {
+  return selectToolDefinitions(options.mode).map((tool) => ({
     name: tool.name,
     description: tool.description,
     schema: tool.inputSchema,
@@ -21,8 +21,8 @@ export function createLangChainTools(memory: MemexMemory): LangChainStructuredTo
   }))
 }
 
-export async function createLangChainToolsFromService(memory: MemexMemory): Promise<LangChainStructuredToolLike[]> {
-  const definitions = await memory.getToolDefinitions()
+export async function createLangChainToolsFromService(memory: MemexMemory, options: { mode?: ToolMode } = {}): Promise<LangChainStructuredToolLike[]> {
+  const definitions = options.mode === "all" ? await memory.getToolDefinitions() : selectToolDefinitions(options.mode)
 
   return definitions.map((tool) => ({
     name: tool.name,

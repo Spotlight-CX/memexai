@@ -5,7 +5,7 @@ import type {
   ChatCompletionMessageToolCall,
 } from "openai/resources/chat/completions"
 import { MemexAI } from "@memexai/sdk"
-import { createOpenAITools, type OpenAIToolDefinition } from "@memexai/sdk/adapters/openai"
+import { createOpenAITools } from "@memexai/sdk/adapters/openai"
 
 const MEMEX_URL = process.env["MEMEX_URL"] ?? "http://localhost:8080"
 const MEMEX_API_KEY = process.env["MEMEX_API_KEY"] ?? "dev-agent-key"
@@ -25,9 +25,7 @@ const recallQuestion = `What apartment size do I prefer? Answer from memory only
 const memex = new MemexAI({ url: MEMEX_URL, apiKey: MEMEX_API_KEY })
 const memory = memex.forUser({ userId: MEMEX_USER_ID, actor: "openai-sdk-service-example" })
 const openaiTools = createOpenAITools(memory)
-const tools: ChatCompletionFunctionTool[] = toChatCompletionTools(
-  openaiTools.definitions.filter((tool) => tool.name === "memory_remember" || tool.name === "memory_context"),
-)
+const tools = openaiTools.definitions satisfies ChatCompletionFunctionTool[]
 
 const openai = new OpenAI({
   apiKey: GEMINI_API_KEY,
@@ -40,6 +38,7 @@ console.log(`Model: ${OPENAI_MODEL}`)
 
 await runRememberTurn(rememberedValue)
 await runRecallTurn(recallQuestion)
+await learnFromPermanentToolFailure()
 
 async function runRememberTurn(fact: string) {
   const system = await memory.getSystemPrompt([
@@ -119,21 +118,45 @@ async function completeWithMemoryTools(
         tool_call_id: toolCall.id,
         content: JSON.stringify(result),
       })
+
+      const insight = extractInsightFromAppToolResult(toolCall.function.name, result)
+      if (insight) {
+        await memory.remember({ text: insight, toolCallId: `${toolCall.id}_extraction` })
+      }
     }
   }
 
   throw new Error("Model did not finish after 6 tool-call steps")
 }
 
-function toChatCompletionTools(definitions: OpenAIToolDefinition[]): ChatCompletionFunctionTool[] {
-  return definitions.map((tool) => ({
-    type: "function",
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parameters,
-    },
-  }))
+async function learnFromPermanentToolFailure() {
+  const appToolResult = {
+    ok: false,
+    permanent: true,
+    error: "ILIKE is not supported in this SQL dialect; use LOWER(column) LIKE LOWER(pattern).",
+  }
+  const insight = extractInsightFromAppToolResult("run_sql", appToolResult)
+  if (!insight) return
+
+  const result = await memory.remember({
+    text: insight,
+    toolCallId: "openai_example_run_sql_extraction",
+  })
+
+  console.log("\nExtraction scenario")
+  console.log(`Learned: ${insight}`)
+  console.log(`Writes: ${result.writes.map((write) => write.path).join(", ") || "none"}`)
+}
+
+function extractInsightFromAppToolResult(toolName: string, result: unknown) {
+  if (!isPermanentFailure(result)) return null
+  return `${toolName} permanent failure: ${result.error}`
+}
+
+function isPermanentFailure(result: unknown): result is { ok: false; permanent: true; error: string } {
+  if (!result || typeof result !== "object") return false
+  const candidate = result as { ok?: unknown; permanent?: unknown; error?: unknown }
+  return candidate.ok === false && candidate.permanent === true && typeof candidate.error === "string"
 }
 
 function withStableToolCallIds(message: OpenAI.Chat.ChatCompletionMessage): OpenAI.Chat.ChatCompletionMessage {

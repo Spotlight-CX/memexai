@@ -128,10 +128,16 @@ class MemexAIMemory:
         tool_id = args.pop("tool_call_id", tool_call_id)
         return await self.execute_tool("memory_find", args, tool_call_id=tool_id)
 
+    async def search(self, query: Union[str, Dict[str, Any]], tool_call_id: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+        return await self.find(query, tool_call_id=tool_call_id, **kwargs)
+
     async def remember(self, text: Union[str, Dict[str, Any]], tool_call_id: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         args = {"text": text, **kwargs} if isinstance(text, str) else {**text, **kwargs}
         tool_id = args.pop("tool_call_id", tool_call_id)
         return await self.execute_tool("memory_remember", args, tool_call_id=tool_id)
+
+    async def memorize(self, text: Union[str, Dict[str, Any]], tool_call_id: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+        return await self.remember(text, tool_call_id=tool_call_id, **kwargs)
 
     async def retrieve_context(self, query: Optional[Union[str, Dict[str, Any]]] = None, tool_call_id: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         if query is None:

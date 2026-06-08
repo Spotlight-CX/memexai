@@ -51,11 +51,11 @@ def check_service(memex_url: str) -> None:
 def pick_agentic_tools(tools: Iterable[Any]) -> list[Any]:
     selected = []
     for candidate in tools:
-        if getattr(candidate, "name", None) in {"memory_memorize", "memory_search"}:
+        if getattr(candidate, "name", None) in {"memory_remember", "memory_context"}:
             selected.append(candidate)
     if len(selected) != 2:
         names = [getattr(tool, "name", "<unknown>") for tool in tools]
-        raise RuntimeError(f"Expected memory_memorize and memory_search tools, found: {names}")
+        raise RuntimeError(f"Expected memory_remember and memory_context tools, found: {names}")
     return selected
 
 
@@ -63,10 +63,10 @@ async def _with_memory(memex_url: str, memex_api_key: str, user_id: str, call: s
     memex = MemexAI(url=memex_url, api_key=memex_api_key, timeout=60)
     try:
         memory = memex.for_user(user_id, actor=ACTOR)
-        if call == "memorize":
-            return await memory.memorize(args)
-        if call == "search":
-            return await memory.search(args)
+        if call == "remember":
+            return await memory.remember(args)
+        if call == "context":
+            return await memory.retrieve_context(args)
         if call == "list":
             return await memory.list_files(prefix=args.get("prefix"))
         raise ValueError(f"Unknown memory call: {call}")
@@ -83,28 +83,25 @@ def build_practical_crewai_tools(memex_url: str, memex_api_key: str, user_id: st
     # this terminal flow also performs post-turn verification after kickoff; in
     # local smoke testing, that combination closed the httpx event loop. These
     # sync wrappers call the same MemexAI service methods with short-lived clients.
-    @tool("memory_memorize")
-    def memory_memorize(text: str, maxWrites: int = 3, dryRun: bool = False) -> str:
+    @tool("memory_remember")
+    def memory_remember(text: str, maxWrites: int = 3, dryRun: bool = False) -> str:
         """Remember durable facts from raw text using MemexAI."""
         result = call_memory(
             memex_url,
             memex_api_key,
             user_id,
-            "memorize",
+            "remember",
             {"text": text, "maxWrites": maxWrites, "dryRun": dryRun},
         )
         return json.dumps(result, indent=2, default=str)
 
-    @tool("memory_search")
-    def memory_search(query: str, maxChars: int = 4000, limit: int = 5, prefix: str | None = None) -> str:
-        """Search MemexAI memory for relevant stored context."""
-        args: dict[str, Any] = {"query": query, "maxChars": maxChars, "limit": limit}
-        if prefix:
-            args["prefix"] = prefix
-        result = call_memory(memex_url, memex_api_key, user_id, "search", args)
+    @tool("memory_context")
+    def memory_context(query: str, maxChars: int = 4000) -> str:
+        """Retrieve MemexAI memory context for a question."""
+        result = call_memory(memex_url, memex_api_key, user_id, "context", {"query": query, "maxChars": maxChars})
         return json.dumps(result, indent=2, default=str)
 
-    return [memory_memorize, memory_search]
+    return [memory_remember, memory_context]
 
 
 def build_agent(tools: list[Any], llm: LLM) -> Agent:
@@ -148,7 +145,7 @@ def main() -> None:
 
     adapter_probe = MemexAI(url=memex_url, api_key=memex_api_key, timeout=10)
     try:
-        adapter_tools = pick_agentic_tools(get_crewai_tools(adapter_probe.for_user(user_id, actor=ACTOR)))
+        adapter_tools = pick_agentic_tools(get_crewai_tools(adapter_probe.for_user(user_id, actor=ACTOR), mode="subagent"))
         adapter_tool_names = [getattr(adapter_tool, "name", "") for adapter_tool in adapter_tools]
     finally:
         run_async(adapter_probe.close())
@@ -166,7 +163,7 @@ def main() -> None:
         "\n".join(
             [
                 f"User said: Remember that {fact}",
-                "Use memory_memorize to save this durable preference in MemexAI.",
+                "Use memory_remember to save this durable preference in MemexAI.",
                 "Keep your final answer to one short sentence.",
             ]
         ),
@@ -174,21 +171,34 @@ def main() -> None:
     )
     print(remember_output)
 
-    # This post-turn memorize call makes the terminal demo deterministic even if
+    # This post-turn remember call makes the terminal demo deterministic even if
     # the agent replies before choosing a tool. Re-running can create equivalent
     # entries, so production apps should dedupe turn text before post-turn saves.
     post_turn = call_memory(
         memex_url,
         memex_api_key,
         user_id,
-        "memorize",
+        "remember",
         {
             "text": f"User said: Remember that {fact}",
             "maxWrites": 3,
         },
     )
-    print("\nPost-turn memorize writes:")
+    print("\nPost-turn remember writes:")
     print(json.dumps(post_turn.get("writes", []), indent=2, default=str))
+
+    task_insight = call_memory(
+        memex_url,
+        memex_api_key,
+        user_id,
+        "remember",
+        {
+            "text": f"CrewAI task-output durable fact: the user preference task completed with output: {remember_output}",
+            "maxWrites": 2,
+        },
+    )
+    print("\nTask-output extraction writes:")
+    print(json.dumps(task_insight.get("writes", []), indent=2, default=str))
 
     print("\nTurn 2 - recall")
     recall_output = run_task(
@@ -196,7 +206,7 @@ def main() -> None:
         "\n".join(
             [
                 f"User asked: {recall_query}",
-                "Use memory_search before answering. Answer with the remembered preference only.",
+                "Use memory_context before answering. Answer with the remembered preference only.",
             ]
         ),
         "The stored apartment preference, grounded in MemexAI memory.",
@@ -207,8 +217,8 @@ def main() -> None:
         memex_url,
         memex_api_key,
         user_id,
-        "search",
-        {"query": "2BHK apartment preference near metro", "maxChars": 4000, "limit": 5},
+        "context",
+        {"query": "2BHK apartment preference near metro", "maxChars": 4000},
     )
     files = call_memory(memex_url, memex_api_key, user_id, "list", {"prefix": "user/"})
     print("\nService verification:")

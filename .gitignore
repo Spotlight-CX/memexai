@@ -7,6 +7,10 @@ tmp/agent-browser-shots/
 .env.vertex.local
 .secrets/
 .DS_Store
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
 external/LongMemEval/
 gtm/
 .gstack/

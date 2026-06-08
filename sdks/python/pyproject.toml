@@ -24,10 +24,14 @@ llamaindex = [
 crewai = [
     "crewai>=0.30.0; python_version >= '3.10' and python_version < '3.14'",
 ]
+google-adk = [
+    "google-adk>=1.0.0; python_version >= '3.10'",
+]
 adapters = [
     "langchain>=0.2.0",
     "llama-index-core>=0.10.0",
     "crewai>=0.30.0; python_version >= '3.10' and python_version < '3.14'",
+    "google-adk>=1.0.0; python_version >= '3.10'",
 ]
 test = [
     "pytest>=7.0.0",

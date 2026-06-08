@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "tsx --env-file=.env src/index.ts",
+    "hot-path": "tsx --env-file=.env src/hot-path.ts",
+    "background-path": "tsx --env-file=.env src/background-path.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

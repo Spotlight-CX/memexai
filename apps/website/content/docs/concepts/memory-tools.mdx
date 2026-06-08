@@ -43,8 +43,17 @@ Every write produces a **revision snapshot** and an **access log row**, linking 
 Use `memory_remember` after a completed user turn or at natural breakpoints in a conversation — not on every message. Calling it too frequently creates noise and near-duplicate memory. A good pattern:
 
 ```ts
-// After the assistant finishes a turn, post the user's message for memory
+// Pass any text worth considering for durable memory:
+// user messages, assistant observations, or compact tool-result fragments.
+
+// Most common: user message after a completed turn
 await memory.remember({ text: userMessage })
+
+// Tool result: pass the durable fragment, not a raw dump
+await memory.remember({ text: 'run_sql failed: ILIKE is not supported in this SQL dialect' })
+
+// Assistant observation or stated fact
+await memory.remember({ text: assistantResponse })
 ```
 
 Pass `dryRun: true` to preview what would be written without committing:
@@ -78,6 +87,20 @@ This means you can place a routing table in any `shared/` file — for example `
 ```
 
 For routing guidance that should be reliably followed, put it in **`shared/index.md`** — that file is always pre-fetched before any write decision.
+
+#### Routing systemic insights to `shared/`
+
+Facts that benefit every user — tool dialect quirks, API limitations, product conventions — belong in `shared/` rather than `user/` when the deployment is trusted. Enable this with `MEMEX_SHARED_WRITE_MODE=rw` on the service, then add a routing table in `shared/index.md`:
+
+```markdown
+## Memory file structure
+| File | What goes here |
+|------|----------------|
+| user/preferences.md | User preferences and private stated facts |
+| shared/tool-quirks.md | SQL dialect errors, API limitations, unsupported syntax |
+```
+
+With shared writable mode on, `memory_remember` can route a systemic fact to `shared/tool-quirks.md` instead of a user file. Shared writable mode is off by default; only enable it for trusted agents. See [Memory Scopes](/docs/concepts/scopes) for the full trust model.
 
 ---
 
@@ -319,6 +342,82 @@ const system = await memory.getSystemPrompt('You are a helpful assistant with du
 const tools = memory.createMemorySubagentToolset()
 // → exposes memory_remember and memory_context to the model
 ```
+
+---
+
+## Extraction patterns
+
+`memory_remember` is a primitive. The question of *when* to call it and *what text* to pass belongs to your application. MemexAI does not watch tool results or conversation history by itself.
+
+### Hot path vs background path
+
+Both are valid:
+
+| Path | Use when | Tradeoff |
+|---|---|---|
+| Hot path | The current answer depends on saved memory, or the user expects an immediate durable save | More latency, simpler correctness |
+| Background path | Latency matters, or you want batching, dedupe, review, or a cheaper extractor | Memory may affect the next turn, not the current one |
+
+Do not treat background extraction as the only architecture. A direct `await memory.remember(...)` is right when durability is part of the current interaction. A queued job is right when learning can happen after the response.
+
+### Post-turn user input
+
+The simplest pattern is to run memory after a completed turn:
+
+```ts
+const result = await generateText({ model, system, prompt: userMessage, tools, stopWhen: stepCountIs(5) })
+
+// Hot path: await when the user explicitly asked to save something.
+await memory.remember({ text: userMessage })
+
+// Background path: enqueue or fire-and-forget when latency matters.
+memory.remember({ text: userMessage }).catch(console.error)
+```
+
+### Post-tool-result extraction
+
+Tool results are often noisy. Extract a compact durable fact first, then pass that to MemexAI:
+
+```ts
+for (const step of result.steps) {
+  for (const toolResult of step.toolResults ?? []) {
+    if (!isPermanentError(toolResult.result)) continue
+
+    const insight = await extractInsight(toolResult) // app-owned policy
+    if (insight) {
+      await memory.remember({ text: insight })
+    }
+  }
+}
+```
+
+The extractor can be a cheap model call, deterministic code, or a human-reviewed queue. The important part is to avoid passing raw logs, transient failures, secrets, or routine success payloads.
+
+### Framework-owned extraction points
+
+Use the hook that matches the framework:
+
+| Framework | Recommended extraction point |
+|---|---|
+| Vercel AI SDK | after `result.steps` or stream step events |
+| OpenAI / Anthropic SDK | inside the manual tool-call loop after app tool execution |
+| LangChain / LangGraph | callback, runnable wrapper, or graph node after accepted turns/tool nodes |
+| LlamaIndex | post-response hook or workflow step |
+| CrewAI | task-output extraction after `kickoff()` |
+| Google ADK | native memory service lifecycle via `MemexAdkMemoryService` |
+
+### When to trigger extraction
+
+| Trigger | Worth remembering? |
+|---|---|
+| Tool failed with a permanent error | Yes — dialect quirk, API limitation, unsupported feature |
+| Tool failed transiently | No — timeout, rate limit, or network blip |
+| Tool succeeded with a surprising reusable constraint | Sometimes |
+| User stated a preference explicitly | Yes |
+| Assistant inferred a stable fact | Sometimes, preferably after confirmation |
+| Routine turn with no new information | No |
+
+For systemic insights that should help every user, route the extracted text to `shared/` through `shared/index.md` and `MEMEX_SHARED_WRITE_MODE=rw`.
 
 ---
 

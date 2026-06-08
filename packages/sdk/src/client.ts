@@ -211,7 +211,7 @@ export class MemexMemory {
     return this.createToolset(definitions)
   }
 
-  private createToolset(definitions: readonly ToolDefinition[]): Record<string, VercelAITool> {
+  createToolsetFromDefinitions(definitions: readonly ToolDefinition[]): Record<string, VercelAITool> {
     return Object.fromEntries(definitions.map((tool) => [
       tool.name,
       {
@@ -224,6 +224,10 @@ export class MemexMemory {
         }),
       },
     ]))
+  }
+
+  private createToolset(definitions: readonly ToolDefinition[]): Record<string, VercelAITool> {
+    return this.createToolsetFromDefinitions(definitions)
   }
 
   async executeTool<T = unknown>(input: { name: string; arguments: unknown; toolCallId?: string }): Promise<T> {
