@@ -1,69 +1,342 @@
 ---
 title: Memory Tools
-description: Choose between the memory subagent and raw file-level tools.
+description: Two-layer tool architecture — memory subagent for most agents, raw file tools for direct control.
 ---
 
-MemexAI exposes two tool sets. Most assistants should start with the memory subagent. Use raw file tools when the agent or application should control memory files directly.
+MemexAI exposes two layers of tooling. The **memory subagent** (`memory_remember` + `memory_context`) is the right default for assistants and copilots — the model stores and retrieves memory without managing paths. The **raw file tools** give you direct file-level control when your application needs deterministic writes or has a file plan.
 
-## Memory subagent
-
-The memory subagent gives the model a smaller surface:
-
-| Tool | What it does |
-| --- | --- |
-| `memory_remember` | Takes raw text and decides what durable facts should be written or patched. |
-| `memory_context` | Assembles retrieval context by calling `memory_find` (BM25/hybrid), `memory_read`, and `memory_list` internally, then returns a grounded response with cited sources. |
-
-Use this mode for assistants, copilots, support agents, and product agents where the model should remember useful facts without managing file paths itself.
-
-```ts
-const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
-const tools = memory.createMemorySubagentToolset()
+```
+┌─────────────────────────────────────────────────────┐
+│              Memory subagent (default)               │
+│  memory_remember          memory_context             │
+│  (LLM decides what/       (ranked retrieval +        │
+│   where to write)          link expansion)           │
+└────────────────┬──────────────────┬─────────────────┘
+                 │                  │
+┌────────────────▼──────────────────▼─────────────────┐
+│              Raw file tools                          │
+│  memory_list   memory_read   memory_write            │
+│  memory_patch  memory_find                           │
+└─────────────────────────────────────────────────────┘
+                         │
+              ┌──────────▼──────────┐
+              │  Postgres (mx_file) │
+              │  BM25 · pgvector    │
+              │  revisions · audit  │
+              └─────────────────────┘
 ```
 
-Pass both values to the model. `memory_remember` stores durable facts, `memory_context` retrieves relevant context, and the prompt block tells the model when memory should influence the next response.
+---
 
-In service mode, `memory_remember` needs an LLM configured on the service with `GEMINI_API_KEY` or `OPENAI_API_KEY`. Without a service model, `memory_context` can still use Postgres full-text search via `memory_find`, or hybrid pgvector search when embeddings are configured, but `memory_remember` cannot decide what to write.
+## `memory_remember`
+
+Takes raw text — conversation snippets, user statements, observations — and autonomously decides what durable facts to write and where to store them.
+
+### How it works
+
+An LLM reads the incoming text alongside existing memory files, extracts stable facts (ignoring transient conversational noise), and issues a minimal set of `memory_write` or `memory_patch` operations. It avoids duplicate writes by reading what is already stored before deciding.
+
+Every write produces a **revision snapshot** and an **access log row**, linking back to the originating tool call ID when available.
+
+### When to use
+
+Use `memory_remember` after a completed user turn or at natural breakpoints in a conversation — not on every message. Calling it too frequently creates noise and near-duplicate memory. A good pattern:
+
+```ts
+// After the assistant finishes a turn, post the user's message for memory
+await memory.remember({ text: userMessage })
+```
+
+Pass `dryRun: true` to preview what would be written without committing:
+
+```json
+{ "text": "I prefer 2BHK in Indiranagar, budget 1.2 crore", "dryRun": true }
+```
+
+```json
+{
+  "writes": [
+    { "path": "user/preferences.md", "operation": "patch", "reason": "Added apartment preferences", "dryRun": true }
+  ]
+}
+```
+
+### Write routing
+
+`memory_remember` reads `shared/user-memory.md` if it exists. That file can contain a routing table that tells the agent which file to use for which category of fact (preferences, family, health, visits). This gives your deployment deterministic write routing without hard-coding it in application code.
+
+```markdown
+## Memory File Structure
+| File                | What goes here                              |
+|---------------------|---------------------------------------------|
+| user/preferences.md | Apartment type, locations, floor, budget    |
+| user/family.md      | Family members, relationships, pets         |
+| user/health.md      | Allergies, constraints                      |
+| user/visits.md      | Property visits, prices, observations       |
+```
+
+---
+
+## `memory_context`
+
+Assembles a context block — a formatted, character-budgeted digest of the most relevant memory files — ready to inject directly into a system prompt.
+
+### How it works
+
+`memory_context` runs a two-phase retrieval:
+
+```
+Query
+  │
+  ▼
+Phase 1: Seed ranking
+  ├── BM25 full-text search (Postgres tsvector, always)
+  └── pgvector cosine search (when hybrid mode is configured)
+        └── Reciprocal Rank Fusion (RRF) → ranked seed files
+                    reason: "query_match"
+  │
+  ▼
+Phase 2: Forward-link expansion
+  ├── Scan seed file content for [[user/...]] and [[shared/...]] links
+  ├── Fetch each linked file from Postgres
+  └── Add to candidates with score = parent_score × 0.35
+                    reason: "linked", linkedFrom: "user/preferences.md"
+  │
+  ▼
+Phase 3: Budget fill
+  ├── Rank all candidates (query_match first, then linked, then recency)
+  ├── Fill up to maxChars from highest-ranked
+  └── Track omitted paths
+  │
+  ▼
+Context block (XML-wrapped, ready for system prompt injection)
+```
+
+When no query is provided, Phase 1 falls back to recency ordering — most-recently-updated files first.
+
+### Forward-link expansion
+
+`memory_remember` is prompted to add `## See also` sections with `[[user/related.md]]` wiki-style links when writing related files. For example, a write to `user/health.md` (dust allergy) might link to `user/preferences.md` (ventilation requirement is a preference). When `memory_context` retrieves `user/health.md` as a seed, it follows that link and pulls `user/preferences.md` into the context too — even if the query didn't mention preferences.
+
+This matters because user facts are semantically connected in ways BM25 can't capture. A query about "can I have a pet?" should retrieve `user/family.md` (pet name, breed), which in turn links to `user/preferences.md` (pet-friendly building requirement). Without link expansion, the second file would only surface if the query happened to match its text.
+
+Link expansion depth defaults to 1 (one hop). Set `relatedDepth: 0` to disable it, or `relatedDepth: 2` to expand two hops.
+
+### Example
+
+```json
+{ "query": "apartment requirements and family", "maxChars": 8000 }
+```
+
+```json
+{
+  "content": "<memexai_memory>\n## user/preferences.md\n(updated 2025-06-08)\n\n# Preferences\n- 2BHK in Indiranagar or Koramangala\n- Budget: 1.2 crore\n- Floor 4+\n\n## user/family.md\n(updated 2025-06-08)\n\n# Family\n- Wife: Meera (dust allergy)\n- Pet: Max (golden retriever)\n</memexai_memory>",
+  "filesIncluded": ["user/preferences.md", "user/family.md"],
+  "filesOmitted": [],
+  "truncated": false
+}
+```
+
+### Parameters
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `query` | string | — | Topic to rank files by. Enables hybrid search and link expansion. |
+| `maxChars` | number | 24 000 | Character budget for the returned context block. |
+| `includeRelated` | boolean | true when query is set | Follow `[[...]]` links from matched files. |
+| `relatedDepth` | number | 1 | How many hops to follow. Range: 0–2. |
+
+---
 
 ## Raw file tools
 
-Raw file tools expose file-level control:
-
-| Tool | What it does |
-| --- | --- |
-| `memory_list` | Lists visible files. |
-| `memory_read` | Reads one file by virtual path. |
-| `memory_write` | Creates or overwrites a file under `user/`. |
-| `memory_patch` | Appends under a heading or replaces exact text. |
-| `memory_find` | BM25 full-text search with optional pgvector hybrid ranking and RRF fusion. |
-
-Use raw file tools when your workflow has a file plan, needs deterministic writes, or should let the application decide exactly where memory lives.
+Raw tools expose the file layer directly. Use them when your application has a file plan, needs deterministic writes, or is building tooling on top of MemexAI.
 
 ```ts
 const tools = memory.createRawToolset()
 ```
 
-## Which should an adapter expose?
+---
 
-Adapter examples sometimes show all tools so you can see the full integration shape. For a production assistant, start with two tools:
+## `memory_list`
 
-```txt
-memory_remember
-memory_context
+Lists all files visible to the current user — their own `user/` files plus the `shared/` namespace.
+
+```json
+{}
 ```
 
-Add raw file tools only when the agent has a reason to manage files directly.
+```json
+{
+  "files": [
+    { "path": "user/preferences.md", "updatedAt": "2025-06-08T10:00:00Z" },
+    { "path": "user/family.md",      "updatedAt": "2025-06-08T10:01:00Z" },
+    { "path": "shared/index.md",     "updatedAt": "2025-06-01T09:00:00Z" }
+  ]
+}
+```
+
+---
+
+## `memory_read`
+
+Reads a single file by its virtual path.
+
+```json
+{ "path": "user/preferences.md" }
+```
+
+```json
+{
+  "path": "user/preferences.md",
+  "content": "# Preferences\n- 2BHK in Indiranagar or Koramangala\n- Budget: 1.2 crore\n- Floor 4+",
+  "updatedAt": "2025-06-08T10:00:00Z"
+}
+```
+
+---
+
+## `memory_write` and `memory_patch`
+
+`memory_write` creates or fully overwrites a file. Use it when you are constructing a file from scratch or want a clean replacement.
+
+`memory_patch` makes targeted edits without rewriting the full file:
+
+- **Append under a heading** — add a new bullet point under `## Visits` without touching the rest of the file.
+- **Replace exact text** — swap a specific substring in place.
+
+Prefer `memory_patch` when updating a section of a larger file. It produces a smaller revision diff and reduces the risk of accidentally losing adjacent content.
+
+```json
+{
+  "path": "user/visits.md",
+  "operation": "append_under_heading",
+  "heading": "## Visited",
+  "content": "- Prestige Tranquility — 1.45 Cr, above budget, good light"
+}
+```
+
+---
+
+## `memory_find`
+
+Searches memory by keyword or semantic query and returns ranked file metadata and snippets. This is the search primitive — it does not synthesize an answer or expand links. Use `memory_context` when you want a ready-to-inject context block; use `memory_find` when you need ranked results to drive your own logic.
+
+### Search modes
+
+```
+Query string
+    │
+    ├── BM25 (always)
+    │     Postgres tsvector GIN index
+    │     Fast, no API call needed
+    │     matchReason: "lexical"
+    │
+    └── pgvector (when hybrid mode is configured)
+          Gemini text-embedding-004 (or configured provider)
+          Cosine similarity over stored embeddings
+          matchReason: "semantic"
+                │
+                ▼
+          Reciprocal Rank Fusion
+          score = Σ 1 / (k + rank_i)   where k = 60
+          matchReason: "hybrid"
+```
+
+Hybrid mode activates automatically when `GEMINI_API_KEY` is set on the service and `MEMEX_SEARCH_MODE` is `auto` (the default). Embeddings are stored at write time. If an embedding could not be stored (for example, due to a transient rate-limit), that file falls back to BM25-only ranking for that query.
+
+### Reciprocal Rank Fusion
+
+RRF merges two independent ranked lists without needing their scores to be on the same scale. For each candidate file, its RRF score is the sum of `1 / (k + rank)` across both lists, where k = 60 is a stability constant. A file ranked #1 by BM25 and #3 by vector gets a higher combined score than a file that appears in only one list. This rewards files that are relevant by both signal types.
+
+```
+BM25 results          Vector results
+  #1 user/prefs.md       #1 user/family.md
+  #2 user/family.md      #2 user/prefs.md
+  #3 user/health.md      #3 user/visits.md
+
+RRF scores:
+  user/prefs.md   = 1/(60+1) + 1/(60+2) = 0.0164 + 0.0161 = 0.0325  ← highest
+  user/family.md  = 1/(60+2) + 1/(60+1) = 0.0161 + 0.0164 = 0.0325
+  user/health.md  = 1/(60+3) + 0        = 0.0159
+  user/visits.md  = 0        + 1/(60+3) = 0.0159
+```
+
+### Why `memory_find` does not expand links
+
+`memory_find` is a pure search primitive — it returns what Postgres ranked, nothing more. Link expansion (following `[[...]]` references) is deliberate reasoning, not text matching. It lives in `memory_context`, which can inspect content and decide whether a linked file adds relevant context for a given query. Keeping them separate lets you use `memory_find` results to drive your own retrieval logic without paying the cost of link expansion.
+
+### Example
+
+```json
+{ "query": "apartment budget and location", "limit": 5 }
+```
+
+```json
+{
+  "query": "apartment budget and location",
+  "results": [
+    {
+      "path": "user/preferences.md",
+      "snippet": "Budget: 1.2 crore. Preferred: Indiranagar or Koramangala.",
+      "rank": 0.91,
+      "matchReason": "hybrid"
+    },
+    {
+      "path": "user/visits.md",
+      "snippet": "Prestige Tranquility — 1.45 Cr, above budget",
+      "rank": 0.74,
+      "matchReason": "lexical"
+    }
+  ],
+  "truncated": false
+}
+```
+
+### Parameters
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `query` | string | **required** | Keyword or semantic query. |
+| `limit` | number | 10 | Max number of results to return. |
+| `maxChars` | number | 8 000 | Max total characters across all snippets. |
+| `prefix` | string | — | Filter by virtual path prefix, e.g. `user/`. |
+
+---
+
+## Which tool set to use
+
+| Situation | Use |
+|---|---|
+| Conversational assistant that should remember preferences | `memory_remember` + `memory_context` |
+| Application with a known file plan, deterministic writes | Raw file tools |
+| Building a custom retrieval pipeline on top of MemexAI | `memory_find` + `memory_read` |
+| Debugging what a model stored | Admin console or `memory_list` + `memory_read` |
+| Checking what a model would write before committing | `memory_remember` with `dryRun: true` |
+
+Start with the subagent. Add raw file tools only when your use case requires direct file control.
+
+```ts
+// Typical assistant setup
+const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
+const tools = memory.createMemorySubagentToolset()
+// → exposes memory_remember and memory_context to the model
+```
+
+---
 
 ## Tool calls and auditability
 
-Every memory access creates an access log. Every write or patch also creates a revision snapshot.
+Every tool call produces an **access log row** in `mx_access_log`. Every write or patch also produces a **revision snapshot** in `mx_revision`, making it possible to time-travel back to any prior state of a memory file.
 
-Pass framework tool call IDs through adapter handlers when available. That links model tool calls to the revision and access log rows they caused.
+When your framework provides tool call IDs (Vercel AI SDK, Anthropic SDK, LangChain), pass them through adapter handlers — the revision rows link back to the originating model tool call.
+
+---
 
 ## Related concepts
 
-- [How MemexAI works](/docs/concepts/how-it-works)
-- [Prompt block](/docs/concepts/prompt-block)
-- [Memory scopes](/docs/concepts/scopes)
-- [Revision history](/docs/concepts/revisions)
-- [Access logs](/docs/concepts/access-logs)
+- [Prompt block](/docs/concepts/prompt-block) — how memory is injected into the system prompt
+- [Memory scopes](/docs/concepts/scopes) — `user/` vs `shared/` namespace rules
+- [Revision history](/docs/concepts/revisions) — time-travel and snapshot details
+- [Access logs](/docs/concepts/access-logs) — per-operation audit trail
+- [Architecture](/docs/architecture) — hybrid search, Postgres schema, and deployment modes
