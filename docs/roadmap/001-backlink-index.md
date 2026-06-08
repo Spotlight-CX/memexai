@@ -4,7 +4,7 @@
 
 ## Problem
 
-`memory_smart_read` traversal is forward-only. Starting from a BM25-seeded file, it follows memory links the file *points to* (depth 0 → 1 → 2), correctly avoids circular loops, and assembles everything into one response.
+`memory_find` traversal is forward-only. Starting from a BM25-seeded file, it follows memory links the file *points to* (depth 0 → 1 → 2), correctly avoids circular loops, and assembles everything into one response.
 
 The gap is **backward traversal**. Hub files like `user/preferences.md` are referenced by many specific, recent files — visit notes, chat summaries, correction logs. Those inbound files are the most current evidence *about* the hub concept, but the current implementation never discovers them.
 
@@ -43,18 +43,18 @@ Updated on every write: `importance_score = (SELECT COUNT(*) FROM mx_backlink WH
 - `syncBacklinks(db: Pool, sourcePath: string, content: string): Promise<void>` — upserts new links, deletes stale ones, updates `importance_score` on affected targets
 - `getInboundLinks(db: Pool, targetPath: string): Promise<string[]>` — reverse lookup
 
-### Changes to `memory_smart_read` (`packages/core/src/tools.ts`)
+### Changes to `memory_find` (`packages/core/src/tools.ts`)
 
 For each seed file in the initial BM25/recency set, also call `getInboundLinks` to fetch files pointing to it. Include them in the same response within the existing character budget, ranked after direct seed files.
 
-### Changes to `memory_search`
+### Changes to `memory_context`
 
 Multiply `ts_rank_cd` score by `importance_score` (normalised 0–1 against max in result set) to boost hub files.
 
 ## User Journeys
 
 **Journey A — One-shot recommendation:**
-Agent calls `memory_smart_read("apartment preferences")` → BM25 seeds preferences.md → response also includes 8 recent visit notes and 3 chat summaries that reference it → agent answers with full current context in one turn, no follow-up reads.
+Agent calls `memory_find("apartment preferences")` → BM25 seeds preferences.md → response also includes 8 recent visit notes and 3 chat summaries that reference it → agent answers with full current context in one turn, no follow-up reads.
 
 **Journey B — Memory written, immediately discoverable:**
 Agent writes `user/chat-jun01.md` with `[[user/preferences.md]]` → `mx_backlink` row inserted → next smart_read on preferences.md surfaces chat-jun01.md as inbound → importance_score on preferences.md increments.
@@ -71,7 +71,7 @@ Admin queries `mx_backlink` for files with 0 inbound links → candidate stale f
 | Hub files rank higher | File with 5+ inbound links outranks equally-relevant file with 0 inbound links |
 | No circular traversal | A→B, B→A; smart_read on A terminates without infinite recursion |
 | Backlinks stay consistent | Write → links inserted; overwrite with removed link → stale row deleted |
-| No latency regression | `memory_smart_read` p95 latency does not increase by more than 20% |
+| No latency regression | `memory_find` p95 latency does not increase by more than 20% |
 
 ## Test Plan
 

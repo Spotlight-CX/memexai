@@ -14,7 +14,7 @@ Each task is implemented independently, validated with its relevant test slice, 
 Status: `committed`
 
 Scope:
-- Add `memory_memorize`, `memory_search`, and `memory_smart_read` tool definitions.
+- Add `memory_remember`, `memory_context`, and `memory_find` tool definitions.
 - Keep `memory_list`, `memory_read`, `memory_write`, and `memory_patch`.
 - Export `agenticToolDefinitions`, `rawToolDefinitions`, and full `toolDefinitions`.
 - Add runtime schemas for memorize, search, and smart read.
@@ -47,19 +47,19 @@ Commit:
 Status: `committed`
 
 Scope:
-- Implement `memory_smart_read`.
+- Implement `memory_find`.
 - Fetch visible user/shared files in one query.
 - Return merged content with virtual paths only.
 - Apply recency ranking without query and BM25 ranking with query.
 
 Validation:
 - `bun test packages/core/tests/smart-context.test.ts`
-- Service route test through `/v1/tools/memory_smart_read/execute`.
+- Service route test through `/v1/tools/memory_find/execute`.
 
 Commit:
 - Included in commit for Task 3.
 
-## Task 4: BM25 `memory_search`
+## Task 4: BM25 `memory_context`
 
 Status: `committed`
 
@@ -92,7 +92,7 @@ Validation:
 Commit:
 - Included in commit for Task 5.
 
-## Task 6: Agentic `memory_search` Resolution
+## Task 6: Agentic `memory_context` Resolution
 
 Status: `committed`
 
@@ -110,7 +110,7 @@ Validation:
 Commit:
 - Included in commit for Task 6.
 
-## Task 7: Agentic `memory_memorize`
+## Task 7: Agentic `memory_remember`
 
 Status: `committed`
 
@@ -123,7 +123,7 @@ Scope:
 
 Validation:
 - `bun test packages/core/tests/memorize.test.ts`
-- SDK and service route tests for `memory_memorize`.
+- SDK and service route tests for `memory_remember`.
 
 Commit:
 - Included in commit for Task 7.
@@ -134,7 +134,7 @@ Status: `committed`
 
 Scope:
 - Add `createMemorySubagentToolset()` and `createRawToolset()` to `MemexUser` and `MemexMemory`.
-- Memory subagentet exposes `memory_memorize` and `memory_search`.
+- Memory subagentet exposes `memory_remember` and `memory_context`.
 - Raw file toolset exposes CRUD and smart-read tools.
 - Keep standalone Vercel adapter compatible.
 

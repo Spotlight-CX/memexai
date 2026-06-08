@@ -52,10 +52,10 @@ The CLI performs:
 4. A recall turn: answers from durable memory
 5. Optional `/v1/admin/files` verification when `MEMEX_ADMIN_SECRET` is set
 
-This example exposes the MemexAI LangChain wrappers for `memory_memorize` and `memory_search`. A production app may also run a post-turn memorize pass over accepted user messages; if it does, search first or rely on consolidation so retries do not create noisy duplicate facts.
+This example exposes the MemexAI LangChain wrappers for `memory_remember` and `memory_context`. A production app may also run a post-turn memorize pass over accepted user messages; if it does, search first or rely on consolidation so retries do not create noisy duplicate facts.
 
 ## Notes
 
 - This project intentionally does not use direct Postgres mode. The Python process only talks to the MemexAI HTTP service.
-- `GEMINI_API_KEY` is used by the app's Gemini model. If you want the service's LLM-backed `memory_memorize` path to use Gemini too, start Docker Compose with `GEMINI_API_KEY` exported in the repository root environment or root `.env`.
+- `GEMINI_API_KEY` is used by the app's Gemini model. If you want the service's LLM-backed `memory_remember` path to use Gemini too, start Docker Compose with `GEMINI_API_KEY` exported in the repository root environment or root `.env`.
 - The stable default user id keeps repeated local runs in the same MemexAI namespace so the recall turn can prove persistence.

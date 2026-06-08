@@ -18,9 +18,9 @@ Date: 2026-06-04
 - For Google Gemini, CrewAI documents `GEMINI_API_KEY` or `GOOGLE_API_KEY`, with `LLM(model="gemini/gemini-2.5-flash", api_key="...")` style usage.
 - CrewAI agents accept `tools=[...]`; tasks are assignments performed by agents; crews orchestrate tasks with a process such as sequential execution.
 - CrewAI tools can be built with `crewai.tools.tool`, and the docs state async tools work in standard crews and with `kickoff_async()`.
-- The local MemexAI CrewAI adapter returns seven `@tool`-decorated async tools. For this example, the CLI filters those down to `memory_memorize` and `memory_search`.
+- The local MemexAI CrewAI adapter returns seven `@tool`-decorated async tools. For this example, the CLI filters those down to `memory_remember` and `memory_context`.
 - MemexAI service-mode Python usage is `MemexAI(url="http://localhost:8080", api_key="dev-agent-key")` followed by `for_user(...)`.
-- LLM-backed `memory_memorize` runs on the MemexAI service, not in the Python SDK. The Docker service receives `GEMINI_API_KEY` and defaults `MEMEX_API_KEY` to `dev-agent-key`.
+- LLM-backed `memory_remember` runs on the MemexAI service, not in the Python SDK. The Docker service receives `GEMINI_API_KEY` and defaults `MEMEX_API_KEY` to `dev-agent-key`.
 
 ## Version Choice
 
@@ -35,7 +35,7 @@ This keeps the example on CrewAI's current documented 1.x API while avoiding a f
 
 The example is service-mode only. It never uses `create_memex()` or a Postgres URL from Python. The only MemexAI connection settings are `MEMEX_URL`, `MEMEX_API_KEY`, and `MEMEX_USER_ID`.
 
-The CLI checks `get_crewai_tools(memory)` so it exercises the repo's adapter surface and confirms that `memory_memorize` and `memory_search` exist. It keeps the public agent surface to those two tools because MemexAI guidance recommends `memory_memorize` for durable writes and `memory_search` for recall.
+The CLI checks `get_crewai_tools(memory)` so it exercises the repo's adapter surface and confirms that `memory_remember` and `memory_context` exist. It keeps the public agent surface to those two tools because MemexAI guidance recommends `memory_remember` for durable writes and `memory_context` for recall.
 
 CrewAI documents async tool support, and the local adapter returns async functions. In local smoke testing, the adapter worked for the remember turn, but the script then hit `RuntimeError: Event loop is closed` when making a post-turn MemexAI HTTP call after `kickoff_async()`. The example therefore uses practical synchronous CrewAI wrappers that call the same MemexAI service methods with short-lived clients.
 
@@ -48,7 +48,7 @@ A post-turn `memory.memorize(...)` call is included after the remember turn. Thi
 3. Confirm API auth and user scope with `memory_list`.
 4. Run `python main.py` with `.env` loaded and without printing secrets.
 5. Verify recall contains `2BHK` and `metro`.
-6. Verify stored memory with `memory_search` or the admin UI.
+6. Verify stored memory with `memory_context` or the admin UI.
 7. Run Python syntax/import checks.
 
 ## Smoke Results
@@ -59,11 +59,11 @@ A post-turn `memory.memorize(...)` call is included after the remember turn. Thi
 - Health: `curl -s http://localhost:18081/health` returned `{"ok":true}`.
 - Agent API: `memory_list` initially returned `{"files":[]}` for `crewai_python_service_demo`.
 - CLI: `python main.py` remembered and recalled `2BHK apartments near metro stations`.
-- Service verification: CLI `memory_search` returned `user/housing_preferences.md` with a highlighted `2BHK apartments near metro stations` snippet and a grounded answer.
+- Service verification: CLI `memory_context` returned `user/housing_preferences.md` with a highlighted `2BHK apartments near metro stations` snippet and a grounded answer.
 - Admin API: `/v1/admin/files?prefix=users/crewai_python_service_demo` returned `housing_preferences.md`, `index.md`, and `log.md`.
 
 ## Gaps
 
-- `memory_memorize` requires a configured service model; if Compose was started without `GEMINI_API_KEY`, the example will fail with `MODEL_NOT_CONFIGURED`.
+- `memory_remember` requires a configured service model; if Compose was started without `GEMINI_API_KEY`, the example will fail with `MODEL_NOT_CONFIGURED`.
 - Re-running the same terminal demo can create equivalent memory facts because both the agent and the post-turn guardrail may save the turn.
 - This example does not cover CrewAI YAML project scaffolding, flows, or multi-agent collaboration. It is intentionally a minimal terminal example.

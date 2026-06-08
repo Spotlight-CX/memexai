@@ -51,14 +51,14 @@ Rationale: AI SDK 6 is newest, but `@memexai/sdk@0.1.5` currently peers against 
 - Service mode uses `new MemexAI({ url, apiKey })` from `@memexai/sdk`; it never imports `@memexai/core`, `pg`, or `DATABASE_URL`.
 - `memex.forUser({ userId, actor })` scopes all tool calls to a stable example namespace.
 - `memory.getSystemPrompt(basePrompt)` injects MemexAI's prompt block so the model knows how and when to use memory.
-- `memory.createAgenticToolset()` exposes only `memory_memorize` and `memory_search`, matching the recommended default workflow.
-- The CLI forces `memory_memorize` for `remember` and `memory_search` for `recall` via `activeTools` and `toolChoice`; this keeps smoke tests deterministic while still using the Vercel AI SDK tool loop.
+- `memory.createAgenticToolset()` exposes only `memory_remember` and `memory_context`, matching the recommended default workflow.
+- The CLI forces `memory_remember` for `remember` and `memory_context` for `recall` via `activeTools` and `toolChoice`; this keeps smoke tests deterministic while still using the Vercel AI SDK tool loop.
 - `remember` includes a code comment explaining the post-turn memorize pattern: real assistants often answer first, then run a focused memory extraction pass.
 
 ## Gaps / Missing Primitives
 
 - No blocking SDK gap found for service mode. `@memexai/sdk` already exposes Vercel AI-compatible agentic tools.
-- The public `@memexai/sdk` package is model-free, so `memory_memorize` depends on the running service having a model configured. The current Docker service in this workspace is configured sufficiently for the smoke test.
+- The public `@memexai/sdk` package is model-free, so `memory_remember` depends on the running service having a model configured. The current Docker service in this workspace is configured sufficiently for the smoke test.
 - The repo root workspaces currently list only `apps/*` and `packages/*`, so examples are standalone. Existing examples use `workspace:*`, but `bun install` from this standalone example cannot resolve that, so this example uses `file:../../packages/sdk`.
 - Product naming caveat: `MEMEX_USER_ID` maps to the current `userId` namespace field. A code comment warns that the product term may change later.
 
@@ -134,7 +134,7 @@ Remember result:
 command: remember
 memex_url: http://localhost:18080
 memex_user_id: example_vercel_ai_service_user
-tools: memory_memorize
+tools: memory_remember
 
 I've noted that you prefer ceramic pour-over coffee with oat milk before writing code.
 ```
@@ -145,7 +145,7 @@ Recall result:
 command: recall
 memex_url: http://localhost:18080
 memex_user_id: example_vercel_ai_service_user
-tools: memory_search
+tools: memory_context
 
 You prefer ceramic pour-over coffee with oat milk before writing code.
 ```

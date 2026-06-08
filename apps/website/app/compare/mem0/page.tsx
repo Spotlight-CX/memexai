@@ -52,7 +52,7 @@ export default function Mem0ComparePage() {
             <FileText size={24} aria-hidden />
             <h3>MemexAI</h3>
             <p>
-              Scoped Markdown-like files in Postgres. Agents use memory_memorize and memory_search, while your team can
+              Scoped Markdown-like files in Postgres. Agents use memory_remember and memory_context, while your team can
               inspect and correct the underlying files, review revisions, and see later reads in access logs.
             </p>
           </div>

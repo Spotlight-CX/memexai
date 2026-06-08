@@ -36,8 +36,8 @@ Scope: Worker 3, LangChain Python service-mode example only.
   - `ChatGoogleGenerativeAI`
 - `sdks/python/memexai/adapters/langchain.py` returns LangChain `StructuredTool` objects.
 - The adapter exposes all MemexAI memory tools. The example filters to:
-  - `memory_memorize`
-  - `memory_search`
+  - `memory_remember`
+  - `memory_context`
 - `sdks/python/memexai/client.py` is the service-mode HTTP client. It exposes:
   - `get_prompt_block()` / `get_system_prompt()`
   - `list_files()`
@@ -58,12 +58,12 @@ Scope: Worker 3, LangChain Python service-mode example only.
 - README tells users to run `docker compose ps` because the host port may be changed through Compose env.
 - `MEMEX_API_KEY` defaults to `dev-agent-key`, matching Compose defaults.
 - `MEMEX_USER_ID` defaults to `langchain_python_demo_user` so repeated remember/recall runs reuse the same durable namespace.
-- `GEMINI_API_KEY` is required for the example model. It must also be provided to the MemexAI service for LLM-backed `memory_memorize`.
+- `GEMINI_API_KEY` is required for the example model. It must also be provided to the MemexAI service for LLM-backed `memory_remember`.
 - Comments call out the post-turn memorize pattern and duplicate-memory risk without implementing extra direct writes that would obscure the LangChain tool-calling path.
 
 ## Gaps / Caveats
 
-- `memory_memorize` returns `MODEL_NOT_CONFIGURED` if the MemexAI service container was started without model credentials.
+- `memory_remember` returns `MODEL_NOT_CONFIGURED` if the MemexAI service container was started without model credentials.
 - The model controls the exact response wording. Smoke validation should check for the durable fact, not exact prose.
 - The local Python SDK package is not pulled from PyPI because this repo owns the adapter being demonstrated.
 - In LangChain 1.3.4, `langchain.tools` exists but no longer exposes `StructuredTool`; the canonical import is `langchain_core.tools.StructuredTool`. The example applies a small local shim before calling the existing MemexAI adapter, because this worker's owned write scope does not include SDK adapter changes.
@@ -128,4 +128,4 @@ MemexAI inspection
 
 - Direct service verification after the run:
   - `memory_read user/profile.md` returned `# User Profile\n\n- Prefers 2BHK apartments near metro stations.`
-  - `memory_search "What apartment type and location does this user prefer?"` returned answer `The user prefers 2BHK apartments located near metro stations.` with source `user/profile.md`.
+  - `memory_context "What apartment type and location does this user prefer?"` returned answer `The user prefers 2BHK apartments located near metro stations.` with source `user/profile.md`.

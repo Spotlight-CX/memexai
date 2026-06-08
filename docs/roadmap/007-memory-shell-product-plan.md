@@ -27,7 +27,7 @@ The shell is valuable only if it helps us learn which structured memory operatio
 - Do not execute real Bash or arbitrary binaries.
 - Do not allow writes in v0.
 - Do not make this a third public usage mode.
-- Do not replace `memory_write`, `memory_patch`, `memory_search`, or `memory_smart_read`.
+- Do not replace `memory_write`, `memory_patch`, `memory_context`, or `memory_find`.
 
 ## Proposed Positioning
 
@@ -42,7 +42,7 @@ Experimental shell positioning:
 ## Product Questions To Answer Before Build
 
 - Which commands do agents actually attempt when given file-like memory?
-- Does shell-style inspection reduce tool-call churn compared with `memory_list` + `memory_read` + `memory_search`?
+- Does shell-style inspection reduce tool-call churn compared with `memory_list` + `memory_read` + `memory_context`?
 - Do operators understand that the shell is read-only and virtual, not host Bash?
 - Which repeated shell patterns should become first-class structured tools?
 - Does the extra flexibility create confusing failure modes for normal users?

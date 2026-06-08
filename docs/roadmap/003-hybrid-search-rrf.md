@@ -7,7 +7,7 @@
 Recorded before and during implementation on June 3, 2026:
 
 - Slice commits are kept separate after their own focused build/test verification.
-- Slice 1 is behavior-preserving for the public `memory_search` response: RRF helpers are introduced, but the agent tool schema and BM25 fallback shape do not change.
+- Slice 1 is behavior-preserving for the public `memory_context` response: RRF helpers are introduced, but the agent tool schema and BM25 fallback shape do not change.
 - Search implementation lives in the separate `@memexai/search` workspace package so BM25, vector search, RRF, chunking, and embedding helpers can be tested independently from core memory-tool orchestration.
 - Slice 2 uses a precomputed query embedding in search package tests. Gemini/provider wiring is deferred to Slice 4, so core stays provider-agnostic.
 - Vector migration is opt-in through `runMigrations(db, { vectorEnabled: true })`; BM25-only runs skip the pgvector migration and do not require the extension.
@@ -19,7 +19,7 @@ Recorded before and during implementation on June 3, 2026:
 
 ## Problem
 
-`memory_search` uses pure BM25 (PostgreSQL `tsvector` + `ts_rank_cd`). BM25 is lexical — it only matches documents sharing tokens with the query. A query like "user prefers apartments near nature" will not match a memory that says "loves parks and green spaces" because no tokens overlap.
+`memory_context` uses pure BM25 (PostgreSQL `tsvector` + `ts_rank_cd`). BM25 is lexical — it only matches documents sharing tokens with the query. A query like "user prefers apartments near nature" will not match a memory that says "loves parks and green spaces" because no tokens overlap.
 
 This forces agents to either:
 - Issue multiple reformulated queries (more turns, higher latency, higher cost)
@@ -29,11 +29,11 @@ The fix is to run BM25 and vector (dense semantic) search in parallel, then merg
 
 ## Experience Changes
 
-Hybrid search should feel like a recall quality upgrade, not a new workflow operators or agents have to learn. The default agent experience remains `memory_search(query)`, but the system gets better at finding relevant memories even when the user and memory use different words.
+Hybrid search should feel like a recall quality upgrade, not a new workflow operators or agents have to learn. The default agent experience remains `memory_context(query)`, but the system gets better at finding relevant memories even when the user and memory use different words.
 
 ### Agent experience
 
-- Agents continue to call the same `memory_search` tool with the same arguments.
+- Agents continue to call the same `memory_context` tool with the same arguments.
 - Search results should explain why a memory matched: `lexical`, `semantic`, or `hybrid`.
 - Result metadata should include enough scoring context for debugging without leaking implementation details into the prompt by default.
 - When embeddings are unavailable, stale, or disabled, agents get normal BM25 results with no tool schema change.
@@ -116,20 +116,20 @@ No controls, no backfill triggers, no user-level search overrides.
 
 **Journey A - Semantic match that BM25 misses:**
 1. Memory: "user loves being surrounded by trees and open space, finds urban density stressful"
-2. Query: `memory_search("nature green space preferences")`
+2. Query: `memory_context("nature green space preferences")`
 3. BM25: no keyword overlap, not returned
 4. With hybrid RRF: vector search finds it in top 3
 5. Agent answers in one turn and can cite the relevant memory
 
 **Journey B - BM25 match preserved:**
 1. Memory: "budget: 1.2Cr, 2BHK, Whitefield"
-2. Query: `memory_search("2BHK Whitefield budget")`
+2. Query: `memory_context("2BHK Whitefield budget")`
 3. BM25 still ranks it highly
 4. RRF preserves the exact match as top 1 even if semantic neighbours also appear
 
 **Journey C - Graceful fallback:**
 1. `createMemex()` is called without an embedding adapter (or pgvector is missing)
-2. `memory_search` runs BM25-only, identical to current behaviour
+2. `memory_context` runs BM25-only, identical to current behaviour
 3. `embedding` stays `NULL` — no errors, no schema difference visible to agents
 4. Admin file details omit the embedding status row; a deployment banner explains the mode
 
@@ -309,7 +309,7 @@ return ✓
 #### Search path — with and without hybrid enabled
 
 ```
-memory_search(query, userId) called
+memory_context(query, userId) called
          │
          ▼
   vectorEnabled?
@@ -446,13 +446,13 @@ Dimension mismatch should fail fast with a clear error before writing an incompa
 
 ### New module: `packages/core/src/search.ts`
 
-- `bm25Search(db, userId, query, options): Promise<RankedResult[]>` - extracted from existing `memory_search` path
+- `bm25Search(db, userId, query, options): Promise<RankedResult[]>` - extracted from existing `memory_context` path
 - `vectorSearch(db, userId, queryEmbedding, options): Promise<RankedResult[]>` - cosine distance via `<=>`, returns empty list if no fresh embeddings exist
 - `reciprocalRankFusion(a, b, k = 60): RankedResult[]` - `score = 1/(k + rank_a) + 1/(k + rank_b)`, handles files present in only one list
 - `hybridSearch(db, userId, query, options): Promise<RankedResult[]>` - orchestrates BM25, query embedding, vector search, and RRF
 - `getEmbeddingStatus(file, config): EmbeddingStatus` - used by admin file details route
 
-`memory_search` in `tools.ts` delegates to `hybridSearch`.
+`memory_context` in `tools.ts` delegates to `hybridSearch`.
 
 ### Reciprocal Rank Fusion formula
 
@@ -523,12 +523,12 @@ Agent tool schema stays stable. No user-level overrides.
 - Extract current BM25 logic from `tools.ts` into `packages/core/src/search.ts` as `bm25Search()`.
 - Add `RankedResult` type with `matchReason: "lexical" | "semantic" | "hybrid"`, `bm25Rank?`, `vectorRank?` fields.
 - Implement `reciprocalRankFusion(a, b, k=60): RankedResult[]` — handles files in only one list, deduplicates same path, deterministic tie-break (path asc).
-- `memory_search` delegates to `bm25Search` (no behaviour change yet).
+- `memory_context` delegates to `bm25Search` (no behaviour change yet).
 
 **Done when:**
 - `bun test packages/core/tests/rrf.test.ts` passes: RRF score ordering correct, empty list handled, same-path deduplication works, ties deterministic.
 - `bun test packages/core/tests/search.test.ts` passes: existing BM25 query results unchanged after extraction (regression gate).
-- No changes to `memory_search` tool schema.
+- No changes to `memory_context` tool schema.
 
 ---
 
@@ -564,7 +564,7 @@ Agent tool schema stays stable. No user-level overrides.
 - Mean-pool: split into 2000-char chunks with 200-char overlap, embed each, component-wise average.
 - Store `embedding_strategy`, `embedding_chunk_count`, `embedding_content_hash`, `embedding_updated_at`.
 - On provider failure: log, leave `embedding NULL`, do not roll back content write.
-- Wire `hybridSearch` into `memory_search` when adapter is present.
+- Wire `hybridSearch` into `memory_context` when adapter is present.
 
 **Done when:**
 - `bun test packages/core/tests/embed-write.test.ts` passes:
@@ -574,7 +574,7 @@ Agent tool schema stays stable. No user-level overrides.
   - Provider failure: content write succeeds, `embedding IS NULL`, no exception thrown to caller.
   - Dimension mismatch: clear error thrown before any write.
   - `mean_pooled` file (>8000 chars): `embedding_chunk_count > 1`, resulting vector has same dimensions as single-chunk files.
-- End-to-end: `bun run demo:agent -- "I love parks and nature"` followed by `memory_search("greenery outdoor")` returns the written memory as a top result.
+- End-to-end: `bun run demo:agent -- "I love parks and nature"` followed by `memory_context("greenery outdoor")` returns the written memory as a top result.
 
 ---
 
@@ -644,7 +644,7 @@ When hybrid search is enabled, memory content is sent to Gemini during writes an
 | No BM25 regression | Top-3 keyword query results unchanged after adding vector (Slice 1 regression test) |
 | RRF beats either alone | 10-query eval harness: precision@3 for RRF ≥ max(BM25, vector) on ≥7/10 |
 | No embed = no crash | Service without `GEMINI_API_KEY` runs BM25-only with no errors |
-| Latency acceptable | `memory_search` p95 < 300ms with HNSW index and vector enabled |
+| Latency acceptable | `memory_context` p95 < 300ms with HNSW index and vector enabled |
 | Provider failure is safe | Write succeeds and returns normally when embedding provider errors |
 | Large file chunked correctly | File > 8000 chars gets `mean_pooled` strategy, same-dimension result vector |
 | Mode locked to env | No runtime API or admin UI can change search mode — only env restart |

@@ -66,8 +66,8 @@ async function rememberPreference(text: string) {
     prepareStep: ({ stepNumber }) =>
       stepNumber === 0
         ? {
-            activeTools: ["memory_memorize"],
-            toolChoice: { type: "tool", toolName: "memory_memorize" },
+            activeTools: ["memory_remember"],
+            toolChoice: { type: "tool", toolName: "memory_remember" },
           }
         : { activeTools: [] },
     stopWhen: stepCountIs(3),
@@ -87,8 +87,8 @@ async function recallPreference() {
     prepareStep: ({ stepNumber }) =>
       stepNumber === 0
         ? {
-            activeTools: ["memory_search"],
-            toolChoice: { type: "tool", toolName: "memory_search" },
+            activeTools: ["memory_context"],
+            toolChoice: { type: "tool", toolName: "memory_context" },
           }
         : { activeTools: [] },
     stopWhen: stepCountIs(3),
