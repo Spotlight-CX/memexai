@@ -133,9 +133,9 @@ Commit:
 Status: `committed`
 
 Scope:
-- Add `createAgenticToolset()` and `createRawToolset()` to `MemexUser` and `MemexMemory`.
-- Agentic toolset exposes `memory_memorize` and `memory_search`.
-- Raw toolset exposes CRUD and smart-read tools.
+- Add `createMemorySubagentToolset()` and `createRawToolset()` to `MemexUser` and `MemexMemory`.
+- Memory subagentet exposes `memory_memorize` and `memory_search`.
+- Raw file toolset exposes CRUD and smart-read tools.
 - Keep standalone Vercel adapter compatible.
 
 Validation:
@@ -184,7 +184,7 @@ Status: `committed`
 Validation:
 - `bun test`
 - `bun run build`
-- Manual smoke tests for HTTP fallback, container model memorize, direct model toolset, and raw toolset.
+- Manual smoke tests for HTTP fallback, container model memorize, direct model toolset, and raw file toolset.
 
 Result:
 - `bun test` passed: 123 tests.

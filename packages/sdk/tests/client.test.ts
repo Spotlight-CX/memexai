@@ -274,3 +274,20 @@ describe("MemexAI SDK — error handling", () => {
       .toMatchObject({ code: "HTTP_503" })
   })
 })
+
+describe("MemexAI SDK — toolset aliases", () => {
+  test("memory subagent aliases match legacy agentic toolset methods", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({
+      tools: [
+        { name: "memory_memorize", description: "memorize", inputSchema: { type: "object" } },
+        { name: "memory_search", description: "search", inputSchema: { type: "object" } },
+      ],
+    }))
+    const memory = createClient(fetchMock).forUser({ userId: "user_123" })
+
+    expect(Object.keys(memory.createMemorySubagentToolset())).toEqual(Object.keys(memory.createAgenticToolset()))
+    const subagentFromService = await memory.createMemorySubagentToolsetFromService()
+    const agenticFromService = await memory.createAgenticToolsetFromService()
+    expect(Object.keys(subagentFromService)).toEqual(Object.keys(agenticFromService))
+  })
+})

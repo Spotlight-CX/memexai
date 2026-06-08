@@ -9,7 +9,7 @@ The Vercel AI SDK adapter wires MemexAI memory tools into any `generateText`, `s
 
 - Choose [service mode or direct Postgres mode](/docs/architecture).
 - Read [How MemexAI works](/docs/concepts/how-it-works) for the tool-call-to-Postgres flow.
-- Read [Memory tools](/docs/concepts/memory-tools) to choose agentic tools or raw file tools.
+- Read [Memory tools](/docs/concepts/memory-tools) to choose memory subagent or raw file tools.
 - Read [Memory scopes](/docs/concepts/scopes) before writing paths like `user/profile.md`.
 
 ## Install
@@ -41,14 +41,14 @@ const result = await generateText({
   model: createGoogleGenerativeAI()('gemini-2.5-flash'),
   system,
   prompt: 'Remember that I prefer quiet neighborhoods near good schools.',
-  tools: memory.createAgenticToolset(),
+  tools: memory.createMemorySubagentToolset(),
   stopWhen: stepCountIs(5),
 })
 
 console.log(result.text)
 ```
 
-The instance method `memory.createAgenticToolset()` returns Vercel AI-compatible tools directly. Pair it with `memory.getSystemPrompt(...)` so stored memory can influence the next response.
+The instance method `memory.createMemorySubagentToolset()` returns Vercel AI-compatible tools directly. Pair it with `memory.getSystemPrompt(...)` so stored memory can influence the next response.
 
 ## Direct Postgres mode
 
@@ -70,7 +70,7 @@ const result = await generateText({
   model: google('gemini-2.5-flash'),
   system,
   prompt: 'Remember that I prefer quiet neighborhoods near good schools.',
-  tools: memory.createAgenticToolset(),
+  tools: memory.createMemorySubagentToolset(),
   stopWhen: stepCountIs(5),
 })
 
@@ -86,17 +86,17 @@ import { createVercelAITools } from '@memexai/sdk/adapters/vercel-ai'
 // or for direct mode:
 import { createVercelAITools } from '@memexai/core/adapters/vercel-ai'
 
-const agenticTools = createVercelAITools(memory)
+const memorySubagentTools = createVercelAITools(memory)
 const rawTools = createVercelAITools(memory, { mode: 'raw' })
 ```
 
-## Raw toolset
+## Raw file toolset
 
-Pass `{ mode: 'raw' }` to expose the full file-level tool set instead of the two agentic tools.
+Pass `{ mode: 'raw' }` to expose the full file-level tool set instead of the memory subagent tools.
 
 ```ts
 tools: memory.createRawToolset()
 // memory_list, memory_read, memory_write, memory_patch, memory_smart_read
 ```
 
-Use raw tools when your agent or workflow should control exactly what gets written.
+Use raw file tools when your agent or workflow should control exactly what gets written.

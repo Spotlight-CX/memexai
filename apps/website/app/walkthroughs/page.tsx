@@ -26,7 +26,7 @@ const walkthroughs = [
   {
     title: 'Admin Playground tour',
     duration: '5 min',
-    text: 'Use Memorize, Search, dry runs, user scope switching, revisions, and raw tools without writing SQL.',
+    text: 'Use Memorize, Search, dry runs, user scope switching, revisions, and raw file tools without writing SQL.',
   },
   {
     title: 'Vercel AI SDK integration',

@@ -326,6 +326,10 @@ When an LLM is configured, agentic resolution reads the top search candidates an
 ] as const
 }
 
+export function getMemorySubagentToolDefinitions(permissions: MemoryPermissions = resolveMemoryPermissions()) {
+  return getAgenticToolDefinitions(permissions)
+}
+
 export function getToolDefinitions(permissions: MemoryPermissions = resolveMemoryPermissions()) {
   return [
   ...getAgenticToolDefinitions(permissions),
@@ -335,6 +339,7 @@ export function getToolDefinitions(permissions: MemoryPermissions = resolveMemor
 
 export const rawToolDefinitions = getRawToolDefinitions()
 export const agenticToolDefinitions = getAgenticToolDefinitions()
+export const memorySubagentToolDefinitions = agenticToolDefinitions
 export const toolDefinitions = [
   ...agenticToolDefinitions,
   ...rawToolDefinitions,

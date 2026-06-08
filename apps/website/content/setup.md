@@ -24,15 +24,15 @@ Wire MemexAI into the developer's agent so it can:
 
 Ask these before editing code:
 
-1. "Do you want recommended Agent mode, or advanced Raw tool mode?"
-   - Recommend Agent mode.
-   - Agent mode exposes `memory_memorize` and `memory_search`.
-   - Raw tool mode exposes lower-level file tools such as `memory_list`, `memory_read`, `memory_write`, and `memory_patch`.
+1. "Do you want recommended Memory subagent mode, or advanced Raw file tools mode?"
+   - Recommend Memory subagent mode.
+   - Memory subagent mode exposes `memory_memorize` and `memory_search`.
+   - Raw file tools mode exposes lower-level file tools such as `memory_list`, `memory_read`, `memory_write`, and `memory_patch`.
 2. "Should I set up a local Docker Compose MemexAI service for this project?"
    - Recommend yes for local development.
    - If Docker is already running, verify it instead of restarting it.
 
-If the user does not choose, proceed with Agent mode and local Docker Compose.
+If the user does not choose, proceed with Memory subagent mode and local Docker Compose.
 
 ## Discovery
 
@@ -228,7 +228,7 @@ Use the developer's existing Gemini env vars if already present.
 
 For projects using the Vercel AI SDK package `ai`, use this shape.
 
-Agent mode:
+Memory subagent mode:
 
 ```ts
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
@@ -255,7 +255,7 @@ export async function runAgent(input: string, userId = "demo_user") {
     model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
     system,
     prompt: input,
-    tools: createVercelAITools(memory, { mode: "agentic" }),
+    tools: createVercelAITools(memory, { mode: "subagent" }),
     stopWhen: stepCountIs(5),
   })
 
@@ -263,13 +263,13 @@ export async function runAgent(input: string, userId = "demo_user") {
 }
 ```
 
-Raw tool mode:
+Raw file tools mode:
 
 ```ts
 tools: createVercelAITools(memory, { mode: "raw" })
 ```
 
-Prefer Agent mode unless the developer explicitly asked for raw file-level control.
+Prefer Memory subagent mode unless the developer explicitly asked for raw file-level control.
 
 ## OpenAI SDK adapter
 
@@ -358,19 +358,18 @@ curl -fsS http://localhost:8080/v1/tools/memory_memorize/execute \
   -d '{"context":{"userId":"demo_user","actor":"assistant"},"arguments":{"text":"I prefer quiet neighborhoods near parks."}}'
 ```
 
-Agent mode should expose only:
+Memory subagent mode should expose only:
 
 - `memory_memorize`
 - `memory_search`
 
-Raw tool mode may expose:
+Raw file tools mode may expose:
 
 - `memory_list`
 - `memory_read`
 - `memory_write`
 - `memory_patch`
-- `memory_memorize`
-- `memory_search`
+- `memory_smart_read`
 
 ## Validation script
 

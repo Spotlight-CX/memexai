@@ -78,42 +78,47 @@ Add `confidence REAL` and `source_type TEXT` to `mx_file`. Dream consolidation s
 
 Why now: dreaming is live but has no way to signal epistemic quality. Contradicted memories persist at full weight until the next dream run.
 
-### 4. Launch polish
+### 4. Experimental raw memory shell
+Evaluate a read-only `memory_shell` inside raw file tools for Unix-like inspection over virtual memory files. It stays behind an explicit experimental flag, never becomes a third usage mode, and should primarily teach which structured memory operations are missing. Product plan: [`docs/roadmap/007-memory-shell-product-plan.md`](docs/roadmap/007-memory-shell-product-plan.md). Engineering plan: [`docs/roadmap/008-memory-shell-engineering-plan.md`](docs/roadmap/008-memory-shell-engineering-plan.md).
+
+Why now: Unix-like inspection may give advanced agents flexibility, but the product should evaluate command gaps and safety boundaries before building or promoting shell behavior.
+
+### 5. Launch polish
 Clear quick-test flow, copyable SDK snippets, better examples, fewer places where a new developer has to infer the happy path.
 
 Why now: adoption depends on the product feeling obvious before it feels powerful.
 
-### 5. Hybrid BM25 + vector search with RRF
+### 6. Hybrid BM25 + vector search with RRF
 Optional `embed` injection at `createMemex()`, `pgvector` column on `mx_file`, Reciprocal Rank Fusion merge. Spec: [`docs/roadmap/003-hybrid-search-rrf.md`](docs/roadmap/003-hybrid-search-rrf.md)
 
 Why now: Hybrid retrieval adds roughly 8–20 points accuracy on paraphrase-heavy recall tasks where query vocabulary diverges from stored memory vocabulary — a common failure mode for qualitative and preference memories. pgvector ships in the official Postgres Docker image (no new infra). BM25-only deployments are unchanged. Research: [`docs/research/hybrid-search-rrf.md`](docs/research/hybrid-search-rrf.md)
 
 Scope: Slices 1–4 of the spec only. No new services, no admin UI, no required dependency. BM25 remains the default. Follows memorize quality improvements (items 1–2 above are the larger lever).
 
-### 6. Memorize quality improvement
+### 7. Memorize quality improvement
 Tune the `memory_memorize` prompt to extract personal facts even when stated as throwaway asides in queries about unrelated topics. Current `maxWrites: 3` per session is conservative for multi-turn conversations.
 
 Why now: write-time extraction quality is the primary bottleneck in agent memory recall. Analysis of memory benchmark failures shows the majority of missed recalls are facts that were stated clearly but never extracted — a retrieval improvement cannot recover facts that were never written. Research: [`docs/research/agent-memory-retrieval-landscape.md`](docs/research/agent-memory-retrieval-landscape.md)
 
-### 7. PII hooks and post-write hooks
+### 8. PII hooks and post-write hooks
 PII: redaction/blocking before writes, regex-first. Post-write: webhooks or callbacks after memory changes for Slack, n8n, Zapier, audit stores.
 
 Why now: memory systems are trust systems. Sensitive data handling and workflow integration should be boring and inspectable.
 
-### 8. Shared writable mode
+### 9. Shared writable mode
 Opt-in `MEMEX_SHARED_WRITE_MODE=rw` / `sharedWriteMode: "rw"` lets trusted agent deployments write durable global knowledge into `shared/`. The default remains read-only; runtime validation, prompt blocks, and tool descriptions all reflect the resolved mode.
 
 Why now: this is the smallest collective-memory flywheel. It lets teams nurture shared project canon, policies, style guides, product facts, and learned procedures without waiting for a full proposal/review queue or named mounts.
 
-### 9. Team memory — contribution requests
+### 10. Team memory — contribution requests
 `memory_propose` tool queues a write to `shared/` that admins review before it becomes canonical. Accept / reject / auto-approve modes. Closes the gap between "operator configures once" and "team learns together."
 
-### 10. Hybrid search — `createMemex()` / direct-Postgres support
+### 11. Hybrid search — `createMemex()` / direct-Postgres support
 Expose the `EmbeddingAdapter` interface via `createMemex()` so containerless users can enable hybrid search without the Docker service. Currently the embed adapter lives only inside `apps/service`. Add when there is demand or after the service path is stable.
 
 Why later: V1 ships hybrid search only via the Docker service (env-locked config). Direct-Postgres users still get BM25. Unlocking this means wiring Gemini key handling, chunking, and config validation into the core library — straightforward but not needed until someone asks.
 
-### 11. Sidecar memory writes
+### 12. Sidecar memory writes
 Optional `raw_data` arg to `memory_write`. Payload goes directly to Postgres without entering the model's context window — useful for bulk ingestion of transcripts, structured payloads, or large data the agent has already processed.
 
 ---

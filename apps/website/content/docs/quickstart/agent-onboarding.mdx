@@ -30,15 +30,15 @@ The setup file asks the agent to confirm two decisions before editing code:
 
 | Question | Recommended answer |
 | --- | --- |
-| Agent mode or Raw tool mode? | Agent mode |
+| Memory subagent mode or Raw file tools mode? | Memory subagent mode |
 | Set up local Docker Compose? | Yes |
 
-Agent mode exposes the higher-level memory tools:
+Memory subagent mode exposes the higher-level memory tools:
 
 - `memory_memorize`
 - `memory_search`
 
-Raw tool mode is for advanced integrations and debugging. It may expose file-level tools such as `memory_list`, `memory_read`, `memory_write`, and `memory_patch`.
+Raw file tools mode is for advanced integrations and debugging. It may expose file-level tools such as `memory_list`, `memory_read`, `memory_write`, and `memory_patch`.
 
 ## What the agent will detect
 
@@ -73,7 +73,7 @@ const result = await generateText({
   model,
   system,
   prompt: userMessage,
-  tools: memory.createAgenticToolset(),
+  tools: memory.createMemorySubagentToolset(),
   stopWhen: stepCountIs(5),
 })
 ```

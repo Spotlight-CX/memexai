@@ -29,7 +29,7 @@ Observation events answer: **"How did the memory call behave?"**
 
 Core tool calls record a root row in `mx_observation_event` with `trace_id`, `span_id`, `duration_ms`, status, tool name, operation, and sanitized attributes. Internal phases such as DB reads, BM25 search, hybrid search, embedding, LLM generation, revision writes, and access-log writes are recorded as child spans when they run inside a traced tool call.
 
-Tool responses include `traceId`, `memory_trace_id`, `toolCallId`, and `durationMs`. Search and agentic calls also include best-effort `searchStats` and provider token `usage` when available.
+Tool responses include `traceId`, `memory_trace_id`, `toolCallId`, and `durationMs`. Search and memory subagent calls also include best-effort `searchStats` and provider token `usage` when available.
 
 Keep local MemexAI observability as the memory-native source of truth. Optional OpenTelemetry export should mirror sanitized spans for external tracing stacks, not replace the local record that can be joined to revisions, access logs, and time-travel snapshots.
 

@@ -121,7 +121,7 @@ const result = await generateText({
   model: createGoogleGenerativeAI()('gemini-2.5-flash'),
   system,
   prompt: 'Remember that I prefer quiet neighborhoods near good schools.',
-  tools: memory.createAgenticToolset(),
+  tools: memory.createMemorySubagentToolset(),
   stopWhen: stepCountIs(5),
 })
 
@@ -194,7 +194,7 @@ See [MCP Clients](/docs/mcp) for details.
 
 ## Model configuration
 
-LLM-backed `memory_memorize` and agentic `memory_search` are configured on the service, not in the SDK.
+LLM-backed `memory_memorize` and memory subagent `memory_search` are configured on the service, not in the SDK.
 
 ```bash
 GEMINI_API_KEY=...
@@ -207,7 +207,7 @@ OPENAI_MODEL=gpt-4.1-mini
 
 Without a service model, `memory_search` still works through Postgres full-text search, or hybrid pgvector search when embeddings are configured. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.
 
-For the smoothest first run, set `GEMINI_API_KEY` on the service so the agentic `memory_memorize` tool can decide what should become durable memory.
+For the smoothest first run, set `GEMINI_API_KEY` on the service so the memory subagent `memory_memorize` tool can decide what should become durable memory.
 
 ## Shared writable mode
 

@@ -264,6 +264,25 @@ export default function HomePage() {
           <CodeSwitcher />
         </Reveal>
 
+        <Reveal stagger className="mx-scope-grid">
+          <div className="mx-scope-card">
+            <code>memory subagent</code>
+            <strong>Recommended default</strong>
+            <p>
+              Give the model <code>memory_memorize</code> and <code>memory_search</code>;
+              MemexAI decides what is durable, searches memory, and handles file bookkeeping.
+            </p>
+          </div>
+          <div className="mx-scope-card">
+            <code>raw file tools</code>
+            <strong>Exact file control</strong>
+            <p>
+              Use file-level tools when your app or agent owns the memory layout
+              and needs exact path control over durable files.
+            </p>
+          </div>
+        </Reveal>
+
         <Reveal>
           <div className="mx-agent-prompt">
             <div className="mx-agent-prompt-label">

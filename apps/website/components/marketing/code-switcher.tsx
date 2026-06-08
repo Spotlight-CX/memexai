@@ -21,7 +21,7 @@ const tabs: Tab[] = [
         <div>  apiKey: <span className="string">'dev-agent-key'</span></div>
         <div>{'}'})</div>
         <div><span className="keyword">const</span> memory = memex.<span className="func">memory</span>(<span className="string">'user-123'</span>)</div>
-        <div><span className="keyword">const</span> tools = memory.<span className="func">createAgenticToolset</span>()</div>
+        <div><span className="keyword">const</span> tools = memory.<span className="func">createMemorySubagentToolset</span>()</div>
       </>
     ),
   },
@@ -35,7 +35,7 @@ const tabs: Tab[] = [
         <div><span className="keyword">await</span> memex.<span className="func">migrate</span>() <span className="comment">// run once</span></div>
         <br />
         <div><span className="keyword">const</span> memory = memex.<span className="func">memory</span>(<span className="string">'user-123'</span>)</div>
-        <div><span className="keyword">const</span> tools = memory.<span className="func">createAgenticToolset</span>()</div>
+        <div><span className="keyword">const</span> tools = memory.<span className="func">createMemorySubagentToolset</span>()</div>
         <div><span className="keyword">const</span> prompt = <span className="keyword">await</span> memory.<span className="func">getSystemPrompt</span>()</div>
       </>
     ),

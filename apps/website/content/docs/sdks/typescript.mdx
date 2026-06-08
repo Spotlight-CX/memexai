@@ -60,7 +60,7 @@ await memex.end()
 
 ```ts
 const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
-const agenticTools = memory.createAgenticToolset()
+const memorySubagentTools = memory.createMemorySubagentToolset()
 const rawTools = memory.createRawToolset()
 ```
 

@@ -177,6 +177,10 @@ export class MemexMemory {
     return this.createToolset(agenticToolDefinitions)
   }
 
+  createMemorySubagentToolset(): Record<string, VercelAITool> {
+    return this.createAgenticToolset()
+  }
+
   createRawToolset(): Record<string, VercelAITool> {
     return this.createToolset(rawToolDefinitions)
   }
@@ -184,6 +188,10 @@ export class MemexMemory {
   async createAgenticToolsetFromService(): Promise<Record<string, VercelAITool>> {
     const definitions = (await this.getToolDefinitions()).filter((tool) => tool.name === "memory_memorize" || tool.name === "memory_search")
     return this.createToolset(definitions)
+  }
+
+  async createMemorySubagentToolsetFromService(): Promise<Record<string, VercelAITool>> {
+    return this.createAgenticToolsetFromService()
   }
 
   async createRawToolsetFromService(): Promise<Record<string, VercelAITool>> {
