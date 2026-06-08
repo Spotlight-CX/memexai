@@ -142,7 +142,7 @@ function createAdminDb() {
             reads: "4",
             writes: "1",
             searches: "2",
-            smart_reads: "1",
+            context_reads: "1",
             tool_calls: "5",
             errors: "1",
             p50_ms: "100",
@@ -158,7 +158,7 @@ function createAdminDb() {
             reads: "4",
             writes: "1",
             searches: "0",
-            smart_reads: "0",
+            context_reads: "0",
             total_hits: "5",
             unique_users: "2",
             user_ids: ["user_123", "user_456"],
@@ -239,7 +239,7 @@ function createAdminDb() {
             active_users: "2",
             p50_ms: "120",
             p95_ms: "420",
-            slowest_tool_name: "memory_search",
+            slowest_tool_name: "memory_find",
           }],
         }
       }
@@ -251,7 +251,7 @@ function createAdminDb() {
             reads: "1",
             writes: "2",
             searches: "1",
-            smart_reads: "2",
+            context_reads: "2",
           }],
         }
       }
@@ -262,7 +262,7 @@ function createAdminDb() {
             reads: "8",
             writes: "2",
             searches: "1",
-            smart_reads: "1",
+            context_reads: "1",
             unique_users: "2",
             last_accessed_at: new Date("2026-05-09T08:10:00Z"),
             last_written_at: new Date("2026-05-09T08:09:00Z"),
@@ -279,7 +279,7 @@ function createAdminDb() {
             reads: "4",
             writes: "1",
             searches: "1",
-            smart_reads: "0",
+            context_reads: "0",
           }],
         }
       }
@@ -379,7 +379,7 @@ function createAdminDb() {
         }
       }
 
-      if (sql.includes("operation IN ('search', 'smart_read')") && sql.includes("GROUP BY user_id")) {
+      if (sql.includes("operation IN ('search', 'context')") && sql.includes("GROUP BY user_id")) {
         return {
           rows: [{
             user_id: "user_123",
@@ -416,7 +416,7 @@ function createAdminDb() {
             reads: "4",
             writes: "1",
             searches: "0",
-            smart_reads: "0",
+            context_reads: "0",
             total_hits: "5",
             unique_users: "1",
             user_ids: ["user_123"],
@@ -435,7 +435,7 @@ function createAdminDb() {
             duration_ms: 120,
             user_id: "user_123",
             actor: "assistant",
-            tool_name: "memory_search",
+            tool_name: "memory_find",
             operation: "search",
             physical_path: null,
             tool_call_id: "call_1",
@@ -661,7 +661,7 @@ describe("admin routes", () => {
     expect(filteredTopFiles.statusCode).toBe(200)
     expect(filteredTopFiles.json().files[0]).toMatchObject({ normalizedPath: "users/profile.md" })
     expect(events.statusCode).toBe(200)
-    expect(events.json().events[0]).toMatchObject({ eventType: "tool_execution", toolName: "memory_search" })
+    expect(events.json().events[0]).toMatchObject({ eventType: "tool_execution", toolName: "memory_find" })
   })
 
   test("returns aggregate observability tree data", async () => {

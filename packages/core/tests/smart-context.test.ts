@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest"
-import { executeMemorySmartRead } from "../src/tools"
+import { executeMemoryContext } from "../src/tools"
 
 const now = new Date("2026-05-14T12:00:00.000Z")
 
@@ -54,7 +54,7 @@ function createHybridMockDb(input: {
   } as unknown as import("../src/db").Db
 }
 
-describe("executeMemorySmartRead", () => {
+describe("executeMemoryContext", () => {
   test("includes all visible files under budget with virtual paths", async () => {
     const db = createMockDb([
       row("users/u1/profile.md", "# Profile\n- Quiet neighborhoods"),
@@ -62,7 +62,7 @@ describe("executeMemorySmartRead", () => {
       row("users/other/profile.md", "# Other"),
     ])
 
-    const result = await executeMemorySmartRead(db, { maxChars: 10_000 }, { userId: "u1" })
+    const result = await executeMemoryContext(db, { maxChars: 10_000 }, { userId: "u1" })
 
     expect(result.filesIncluded).toEqual(["user/profile.md", "shared/index.md"])
     expect(result.filesOmitted).toEqual([])
@@ -79,7 +79,7 @@ describe("executeMemorySmartRead", () => {
       row("users/u1/b.md", "b".repeat(20)),
     ])
 
-    const result = await executeMemorySmartRead(db, { maxChars: 90 }, { userId: "u1" })
+    const result = await executeMemoryContext(db, { maxChars: 90 }, { userId: "u1" })
 
     expect(result.filesIncluded).toEqual(["user/a.md"])
     expect(result.filesOmitted).toEqual(["user/b.md"])
@@ -89,7 +89,7 @@ describe("executeMemorySmartRead", () => {
   test("uses BM25 SQL when query is provided", async () => {
     const db = createMockDb([row("users/u1/profile.md", "budget")])
 
-    await executeMemorySmartRead(db, { query: "budget" }, { userId: "u1" })
+    await executeMemoryContext(db, { query: "budget" }, { userId: "u1" })
 
     const [sql, values] = (db.query as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(sql).toContain("plainto_tsquery")
@@ -120,7 +120,7 @@ describe("executeMemorySmartRead", () => {
       ],
     })
 
-    const result = await executeMemorySmartRead(db, {
+    const result = await executeMemoryContext(db, {
       query: "nature nearby",
       maxChars: 10_000,
     }, { userId: "u1" }, {
@@ -147,7 +147,7 @@ describe("executeMemorySmartRead", () => {
     })
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
 
-    const result = await executeMemorySmartRead(db, {
+    const result = await executeMemoryContext(db, {
       query: "budget",
       maxChars: 10_000,
     }, { userId: "u1" }, {
@@ -176,7 +176,7 @@ describe("executeMemorySmartRead", () => {
       row("users/u1/other.md", "# Other"),
     ])
 
-    const result = await executeMemorySmartRead(db, { query: "quiet", maxChars: 10_000 }, { userId: "u1" })
+    const result = await executeMemoryContext(db, { query: "quiet", maxChars: 10_000 }, { userId: "u1" })
 
     expect(result.filesIncluded).toEqual(["user/profile.md", "user/preferences.md", "shared/index.md"])
     expect(result.filesIncludedMeta).toEqual([
@@ -191,7 +191,7 @@ describe("executeMemorySmartRead", () => {
       row("users/u1/profile.md", "# Profile\n[[user/preferences.md]]"),
     ])
 
-    const result = await executeMemorySmartRead(db, { maxChars: 10_000 }, { userId: "u1" })
+    const result = await executeMemoryContext(db, { maxChars: 10_000 }, { userId: "u1" })
 
     expect(result.filesIncluded).toEqual(["user/profile.md"])
     expect((db.query as ReturnType<typeof vi.fn>).mock.calls.some(([sql]) => sql.includes("physical_path = ANY"))).toBe(false)
@@ -203,12 +203,12 @@ describe("executeMemorySmartRead", () => {
       row("users/u1/preferences.md", "# Preferences"),
     ]
 
-    const disabled = await executeMemorySmartRead(createMockDb(rows), {
+    const disabled = await executeMemoryContext(createMockDb(rows), {
       query: "profile",
       includeRelated: false,
       maxChars: 10_000,
     }, { userId: "u1" })
-    const depthZero = await executeMemorySmartRead(createMockDb(rows), {
+    const depthZero = await executeMemoryContext(createMockDb(rows), {
       query: "profile",
       relatedDepth: 0,
       maxChars: 10_000,
@@ -225,7 +225,7 @@ describe("executeMemorySmartRead", () => {
       row("users/u1/c.md", "# C"),
     ])
 
-    const result = await executeMemorySmartRead(db, {
+    const result = await executeMemoryContext(db, {
       query: "alpha",
       relatedDepth: 2,
       maxChars: 10_000,
@@ -241,7 +241,7 @@ describe("executeMemorySmartRead", () => {
       row("users/u1/linked.md", "x".repeat(50)),
     ])
 
-    const result = await executeMemorySmartRead(db, { query: "alpha", maxChars: 180 }, { userId: "u1" })
+    const result = await executeMemoryContext(db, { query: "alpha", maxChars: 180 }, { userId: "u1" })
 
     expect(result.filesIncluded).toEqual(["user/a.md", "user/b.md"])
     expect(result.filesOmitted).toEqual(["user/linked.md"])

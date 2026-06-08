@@ -8,9 +8,9 @@ import {
   readArgsSchema,
   writeArgsSchema,
   patchArgsSchema,
-  smartReadArgsSchema,
-  searchArgsSchema,
-  memorizeArgsSchema,
+  contextArgsSchema,
+  findArgsSchema,
+  rememberArgsSchema,
 } from "./schemas"
 import type { z } from "zod"
 
@@ -28,9 +28,9 @@ const schemaMap: Record<string, z.ZodTypeAny> = {
   memory_read: readArgsSchema,
   memory_write: writeArgsSchema,
   memory_patch: patchArgsSchema,
-  memory_smart_read: smartReadArgsSchema,
-  memory_search: searchArgsSchema,
-  memory_memorize: memorizeArgsSchema,
+  memory_context: contextArgsSchema,
+  memory_find: findArgsSchema,
+  memory_remember: rememberArgsSchema,
 }
 
 export function createConnectionScopedMcpServer(

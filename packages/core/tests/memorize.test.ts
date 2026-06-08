@@ -8,7 +8,7 @@ vi.mock("ai", () => ({
   stepCountIs: (count: number) => ({ count }),
 }))
 
-const { executeMemoryMemorize } = await import("../src/tools")
+const { executeMemoryRemember } = await import("../src/tools")
 
 const updatedAt = new Date("2026-05-14T12:00:00.000Z")
 
@@ -52,9 +52,9 @@ function createDb() {
   } as unknown as import("../src/db").Db
 }
 
-describe("executeMemoryMemorize", () => {
+describe("executeMemoryRemember", () => {
   test("requires a configured model", async () => {
-    await expect(executeMemoryMemorize(
+    await expect(executeMemoryRemember(
       createDb(),
       { text: "remember quiet neighborhoods" },
       { userId: "u1" },
@@ -72,7 +72,7 @@ describe("executeMemoryMemorize", () => {
       return { text: "Planned." }
     })
 
-    const result = await executeMemoryMemorize(
+    const result = await executeMemoryRemember(
       db,
       { text: "remember quiet neighborhoods", dryRun: true },
       { userId: "u1" },
@@ -97,7 +97,7 @@ describe("executeMemoryMemorize", () => {
       return { text: "Remembered." }
     })
 
-    const result = await executeMemoryMemorize(
+    const result = await executeMemoryRemember(
       db,
       { text: "remember quiet neighborhoods" },
       { userId: "u1", actor: "assistant" },
@@ -120,7 +120,7 @@ describe("executeMemoryMemorize", () => {
       return { text: "bad" }
     })
 
-    await expect(executeMemoryMemorize(
+    await expect(executeMemoryRemember(
       createDb(),
       { text: "remember quiet neighborhoods" },
       { userId: "u1" },
@@ -135,7 +135,7 @@ describe("executeMemoryMemorize", () => {
       return { text: "bad" }
     })
 
-    await expect(executeMemoryMemorize(
+    await expect(executeMemoryRemember(
       createDb(),
       { text: "remember quiet neighborhoods", maxWrites: 1 },
       { userId: "u1" },
@@ -148,7 +148,7 @@ describe("executeMemoryMemorize", () => {
       expect(input.tools).toHaveProperty("memory_read")
       return { text: "done" }
     })
-    await executeMemoryMemorize(createDb(), { text: "test" }, { userId: "u1" }, { model: {} })
+    await executeMemoryRemember(createDb(), { text: "test" }, { userId: "u1" }, { model: {} })
   })
 
   test("model can call memory_read before patching", async () => {
@@ -158,28 +158,9 @@ describe("executeMemoryMemorize", () => {
       expect(file.content).toBe("# Profile")
       return { text: "read it" }
     })
-    await executeMemoryMemorize(db, { text: "test" }, { userId: "u1" }, { model: {} })
+    await executeMemoryRemember(db, { text: "test" }, { userId: "u1" }, { model: {} })
     const sqlCalls = (db.query as ReturnType<typeof vi.fn>).mock.calls.map(([sql]) => String(sql))
     expect(sqlCalls.some((s) => s.includes("WHERE physical_path = $1"))).toBe(true)
-  })
-
-  test("enforces maxReads budget", async () => {
-    generateTextMock.mockImplementationOnce(async (input) => {
-      await input.tools.memory_read.execute({ path: "user/profile.md" })
-      await input.tools.memory_read.execute({ path: "user/notes.md" })
-      return { text: "bad" }
-    })
-    await expect(
-      executeMemoryMemorize(createDb(), { text: "test", maxReads: 1 }, { userId: "u1" }, { model: {} }),
-    ).rejects.toMatchObject({ code: "MAX_READS_EXCEEDED" })
-  })
-
-  test("maxReads 0 omits memory_read from inner model tools", async () => {
-    generateTextMock.mockImplementationOnce(async (input) => {
-      expect(input.tools).not.toHaveProperty("memory_read")
-      return { text: "done" }
-    })
-    await executeMemoryMemorize(createDb(), { text: "test", maxReads: 0 }, { userId: "u1" }, { model: {} })
   })
 
   test("log files are excluded from the regular file list in the prompt", async () => {
@@ -190,7 +171,7 @@ describe("executeMemoryMemorize", () => {
       expect(input.prompt).toContain("Log file previews")
       return { text: "done" }
     })
-    await executeMemoryMemorize(createDb(), { text: "test" }, { userId: "u1" }, { model: {} })
+    await executeMemoryRemember(createDb(), { text: "test" }, { userId: "u1" }, { model: {} })
   })
 
   test("injects only the last 15 lines of a log file as preview", async () => {
@@ -202,6 +183,6 @@ describe("executeMemoryMemorize", () => {
       expect(input.prompt).not.toContain("line5\n")
       return { text: "done" }
     })
-    await executeMemoryMemorize(createDb(), { text: "test" }, { userId: "u1" }, { model: {} })
+    await executeMemoryRemember(createDb(), { text: "test" }, { userId: "u1" }, { model: {} })
   })
 })

@@ -116,27 +116,24 @@ export class MemexUser {
     )
   }
 
-  async search(query: string, options: { maxChars?: number; limit?: number; maxReads?: number; prefix?: string } = {}) {
+  async find(query: string, options: { maxChars?: number; limit?: number; prefix?: string } = {}) {
     return this.memex.executeTool<{
       query: string
       results: { path: string; snippet: string; rank: number; updatedAt: Date }[]
       truncated: boolean
-      answer?: string
-      sources?: string[]
       traceId?: string
       memory_trace_id?: string
       toolCallId?: string
       durationMs?: number
-      usage?: { inputTokens?: number | null; outputTokens?: number | null; totalTokens?: number | null }
-      searchStats?: { searchMode?: string; candidateCount?: number; filesReturned?: number; filesRead?: number; sourcesReturned?: number }
+      searchStats?: { searchMode?: string; candidateCount?: number; filesReturned?: number }
     }>(
-      "memory_search",
+      "memory_find",
       { query, ...options },
       this.ctx,
     )
   }
 
-  async memorize(text: string, options: { maxWrites?: number; dryRun?: boolean } = {}) {
+  async remember(text: string, options: { maxWrites?: number; dryRun?: boolean } = {}) {
     return this.memex.executeTool<{
       text: string
       dryRun: boolean
@@ -147,7 +144,7 @@ export class MemexUser {
       durationMs?: number
       usage?: { inputTokens?: number | null; outputTokens?: number | null; totalTokens?: number | null }
     }>(
-      "memory_memorize",
+      "memory_remember",
       { text, ...options },
       this.ctx,
     )

@@ -13,9 +13,9 @@ function createMockDb() {
 }
 
 describe("MemexUser toolsets", () => {
-  test("createAgenticToolset exposes memorize and search only", () => {
+  test("createAgenticToolset exposes remember and context only", () => {
     const user = new Memex(createMockDb()).forUser({ userId: "u1" })
-    expect(Object.keys(user.createAgenticToolset())).toEqual(["memory_memorize", "memory_search"])
+    expect(Object.keys(user.createAgenticToolset())).toEqual(["memory_remember", "memory_context"])
   })
 
   test("createRawToolset exposes raw file tools only", () => {
@@ -25,7 +25,7 @@ describe("MemexUser toolsets", () => {
       "memory_read",
       "memory_write",
       "memory_patch",
-      "memory_smart_read",
+      "memory_find",
     ])
   })
 

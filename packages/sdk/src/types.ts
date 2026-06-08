@@ -71,19 +71,16 @@ export type PatchFileResult = {
   noOp: boolean
 }
 
-export type SearchMemoryInput = {
+export type FindMemoryInput = {
   query: string
   maxChars?: number
   limit?: number
-  maxReads?: number
   prefix?: string
   toolCallId?: string
 }
 
-export type SearchMemoryResult = {
+export type FindMemoryResult = {
   query: string
-  answer?: string
-  sources?: string[]
   results: {
     path: string
     snippet: string
@@ -98,15 +95,14 @@ export type SearchMemoryResult = {
   truncated: boolean
 }
 
-export type MemorizeInput = {
+export type RememberInput = {
   text: string
   maxWrites?: number
-  maxReads?: number
   dryRun?: boolean
   toolCallId?: string
 }
 
-export type MemorizeResult = {
+export type RememberResult = {
   text: string
   dryRun: boolean
   writes: {

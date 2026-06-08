@@ -1,19 +1,19 @@
 import { MemexAIError, type MemexAIErrorBody } from "./errors"
 import { agenticToolDefinitions, rawToolDefinitions } from "./tool-definitions"
 import type {
+  FindMemoryInput,
+  FindMemoryResult,
   ListFilesInput,
   MemoryContext,
   MemoryFile,
-  MemorizeInput,
-  MemorizeResult,
   MemexAIOptions,
   PatchFileInput,
   PatchFileResult,
   ReadFileInput,
   ReadFileResult,
+  RememberInput,
+  RememberResult,
   RequestContext,
-  SearchMemoryInput,
-  SearchMemoryResult,
   ToolDefinition,
   WriteFileInput,
   WriteFileResult,
@@ -149,21 +149,21 @@ export class MemexMemory {
     })
   }
 
-  async search(input: SearchMemoryInput | string): Promise<SearchMemoryResult> {
+  async find(input: FindMemoryInput | string): Promise<FindMemoryResult> {
     const normalized = typeof input === "string" ? { query: input } : input
     const { toolCallId, ...args } = normalized
     return this.client.executeTool({
-      name: "memory_search",
+      name: "memory_find",
       context: withToolCallId(this.context, toolCallId),
       arguments: args,
     })
   }
 
-  async memorize(input: MemorizeInput | string): Promise<MemorizeResult> {
+  async remember(input: RememberInput | string): Promise<RememberResult> {
     const normalized = typeof input === "string" ? { text: input } : input
     const { toolCallId, ...args } = normalized
     return this.client.executeTool({
-      name: "memory_memorize",
+      name: "memory_remember",
       context: withToolCallId(this.context, toolCallId),
       arguments: args,
     })
@@ -186,7 +186,7 @@ export class MemexMemory {
   }
 
   async createAgenticToolsetFromService(): Promise<Record<string, VercelAITool>> {
-    const definitions = (await this.getToolDefinitions()).filter((tool) => tool.name === "memory_memorize" || tool.name === "memory_search")
+    const definitions = (await this.getToolDefinitions()).filter((tool) => tool.name === "memory_remember" || tool.name === "memory_context")
     return this.createToolset(definitions)
   }
 
@@ -195,7 +195,7 @@ export class MemexMemory {
   }
 
   async createRawToolsetFromService(): Promise<Record<string, VercelAITool>> {
-    const definitions = (await this.getToolDefinitions()).filter((tool) => tool.name !== "memory_memorize" && tool.name !== "memory_search")
+    const definitions = (await this.getToolDefinitions()).filter((tool) => tool.name !== "memory_remember" && tool.name !== "memory_context")
     return this.createToolset(definitions)
   }
 

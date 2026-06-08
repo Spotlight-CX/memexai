@@ -24,14 +24,14 @@ describe("Memex", () => {
   })
 
   test("tool definitions are split into agentic and raw sets", () => {
-    expect(agenticToolDefinitions.map((tool) => tool.name)).toEqual(["memory_memorize", "memory_search"])
-    expect(memorySubagentToolDefinitions.map((tool) => tool.name)).toEqual(["memory_memorize", "memory_search"])
+    expect(agenticToolDefinitions.map((tool) => tool.name)).toEqual(["memory_remember", "memory_context"])
+    expect(memorySubagentToolDefinitions.map((tool) => tool.name)).toEqual(["memory_remember", "memory_context"])
     expect(rawToolDefinitions.map((tool) => tool.name)).toEqual([
       "memory_list",
       "memory_read",
       "memory_write",
       "memory_patch",
-      "memory_smart_read",
+      "memory_find",
     ])
   })
 

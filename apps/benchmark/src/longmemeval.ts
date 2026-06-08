@@ -257,7 +257,7 @@ async function main() {
               item.haystack_sessions[s],
               item.haystack_dates[s] ?? "unknown date",
             )
-            const result = await user.memorize(text, { maxWrites: 3, dryRun: DRY_RUN })
+            const result = await user.remember(text, { maxWrites: 3, dryRun: DRY_RUN })
             if (result.traceId) ingest_trace_ids.push(result.traceId)
             wroteMemory ||= result.writes.length > 0
             process.stdout.write(` ${Date.now() - st}ms (${result.writes.length} writes)`)
@@ -270,12 +270,12 @@ async function main() {
       // ── Query ────────────────────────────────────────────────────────────────
       const t1 = Date.now()
       const searchResult = await user.executeTool<AgenticSearchResult>(
-        "memory_search",
+        "memory_find",
         { query: item.question, limit: 5 },
       )
       const query_ms = Date.now() - t1
 
-      // Agentic search returns { answer }, BM25 fallback returns { results[].snippet }
+      // memory_find returns ranked results; concatenate snippets as predicted answer
       predicted = searchResult.answer
         ?? searchResult.results.map(r => r.snippet).join(" ")
 

@@ -184,44 +184,49 @@ Two operations available:
     },
   },
   {
-    name: "memory_smart_read",
-    description: `Read all (or the most relevant) memory files within a character budget, returned as a single merged context block ready to inject into a system prompt.
+    name: "memory_find",
+    description: `Search memory for relevant files by keyword or semantic query. Returns ranked file metadata and snippets.
 
-Optionally pass a \`query\` to rank files by relevance so the most useful content fits within \`maxChars\`. In service hybrid mode, query ranking can use BM25 plus pgvector semantic candidates; otherwise it uses BM25.
-When a query is provided, deterministic linked recall is enabled by default: directly matched files are included first, then visible one-hop \`[[user/...]]\` or \`[[shared/...]]\` links are added if budget remains.
+Uses BM25 keyword search by default; uses BM25 + pgvector + RRF hybrid ranking when service hybrid mode is configured. Returns raw ranked results — the caller is expected to synthesize the answer. For a formatted context block ready to inject into a prompt, use \`memory_context\` instead.
 
 ### Parameters
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| \`maxChars\` | number | no | Maximum characters to return. Default: 24 000 |
-| \`query\` | string | no | Query to rank files by relevance |
-| \`includeRelated\` | boolean | no | Include directly linked memory files. Defaults to true when query is set |
-| \`relatedDepth\` | number | no | Link expansion depth, 0-2. Default: 1 |
+| \`query\` | string | **yes** | Question or topic to search for |
+| \`maxChars\` | number | no | Max characters to return. Default: 8 000 |
+| \`limit\` | number | no | Max search candidates. Default: 10 |
+| \`prefix\` | string | no | Optional virtual path prefix, e.g. \`user/\` |
 
 ### Example input
 
 \`\`\`json
-{ "maxChars": 4000, "query": "apartment preferences" }
+{
+  "query": "What is the user's budget?",
+  "limit": 5
+}
 \`\`\`
 
 ### Example output
 
 \`\`\`json
 {
-  "content": "<memory>\\n<file path=\\"user/profile.md\\">\\n# Profile\\n- Prefers 2BHK\\n</file>\\n</memory>",
-  "truncated": false,
-  "filesRead": 2
+  "query": "What is the user's budget?",
+  "results": [
+    { "path": "user/profile.md", "snippet": "Budget: ₹80L–₹1Cr", "rank": 0.85, "matchReason": "lexical" }
+  ],
+  "truncated": false
 }
 \`\`\``,
     inputSchema: {
       type: "object",
+      required: ["query"],
       additionalProperties: false,
       properties: {
-        maxChars: { type: "number", description: "Maximum characters to return. Default: 24000." },
-        query: { type: "string", description: "Optional query to rank files by relevance. Uses hybrid ranking in service hybrid mode." },
-        includeRelated: { type: "boolean", description: "Include visible files linked with [[user/...]] or [[shared/...]]. Defaults to true when query is provided." },
-        relatedDepth: { type: "number", description: "Maximum link expansion depth. 0 disables linked retrieval. Default: 1, max: 2." },
+        query: { type: "string", description: "Question or topic to search memory for." },
+        maxChars: { type: "number", description: "Maximum characters to return. Default: 8000." },
+        limit: { type: "number", description: "Maximum search candidates. Default: 10." },
+        prefix: { type: "string", description: "Optional virtual path prefix, e.g. user/ or shared/." },
       },
     },
   },
@@ -231,7 +236,7 @@ When a query is provided, deterministic linked recall is enabled by default: dir
 export function getAgenticToolDefinitions(permissions: MemoryPermissions = resolveMemoryPermissions()) {
   return [
   {
-    name: "memory_memorize",
+    name: "memory_remember",
     description: `Feed raw text (conversation snippets, notes, observations) and let MemexAI autonomously decide what to remember and where to store it.
 
 MemexAI reads existing memory files, identifies durable facts, and writes or patches them — all with full audit trails. Use \`dryRun: true\` to preview planned writes without committing.
@@ -244,7 +249,6 @@ ${writablePathDescription(permissions)}
 |---|---|---|---|
 | \`text\` | string | **yes** | Raw text containing facts to remember |
 | \`maxWrites\` | number | no | Max write/patch operations. Default: 5 |
-| \`maxReads\` | number | no | Max files the agent may read before writing. Default: 3 |
 | \`dryRun\` | boolean | no | Plan writes without committing |
 
 ### Example input
@@ -278,48 +282,45 @@ ${writablePathDescription(permissions)}
     },
   },
   {
-    name: "memory_search",
-    description: `Search memory for a question. Uses BM25 by default and optional pgvector hybrid search when service hybrid mode is configured.
+    name: "memory_context",
+    description: `Read all (or the most relevant) memory files within a character budget, returned as a single merged context block ready to inject into a system prompt.
 
-When an LLM is configured, agentic resolution reads the top search candidates and synthesizes a grounded answer. Without an LLM, returns raw matching file excerpts.
+Optionally pass a \`query\` to rank files by relevance so the most useful content fits within \`maxChars\`. In service hybrid mode, query ranking can use BM25 plus pgvector semantic candidates; otherwise it uses BM25.
+When a query is provided, deterministic linked recall is enabled by default: directly matched files are included first, then visible one-hop \`[[user/...]]\` or \`[[shared/...]]\` links are added if budget remains.
 
 ### Parameters
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| \`query\` | string | **yes** | Question or topic to search for |
-| \`maxChars\` | number | no | Max characters to return. Default: 8 000 |
-| \`limit\` | number | no | Max search candidates. Default: 10 |
-| \`maxReads\` | number | no | Max files the agentic resolver may inspect. Default: 5 |
-| \`prefix\` | string | no | Optional virtual path prefix, e.g. \`user/\` |
+| \`maxChars\` | number | no | Maximum characters to return. Default: 24 000 |
+| \`query\` | string | no | Query to rank files by relevance |
+| \`includeRelated\` | boolean | no | Include directly linked memory files. Defaults to true when query is set |
+| \`relatedDepth\` | number | no | Link expansion depth, 0-2. Default: 1 |
 
 ### Example input
 
 \`\`\`json
-{
-  "query": "What is the user's budget?",
-  "maxChars": 2000
-}
+{ "maxChars": 4000, "query": "apartment preferences" }
 \`\`\`
 
 ### Example output
 
 \`\`\`json
 {
-  "answer": "The user's budget is ₹80L–₹1Cr based on their profile notes.",
-  "sources": ["user/profile.md"]
+  "content": "<memexai_memory>\\n## user/profile.md\\n(updated ...)\\n\\n# Profile\\n- Prefers 2BHK\\n</memexai_memory>",
+  "filesIncluded": ["user/profile.md"],
+  "filesOmitted": [],
+  "truncated": false
 }
 \`\`\``,
     inputSchema: {
       type: "object",
-      required: ["query"],
       additionalProperties: false,
       properties: {
-        query: { type: "string", description: "Question or topic to search memory for." },
-        maxChars: { type: "number", description: "Maximum characters to return. Default: 8000." },
-        limit: { type: "number", description: "Maximum search candidates. Default: 10." },
-        maxReads: { type: "number", description: "Maximum files the agentic resolver may inspect. Default: 5." },
-        prefix: { type: "string", description: "Optional virtual path prefix, e.g. user/ or shared/." },
+        maxChars: { type: "number", description: "Maximum characters to return. Default: 24000." },
+        query: { type: "string", description: "Optional query to rank files by relevance. Uses hybrid ranking in service hybrid mode." },
+        includeRelated: { type: "boolean", description: "Include visible files linked with [[user/...]] or [[shared/...]]. Defaults to true when query is provided." },
+        relatedDepth: { type: "number", description: "Maximum link expansion depth. 0 disables linked retrieval. Default: 1, max: 2." },
       },
     },
   },
