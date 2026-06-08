@@ -129,8 +129,8 @@ describe("demo agent CLI", () => {
       prompt: "Remember quiet projects.",
     })
     expect(generateInput.system).toContain("<memexai_memory>")
-    expect(generateInput.tools.memory_memorize.inputSchema).toBeDefined()
-    expect(generateInput.tools.memory_search.inputSchema).toBeDefined()
+    expect(generateInput.tools.memory_remember.inputSchema).toBeDefined()
+    expect(generateInput.tools.memory_context.inputSchema).toBeDefined()
   })
 
   test("two-turn proof sends prompt-block memory and tools on a fresh follow-up call", async () => {
@@ -156,15 +156,15 @@ describe("demo agent CLI", () => {
       .mockImplementationOnce(async (input: { system: string; prompt: string; tools: Record<string, unknown> }) => {
         expect(input.prompt).toBe("Remember that I prefer quiet neighborhoods near parks.")
         expect(input.system).toContain("No files yet.")
-        expect(input.tools).toHaveProperty("memory_memorize")
-        expect(input.tools).toHaveProperty("memory_search")
+        expect(input.tools).toHaveProperty("memory_remember")
+        expect(input.tools).toHaveProperty("memory_context")
         return { text: "Saved that preference." }
       })
       .mockImplementationOnce(async (input: { system: string; prompt: string; tools: Record<string, unknown> }) => {
         expect(input.prompt).toBe("What kind of neighborhood do I prefer?")
         expect(input.system).toContain("Prefers quiet neighborhoods near parks.")
-        expect(input.tools).toHaveProperty("memory_memorize")
-        expect(input.tools).toHaveProperty("memory_search")
+        expect(input.tools).toHaveProperty("memory_remember")
+        expect(input.tools).toHaveProperty("memory_context")
         return { text: "You prefer quiet neighborhoods near parks." }
       })
 
@@ -279,8 +279,8 @@ describe("demo agent CLI — direct mode (@memexai/core)", () => {
     expect(generate).toHaveBeenCalledOnce()
     const callInput = generate.mock.calls[0]?.[0] as { system: string; tools: Record<string, unknown>; prompt: string }
     expect(callInput.system).toContain("<memexai_memory>")
-    expect(callInput.tools).toHaveProperty("memory_memorize")
-    expect(callInput.tools).toHaveProperty("memory_search")
+    expect(callInput.tools).toHaveProperty("memory_remember")
+    expect(callInput.tools).toHaveProperty("memory_context")
     expect(callInput.prompt).toContain("quiet neighborhoods")
   })
 })

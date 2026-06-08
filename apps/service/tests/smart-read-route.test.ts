@@ -27,14 +27,14 @@ function createDb() {
   }
 }
 
-describe("memory_smart_read route", () => {
+describe("memory_context route", () => {
   test("executes through the tool route", async () => {
     const db = createDb()
     const app = buildServer({ db: db as never, config })
 
     const response = await app.inject({
       method: "POST",
-      url: "/v1/tools/memory_smart_read/execute",
+      url: "/v1/tools/memory_context/execute",
       headers: { authorization: "Bearer agent-key" },
       payload: {
         context: { userId: "u1" },
@@ -53,8 +53,8 @@ describe("memory_smart_read route", () => {
       "tool_execution",
       "success",
       "u1",
-      "memory_smart_read",
-      "smart_read",
+      "memory_context",
+      "context",
     ]))
     expect(JSON.parse(String(observationCall?.[1]?.at(-1)))).toMatchObject({
       files_included: 1,

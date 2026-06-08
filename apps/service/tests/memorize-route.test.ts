@@ -9,14 +9,14 @@ const config = {
   MEMEX_ADMIN_SECRET: "admin-secret",
 }
 
-describe("memory_memorize route", () => {
+describe("memory_remember route", () => {
   test("returns MODEL_NOT_CONFIGURED when service has no model", async () => {
     const db = { query: vi.fn(async () => ({ rows: [] })) }
     const app = buildServer({ db: db as never, config })
 
     const response = await app.inject({
       method: "POST",
-      url: "/v1/tools/memory_memorize/execute",
+      url: "/v1/tools/memory_remember/execute",
       headers: { authorization: "Bearer agent-key" },
       payload: {
         context: { userId: "u1" },
@@ -32,8 +32,8 @@ describe("memory_memorize route", () => {
       "tool_execution",
       "error",
       "u1",
-      "memory_memorize",
-      "memorize",
+      "memory_remember",
+      "remember",
       "MODEL_NOT_CONFIGURED",
     ]))
   })

@@ -26,14 +26,14 @@ function createDb() {
   }
 }
 
-describe("memory_search route", () => {
+describe("memory_find route", () => {
   test("executes through the tool route", async () => {
     const db = createDb()
     const app = await buildServer({ db: db as never, config })
 
     const response = await app.inject({
       method: "POST",
-      url: "/v1/tools/memory_search/execute",
+      url: "/v1/tools/memory_find/execute",
       headers: { authorization: "Bearer agent-key" },
       payload: {
         context: { userId: "u1" },
@@ -54,8 +54,8 @@ describe("memory_search route", () => {
       "tool_execution",
       "success",
       "u1",
-      "memory_search",
-      "search",
+      "memory_find",
+      "find",
     ]))
     expect(String(observationCall?.[1])).not.toContain("neighborhood")
   })

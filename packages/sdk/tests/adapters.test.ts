@@ -44,14 +44,14 @@ describe("tool adapters", () => {
     const fetchMock = vi.fn(async () => jsonResponse({ text: "Remembered.", dryRun: false, writes: [] }))
     const tools = createVercelAITools(createMemory(fetchMock))
 
-    expect(Object.keys(tools)).toEqual(["memory_memorize", "memory_search"])
-    expect(tools.memory_memorize.inputSchema).toBeDefined()
-    await tools.memory_memorize.execute(
+    expect(Object.keys(tools)).toEqual(["memory_remember", "memory_context"])
+    expect(tools.memory_remember.inputSchema).toBeDefined()
+    await tools.memory_remember.execute(
       { text: "remember this" },
       { toolCallId: "call_vercel" },
     )
 
-    expect(fetchMock.mock.calls[0][0]).toBe("http://memex.local/v1/tools/memory_memorize/execute")
+    expect(fetchMock.mock.calls[0][0]).toBe("http://memex.local/v1/tools/memory_remember/execute")
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).context.toolCallId).toBe("call_vercel")
   })
 
@@ -64,7 +64,7 @@ describe("tool adapters", () => {
       "memory_read",
       "memory_write",
       "memory_patch",
-      "memory_smart_read",
+      "memory_find",
     ])
     await tools.memory_write.execute(
       { path: "user/profile.md", content: "# Profile" },

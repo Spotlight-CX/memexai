@@ -3,7 +3,7 @@ import { MemexError } from "./errors"
 import { newId } from "./ids"
 import { assertWritableVirtualPath, physicalToVirtual, prefixToPhysical, resolveMemoryPermissions, virtualToPhysical, type MemoryPermissions, type SharedWriteMode, type ToolContext } from "./paths"
 import { appendLinesAfterHeading, replaceExactText } from "./text-patch"
-import { listArgsSchema, memorizeArgsSchema, patchArgsSchema, readArgsSchema, searchArgsSchema, smartReadArgsSchema, writeArgsSchema } from "./schemas"
+import { contextArgsSchema, findArgsSchema, listArgsSchema, patchArgsSchema, readArgsSchema, rememberArgsSchema, writeArgsSchema } from "./schemas"
 import { type ToolName } from "./tool-definitions"
 import { generateText, jsonSchema, stepCountIs } from "ai"
 import { isDreamExcludedPath } from "./dream-paths"
@@ -106,7 +106,7 @@ async function prepareCoreFileEmbedding(db: Db, content: string, options: Embedd
 async function logAccess(db: Db, input: {
   fileId?: string | null
   physicalPath: string
-  operation: "list" | "read" | "write" | "patch" | "smart_read" | "search"
+  operation: "list" | "read" | "write" | "patch" | "context" | "find" | "remember"
   ctx: ToolContext
 }) {
   await withObservationSpan(db, {
@@ -330,7 +330,7 @@ function buildMemoryBlock(input: {
   const note = input.omitted.length > 0
     ? [
       "---",
-      `Note: ${input.omitted.length} file(s) omitted (budget limit). Use memory_search to find specific content.`,
+      `Note: ${input.omitted.length} file(s) omitted (budget limit). Use memory_find to find specific content.`,
     ].join("\n")
     : null
 
@@ -585,8 +585,8 @@ export async function retrieveMemoryContext(db: Db, ctx: ToolContext, options: {
   }
 }
 
-export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}) {
-  const { maxChars = 24_000, query, includeRelated, relatedDepth = 1 } = smartReadArgsSchema.parse(args ?? {})
+export async function executeMemoryContext(db: Db, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}) {
+  const { maxChars = 24_000, query, includeRelated, relatedDepth = 1 } = contextArgsSchema.parse(args ?? {})
   const context = await retrieveMemoryContext(db, ctx, {
     maxChars,
     query,
@@ -598,7 +598,7 @@ export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolCon
     vectorCandidateLimit: options.vectorCandidateLimit,
   })
 
-  await logAccess(db, { physicalPath: "*", operation: "smart_read", ctx })
+  await logAccess(db, { physicalPath: "*", operation: "context", ctx })
 
   return {
     content: buildMemoryBlock({ included: context.included, omitted: context.omitted }),
@@ -609,12 +609,9 @@ export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolCon
   }
 }
 
-export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}): Promise<MemorySearchResult> {
-  const parsed = searchArgsSchema.parse(args)
+export async function executeMemoryFind(db: Db, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}): Promise<MemorySearchResult> {
+  const parsed = findArgsSchema.parse(args)
   const { query, limit = 10, prefix } = parsed
-  if (options.model) {
-    return executeAgenticMemorySearch(db, parsed, ctx, options)
-  }
   if (options.adapter) {
     const adapter = options.adapter
     const preparedQueryEmbedding = await prepareCoreFileEmbedding(db, query, { adapter, maxChars: Number.MAX_SAFE_INTEGER })
@@ -641,7 +638,7 @@ export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContex
     }))
 
     const logPath = prefix ? prefixToPhysical(prefix, ctx) : "*"
-    await logAccess(db, { physicalPath: logPath ?? "*", operation: "search", ctx })
+    await logAccess(db, { physicalPath: logPath ?? "*", operation: "find", ctx })
 
     return {
       query,
@@ -664,7 +661,7 @@ export async function executeMemorySearch(db: Db, args: unknown, ctx: ToolContex
       },
     }
   }
-  return executeMemorySearchBm25(db, { query, limit, prefix }, ctx)
+  return executeMemoryFindBm25(db, { query, limit, prefix }, ctx)
 }
 
 type MemorizeWrite = {
@@ -725,7 +722,7 @@ async function runMemoryLlmPass(
       }),
       execute: async (toolArgs: unknown) => {
         if (reads >= maxReads) {
-          throw new MemexError("MAX_READS_EXCEEDED", "memory_memorize read budget exceeded")
+          throw new MemexError("MAX_READS_EXCEEDED", "memory_remember read budget exceeded")
         }
         reads += 1
         const parsed = readArgsSchema.parse(toolArgs)
@@ -819,10 +816,11 @@ function logTail(content: string, maxLines = 15): string {
   return lines.slice(-maxLines).join("\n")
 }
 
-export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}) {
-  const { text, maxWrites = 5, maxReads = 3, dryRun = false } = memorizeArgsSchema.parse(args)
+export async function executeMemoryRemember(db: Db, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}) {
+  const { text, maxWrites = 5, dryRun = false } = rememberArgsSchema.parse(args)
+  const maxReads = 3
   if (!options.model) {
-    throw new MemexError("MODEL_NOT_CONFIGURED", "memory_memorize requires a configured model")
+    throw new MemexError("MODEL_NOT_CONFIGURED", "memory_remember requires a configured model")
   }
   const permissions = options.permissions ?? resolveMemoryPermissions({ sharedWriteMode: options.sharedWriteMode })
   const sharedWritable = permissions.writableMounts.includes("shared")
@@ -854,7 +852,7 @@ export async function executeMemoryMemorize(db: Db, args: unknown, ctx: ToolCont
     maxWrites,
     maxReads,
     dryRun,
-    budgetErrorMessage: "memory_memorize write budget exceeded",
+    budgetErrorMessage: "memory_remember write budget exceeded",
     systemPrompt: [
       "You are a memory ingestion agent.",
       "Extract only durable facts worth remembering.",
@@ -973,16 +971,16 @@ export async function executeMemoryConsolidate(
 }
 
 
-async function executeMemorySearchBm25(db: Db, input: { query: string; limit?: number; prefix?: string }, ctx: ToolContext): Promise<MemorySearchResult> {
+async function executeMemoryFindBm25(db: Db, input: { query: string; limit?: number; prefix?: string }, ctx: ToolContext): Promise<MemorySearchResult> {
   const { query, limit = 10, prefix } = input
   const results = await withObservationSpan(db, {
     name: "bm25_search",
-    operation: "search",
+    operation: "find",
     attributes: { search_mode: "bm25", candidate_count: limit },
   }, () => bm25Search(db, { query, limit, scope: searchScope(ctx, prefix) }))
 
   const logPath = prefix ? prefixToPhysical(prefix, ctx) : "*"
-  await logAccess(db, { physicalPath: logPath ?? "*", operation: "search", ctx })
+  await logAccess(db, { physicalPath: logPath ?? "*", operation: "find", ctx })
 
   return {
     query,
@@ -1004,110 +1002,6 @@ async function executeMemorySearchBm25(db: Db, input: { query: string; limit?: n
   }
 }
 
-async function executeAgenticMemorySearch(
-  db: Db,
-  input: { query: string; maxChars?: number; limit?: number; maxReads?: number; prefix?: string },
-  ctx: ToolContext,
-  options: ExecuteToolOptions,
-): Promise<MemorySearchResult> {
-  const maxReads = input.maxReads ?? 5
-  const maxChars = input.maxChars ?? 8_000
-  const candidates: MemorySearchResult = options.adapter
-    ? await executeMemorySearch(db, { query: input.query, limit: input.limit, prefix: input.prefix }, ctx, { ...options, model: undefined })
-    : await executeMemorySearchBm25(db, { query: input.query, limit: input.limit, prefix: input.prefix }, ctx)
-  const list = await executeMemoryList(db, { prefix: input.prefix }, ctx)
-  const indexReads = await Promise.allSettled([
-    executeMemoryRead(db, { path: "user/index.md" }, ctx),
-    executeMemoryRead(db, { path: "shared/index.md" }, ctx),
-  ])
-  const indexes = indexReads.flatMap((result) => result.status === "fulfilled" ? [result.value] : [])
-  let reads = 0
-  const sources = new Set<string>()
-
-  const result = await withObservationSpan(db, {
-    name: "llm_generate",
-    operation: "search",
-    attributes: { model: modelName(options.model), search_mode: "agentic" },
-  }, () => generateText({
-    model: options.model as never,
-    system: [
-      "You are a read-only memory resolver.",
-      "Answer the user's query using only MemexAI memory.",
-      "Use virtual paths only, such as user/profile.md or shared/index.md.",
-      "Never use physical paths such as users/{userId}/...",
-      "Do not write, patch, memorize, or mutate memory.",
-      "Cite relevant memory paths in your answer.",
-      `Stay under ${maxChars} characters.`,
-    ].join("\n"),
-    prompt: [
-      `Query: ${input.query}`,
-      "",
-      "Visible files:",
-      JSON.stringify(list.files, null, 2),
-      "",
-      "Search candidates:",
-      JSON.stringify(candidates.results, null, 2),
-      "",
-      "Index files:",
-      JSON.stringify(indexes.map((file) => ({ path: file.path, content: file.content })), null, 2),
-    ].join("\n"),
-    tools: {
-      memory_read: {
-        description: "Read a memory file by virtual path. Read-only.",
-        inputSchema: jsonSchema({
-          type: "object",
-          required: ["path"],
-          additionalProperties: false,
-          properties: { path: { type: "string" } },
-        }),
-        execute: async (args: unknown) => {
-          if (reads >= maxReads) throw new MemexError("MAX_READS_EXCEEDED", "memory_search read budget exceeded")
-          reads += 1
-          const parsed = readArgsSchema.parse(args)
-          const file = await executeMemoryRead(db, parsed, ctx)
-          sources.add(file.path)
-          return file
-        },
-      },
-      memory_smart_read: {
-        description: "Read a bounded context block by query. Read-only.",
-        inputSchema: jsonSchema({
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            maxChars: { type: "number" },
-            query: { type: "string" },
-            includeRelated: { type: "boolean" },
-            relatedDepth: { type: "number" },
-          },
-        }),
-        execute: async (args: unknown) => {
-          if (reads >= maxReads) throw new MemexError("MAX_READS_EXCEEDED", "memory_search read budget exceeded")
-          reads += 1
-          const block = await executeMemorySmartRead(db, args, ctx, options)
-          for (const path of block.filesIncluded) sources.add(path)
-          return block
-        },
-      },
-    },
-    stopWhen: stepCountIs(Math.max(1, maxReads + 1)),
-  }))
-
-  return {
-    ...candidates,
-    answer: result.text.slice(0, maxChars),
-    sources: Array.from(sources),
-    usage: usageFromGenerateTextResult(result),
-    searchStats: {
-      searchMode: "agentic",
-      candidateCount: candidates.results.length,
-      filesReturned: candidates.results.length,
-      filesRead: reads,
-      sourcesReturned: sources.size,
-    },
-  }
-}
-
 export async function executeTool(db: Db, toolName: string, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}): Promise<unknown> {
   if (options.observeRoot !== false) {
     return withRootObservation(db, {
@@ -1115,8 +1009,8 @@ export async function executeTool(db: Db, toolName: string, args: unknown, ctx: 
       toolName,
       operation: toolOperation(toolName),
       attributes: {
-        search_mode: toolName === "memory_search" || toolName === "memory_smart_read"
-          ? (toolName === "memory_search" && options.model ? "agentic" : options.adapter ? "hybrid" : "bm25")
+        search_mode: toolName === "memory_find" || toolName === "memory_context"
+          ? (options.adapter ? "hybrid" : "bm25")
           : null,
         model: modelName(options.model),
       },
@@ -1135,12 +1029,12 @@ export async function executeTool(db: Db, toolName: string, args: unknown, ctx: 
       return executeMemoryWrite(db, args, ctx, toolOptions)
     case "memory_patch":
       return executeMemoryPatch(db, args, ctx, toolOptions)
-    case "memory_smart_read":
-      return executeMemorySmartRead(db, args, ctx, toolOptions)
-    case "memory_search":
-      return executeMemorySearch(db, args, ctx, toolOptions)
-    case "memory_memorize":
-      return executeMemoryMemorize(db, args, ctx, toolOptions)
+    case "memory_context":
+      return executeMemoryContext(db, args, ctx, toolOptions)
+    case "memory_find":
+      return executeMemoryFind(db, args, ctx, toolOptions)
+    case "memory_remember":
+      return executeMemoryRemember(db, args, ctx, toolOptions)
     default:
       throw new MemexError("UNKNOWN_TOOL", `Unknown tool: ${toolName}`)
   }
@@ -1151,8 +1045,8 @@ function toolOperation(toolName: string): string | null {
   if (toolName === "memory_read") return "read"
   if (toolName === "memory_write") return "write"
   if (toolName === "memory_patch") return "patch"
-  if (toolName === "memory_smart_read") return "smart_read"
-  if (toolName === "memory_search") return "search"
-  if (toolName === "memory_memorize") return "memorize"
+  if (toolName === "memory_context") return "context"
+  if (toolName === "memory_find") return "find"
+  if (toolName === "memory_remember") return "remember"
   return null
 }

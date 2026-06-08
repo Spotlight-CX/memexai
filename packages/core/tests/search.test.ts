@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest"
-import { executeMemorySearch } from "../src/tools"
+import { executeMemoryFind } from "../src/tools"
 
 const updatedAt = new Date("2026-05-14T12:00:00.000Z")
 
@@ -14,7 +14,7 @@ function createDb(rows: { physical_path: string; snippet: string; rank: number; 
   } as unknown as import("../src/db").Db
 }
 
-describe("executeMemorySearch", () => {
+describe("executeMemoryFind", () => {
   test("returns BM25 matches with virtual paths", async () => {
     const db = createDb([
       { physical_path: "users/u1/profile.md", snippet: "quiet neighborhood", rank: 0.4, updated_at: updatedAt },
@@ -22,7 +22,7 @@ describe("executeMemorySearch", () => {
       { physical_path: "users/other/profile.md", snippet: "other user", rank: 0.9, updated_at: updatedAt },
     ])
 
-    const result = await executeMemorySearch(db, { query: "neighborhood" }, { userId: "u1" })
+    const result = await executeMemoryFind(db, { query: "neighborhood" }, { userId: "u1" })
 
     expect(result.query).toBe("neighborhood")
     expect(result.results.map((item) => item.path)).toEqual(["user/profile.md", "shared/index.md"])
@@ -37,7 +37,7 @@ describe("executeMemorySearch", () => {
   test("searches user and shared files by default", async () => {
     const db = createDb([])
 
-    await executeMemorySearch(db, { query: "budget", limit: 3 }, { userId: "u1" })
+    await executeMemoryFind(db, { query: "budget", limit: 3 }, { userId: "u1" })
 
     const [sql, values] = (db.query as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(sql).toContain("physical_path LIKE $2 OR physical_path LIKE 'shared/%'")
@@ -49,7 +49,7 @@ describe("executeMemorySearch", () => {
   test("supports user prefix filtering", async () => {
     const db = createDb([])
 
-    await executeMemorySearch(db, { query: "budget", prefix: "user/" }, { userId: "u1" })
+    await executeMemoryFind(db, { query: "budget", prefix: "user/" }, { userId: "u1" })
 
     const [sql, values] = (db.query as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(sql).toContain("physical_path = $2 OR physical_path LIKE $3")
@@ -59,7 +59,7 @@ describe("executeMemorySearch", () => {
   test("supports shared prefix filtering", async () => {
     const db = createDb([])
 
-    await executeMemorySearch(db, { query: "budget", prefix: "shared/" }, { userId: "u1" })
+    await executeMemoryFind(db, { query: "budget", prefix: "shared/" }, { userId: "u1" })
 
     const [, values] = (db.query as ReturnType<typeof vi.fn>).mock.calls[0]
     expect(values).toEqual(["budget", "shared", "shared/%", 10])

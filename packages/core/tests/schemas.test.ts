@@ -1,11 +1,11 @@
 import { describe, expect, test } from "vitest"
 import {
   listArgsSchema,
-  memorizeArgsSchema,
+  rememberArgsSchema,
   patchArgsSchema,
   readArgsSchema,
-  searchArgsSchema,
-  smartReadArgsSchema,
+  findArgsSchema,
+  contextArgsSchema,
   writeArgsSchema,
 } from "../src/schemas"
 
@@ -98,10 +98,10 @@ describe("patchArgsSchema", () => {
   })
 })
 
-describe("smartReadArgsSchema", () => {
+describe("contextArgsSchema", () => {
   test("accepts defaults and optional query", () => {
-    expect(smartReadArgsSchema.parse({})).toEqual({ maxChars: 24000, relatedDepth: 1 })
-    expect(smartReadArgsSchema.parse({
+    expect(contextArgsSchema.parse({})).toEqual({ maxChars: 24000, relatedDepth: 1 })
+    expect(contextArgsSchema.parse({
       maxChars: 100,
       query: "budget",
       includeRelated: true,
@@ -115,33 +115,32 @@ describe("smartReadArgsSchema", () => {
   })
 
   test("rejects invalid bounds", () => {
-    expect(() => smartReadArgsSchema.parse({ maxChars: 0 })).toThrow()
-    expect(() => smartReadArgsSchema.parse({ query: "" })).toThrow()
-    expect(() => smartReadArgsSchema.parse({ relatedDepth: -1 })).toThrow()
-    expect(() => smartReadArgsSchema.parse({ relatedDepth: 3 })).toThrow()
+    expect(() => contextArgsSchema.parse({ maxChars: 0 })).toThrow()
+    expect(() => contextArgsSchema.parse({ query: "" })).toThrow()
+    expect(() => contextArgsSchema.parse({ relatedDepth: -1 })).toThrow()
+    expect(() => contextArgsSchema.parse({ relatedDepth: 3 })).toThrow()
   })
 })
 
-describe("searchArgsSchema", () => {
+describe("findArgsSchema", () => {
   test("requires a non-empty query", () => {
-    expect(() => searchArgsSchema.parse({})).toThrow()
-    expect(() => searchArgsSchema.parse({ query: "" })).toThrow()
+    expect(() => findArgsSchema.parse({})).toThrow()
+    expect(() => findArgsSchema.parse({ query: "" })).toThrow()
   })
 
   test("rejects invalid numeric bounds", () => {
-    expect(() => searchArgsSchema.parse({ query: "x", limit: -1 })).toThrow()
-    expect(() => searchArgsSchema.parse({ query: "x", maxReads: 0 })).toThrow()
-    expect(() => searchArgsSchema.parse({ query: "x", maxChars: 0 })).toThrow()
+    expect(() => findArgsSchema.parse({ query: "x", limit: -1 })).toThrow()
+    expect(() => findArgsSchema.parse({ query: "x", maxChars: 0 })).toThrow()
   })
 })
 
-describe("memorizeArgsSchema", () => {
+describe("rememberArgsSchema", () => {
   test("requires non-empty text", () => {
-    expect(() => memorizeArgsSchema.parse({})).toThrow()
-    expect(() => memorizeArgsSchema.parse({ text: "" })).toThrow()
+    expect(() => rememberArgsSchema.parse({})).toThrow()
+    expect(() => rememberArgsSchema.parse({ text: "" })).toThrow()
   })
 
   test("rejects invalid maxWrites", () => {
-    expect(() => memorizeArgsSchema.parse({ text: "remember this", maxWrites: 0 })).toThrow()
+    expect(() => rememberArgsSchema.parse({ text: "remember this", maxWrites: 0 })).toThrow()
   })
 })

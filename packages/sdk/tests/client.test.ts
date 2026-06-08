@@ -202,18 +202,18 @@ describe("MemexAI SDK — file operations", () => {
     }))
     const memory = createClient(fetchMock).forUser({ userId: "user_123", actor: "assistant" })
 
-    const result = await memory.search({ query: "neighborhood", limit: 3, toolCallId: "call_search" })
+    const result = await memory.find({ query: "neighborhood", limit: 3, toolCallId: "call_search" })
 
     expect(result.results[0]?.path).toBe("user/profile.md")
     const [url, request] = fetchMock.mock.calls[0]
-    expect(url).toBe("http://memex.local/v1/tools/memory_search/execute")
+    expect(url).toBe("http://memex.local/v1/tools/memory_find/execute")
     expect(JSON.parse(request.body as string)).toEqual({
       context: { userId: "user_123", actor: "assistant", toolCallId: "call_search" },
       arguments: { query: "neighborhood", limit: 3 },
     })
   })
 
-  test("executes memorize through the service", async () => {
+  test("executes remember through the service", async () => {
     const fetchMock = vi.fn(async () => jsonResponse({
       text: "Remembered.",
       dryRun: false,
@@ -221,11 +221,11 @@ describe("MemexAI SDK — file operations", () => {
     }))
     const memory = createClient(fetchMock).forUser({ userId: "user_123", actor: "assistant" })
 
-    const result = await memory.memorize({ text: "remember quiet neighborhoods", toolCallId: "call_mem" })
+    const result = await memory.remember({ text: "remember quiet neighborhoods", toolCallId: "call_mem" })
 
     expect(result.writes[0]?.path).toBe("user/profile.md")
     const [url, request] = fetchMock.mock.calls[0]
-    expect(url).toBe("http://memex.local/v1/tools/memory_memorize/execute")
+    expect(url).toBe("http://memex.local/v1/tools/memory_remember/execute")
     expect(JSON.parse(request.body as string)).toEqual({
       context: { userId: "user_123", actor: "assistant", toolCallId: "call_mem" },
       arguments: { text: "remember quiet neighborhoods" },
@@ -279,8 +279,8 @@ describe("MemexAI SDK — toolset aliases", () => {
   test("memory subagent aliases match legacy agentic toolset methods", async () => {
     const fetchMock = vi.fn(async () => jsonResponse({
       tools: [
-        { name: "memory_memorize", description: "memorize", inputSchema: { type: "object" } },
-        { name: "memory_search", description: "search", inputSchema: { type: "object" } },
+        { name: "memory_remember", description: "remember", inputSchema: { type: "object" } },
+        { name: "memory_context", description: "context", inputSchema: { type: "object" } },
       ],
     }))
     const memory = createClient(fetchMock).forUser({ userId: "user_123" })
