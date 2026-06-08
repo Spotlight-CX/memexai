@@ -61,13 +61,13 @@ export const rawToolDefinitions = [
   },
   {
     name: "memory_smart_read",
-    description: "Read all or the most relevant memory files in one merged context block under a character budget.",
+    description: "Read all or the most relevant memory files in one merged context block under a character budget. Query mode uses hybrid ranking when service hybrid search is configured.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
       properties: {
         maxChars: { type: "number", description: "Maximum characters to return. Default: 24000." },
-        query: { type: "string", description: "Optional query to rank files by keyword relevance." },
+        query: { type: "string", description: "Optional query to rank files by relevance. Uses hybrid ranking in service hybrid mode." },
         includeRelated: { type: "boolean", description: "Include visible linked memory files. Defaults to true when query is provided." },
         relatedDepth: { type: "number", description: "Maximum link expansion depth. 0 disables linked retrieval. Default: 1, max: 2." },
       },
@@ -92,7 +92,7 @@ export const agenticToolDefinitions = [
   },
   {
     name: "memory_search",
-    description: "Search memory for a question. Uses BM25 by default and agentic read-only resolution when an LLM is configured.",
+    description: "Search memory for a question. Uses BM25 by default, optional pgvector hybrid search in service hybrid mode, and agentic read-only resolution when an LLM is configured.",
     inputSchema: {
       type: "object",
       required: ["query"],
@@ -100,7 +100,7 @@ export const agenticToolDefinitions = [
       properties: {
         query: { type: "string", description: "Question or topic to search memory for." },
         maxChars: { type: "number", description: "Maximum characters to return. Default: 8000." },
-        limit: { type: "number", description: "Maximum BM25 candidates. Default: 10." },
+        limit: { type: "number", description: "Maximum search candidates. Default: 10." },
         maxReads: { type: "number", description: "Maximum files the agentic resolver may inspect. Default: 5." },
         prefix: { type: "string", description: "Optional virtual path prefix, e.g. user/ or shared/." },
       },

@@ -62,13 +62,13 @@ raw_tool_definitions = [
     },
     {
         "name": "memory_smart_read",
-        "description": "Read all memory files formatted into a single markdown block, ranked by update time or keyword query, within a character limit. With a query, deterministic linked recall includes visible one-hop [[user/...]] or [[shared/...]] links if budget remains.",
+        "description": "Read all memory files formatted into a single markdown block, ranked by update time or query relevance, within a character limit. In service hybrid mode, query ranking can use BM25 plus pgvector semantic candidates. With a query, deterministic linked recall includes visible one-hop [[user/...]] or [[shared/...]] links if budget remains.",
         "inputSchema": {
             "type": "object",
             "additionalProperties": False,
             "properties": {
                 "maxChars": {"type": "number", "description": "Maximum characters to return. Default: 24000."},
-                "query": {"type": "string", "description": "Optional query to rank files by keyword relevance."},
+                "query": {"type": "string", "description": "Optional query to rank files by relevance. Uses hybrid ranking in service hybrid mode."},
                 "includeRelated": {"type": "boolean", "description": "Include visible linked memory files. Defaults to true when query is provided."},
                 "relatedDepth": {"type": "number", "description": "Maximum link expansion depth. 0 disables linked retrieval. Default: 1, max: 2."},
             },
@@ -93,7 +93,7 @@ agentic_tool_definitions = [
     },
     {
         "name": "memory_search",
-        "description": "Search memory for a question using BM25 full-text search.",
+        "description": "Search memory for a question. Uses BM25 by default and optional pgvector hybrid search in service hybrid mode.",
         "inputSchema": {
             "type": "object",
             "required": ["query"],
@@ -101,7 +101,7 @@ agentic_tool_definitions = [
             "properties": {
                 "query": {"type": "string", "description": "Question or topic to search memory for."},
                 "maxChars": {"type": "number", "description": "Maximum characters to return. Default: 8000."},
-                "limit": {"type": "number", "description": "Maximum BM25 candidates. Default: 10."},
+                "limit": {"type": "number", "description": "Maximum search candidates. Default: 10."},
                 "maxReads": {"type": "number", "description": "Maximum files the agentic resolver may inspect. Default: 5."},
                 "prefix": {"type": "string", "description": "Optional virtual path prefix, e.g. user/ or shared/."},
             },

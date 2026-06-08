@@ -59,7 +59,7 @@ def get_crewai_tools(user: MemexUser) -> List[Any]:
 
     @tool("memory_search")
     async def search(query: str, **kwargs) -> str:
-        """Search memory for a question using BM25 full-text search."""
+        """Search memory for a question using BM25 or service hybrid search."""
         res = await user.search(query=query, **kwargs)
         import json
         return json.dumps(res, default=str)

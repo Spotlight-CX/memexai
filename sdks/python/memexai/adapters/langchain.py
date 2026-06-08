@@ -82,7 +82,7 @@ def get_langchain_tools(user: MemexUser) -> List[Any]:
 
     tools.append(StructuredTool.from_function(
         name="memory_search",
-        description="Search memory for a question using BM25 full-text search.",
+        description="Search memory for a question using BM25 or service hybrid search.",
         func=None,
         coroutine=search,
     ))
