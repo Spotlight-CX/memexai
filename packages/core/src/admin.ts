@@ -342,20 +342,94 @@ export async function listAdminRevisions(db: Db, input: {
   }
 }
 
-export async function pruneAdminRevisions(db: Db, input: { olderThanDays: number }) {
+export async function pruneAdminRevisions(db: Db, input: { olderThanDays: number; userId?: string; keepLatest?: number }) {
   const olderThanDays = Math.trunc(input.olderThanDays)
   if (!Number.isFinite(input.olderThanDays) || olderThanDays < 1 || olderThanDays > 3650) {
     throw new MemexError("INVALID_RETENTION_WINDOW", "olderThanDays must be between 1 and 3650")
   }
+  const keepLatest = input.keepLatest !== undefined ? Math.max(1, Math.trunc(input.keepLatest)) : 1
+
+  const values: unknown[] = [olderThanDays]
+  const userFilter = input.userId
+    ? `AND physical_path LIKE $${(() => { values.push(`users/${input.userId}/%`); return values.length })()} `
+    : ""
 
   const { rows } = await db.query<{ id: string }>(
     `DELETE FROM mx_revision
      WHERE created_at < now() - ($1 || ' days')::interval
+     ${userFilter}
+     AND id NOT IN (
+       SELECT id FROM (
+         SELECT id, ROW_NUMBER() OVER (PARTITION BY physical_path ORDER BY created_at DESC) AS rn
+         FROM mx_revision
+       ) ranked WHERE rn <= $${(() => { values.push(keepLatest); return values.length })()}
+     )
      RETURNING id`,
-    [olderThanDays],
+    values,
   )
 
   return { deleted: rows.length }
+}
+
+export async function deleteAdminUser(db: Db, userId: string) {
+  if (!userId?.trim()) throw new MemexError("USER_ID_REQUIRED", "userId is required")
+
+  const pathPrefix = `users/${userId}/%`
+
+  const [fileRows, revRows, logRows, dreamRows] = await Promise.all([
+    db.query<{ id: string }>(`DELETE FROM mx_file WHERE physical_path LIKE $1 RETURNING id`, [pathPrefix]),
+    db.query<{ id: string }>(`DELETE FROM mx_revision WHERE physical_path LIKE $1 RETURNING id`, [pathPrefix]),
+    db.query<{ id: string }>(`DELETE FROM mx_access_log WHERE physical_path LIKE $1 OR user_id = $2 RETURNING id`, [pathPrefix, userId]),
+    db.query<{ user_id: string }>(`DELETE FROM mx_dream_run WHERE user_id = $1 RETURNING user_id`, [userId]),
+  ])
+
+  return {
+    userId,
+    filesDeleted: fileRows.rows.length,
+    revisionsDeleted: revRows.rows.length,
+    logsDeleted: logRows.rows.length,
+    dreamRunDeleted: dreamRows.rows.length,
+  }
+}
+
+export async function deleteAdminFile(db: Db, physicalPath: string) {
+  if (!physicalPath) throw new MemexError("PHYSICAL_PATH_REQUIRED", "physicalPath is required")
+
+  const { rows } = await db.query<{ id: string }>(
+    `DELETE FROM mx_file WHERE physical_path = $1 RETURNING id`,
+    [physicalPath],
+  )
+
+  if (rows.length === 0) throw new MemexError("FILE_NOT_FOUND", `File not found: ${physicalPath}`)
+  return { physicalPath, deleted: true }
+}
+
+export async function getAdminRevisionDiff(db: Db, physicalPath: string, revAId?: string, revBId?: string) {
+  if (!physicalPath) throw new MemexError("PHYSICAL_PATH_REQUIRED", "physicalPath is required")
+
+  const formatRev = (r: AdminRevisionRow) => ({ id: r.id, actor: r.actor, reason: r.reason, createdAt: r.created_at, content: r.content_text })
+
+  if (revAId && revBId) {
+    const { rows } = await db.query<AdminRevisionRow>(
+      `SELECT id, file_id, physical_path, operation, content_text, reason, actor, user_id, tool_call_id, created_at
+       FROM mx_revision WHERE id = ANY($1) AND physical_path = $2`,
+      [[revAId, revBId], physicalPath],
+    )
+    const rA = rows.find((r) => r.id === revAId)
+    const rB = rows.find((r) => r.id === revBId)
+    if (!rA) throw new MemexError("REVISION_NOT_FOUND", `Revision not found: ${revAId}`)
+    if (!rB) throw new MemexError("REVISION_NOT_FOUND", `Revision not found: ${revBId}`)
+    return { path: physicalPath, revA: formatRev(rA), revB: formatRev(rB) }
+  }
+
+  const { rows } = await db.query<AdminRevisionRow>(
+    `SELECT id, file_id, physical_path, operation, content_text, reason, actor, user_id, tool_call_id, created_at
+     FROM mx_revision WHERE physical_path = $1
+     ORDER BY created_at DESC LIMIT 2`,
+    [physicalPath],
+  )
+  if (rows.length < 2) throw new MemexError("NOT_ENOUGH_REVISIONS", "Need at least 2 revisions to diff")
+  return { path: physicalPath, revA: formatRev(rows[1]!), revB: formatRev(rows[0]!) }
 }
 
 export async function getRevisionAtOffset(db: Db, physicalPath: string, offset: number) {

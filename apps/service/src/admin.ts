@@ -255,20 +255,207 @@ export async function listAdminRevisions(db: Db, input: {
   }
 }
 
-export async function pruneAdminRevisions(db: Db, input: { olderThanDays: number }) {
+export async function pruneAdminRevisions(db: Db, input: { olderThanDays: number; userId?: string; keepLatest?: number }) {
   const olderThanDays = Math.trunc(input.olderThanDays)
   if (!Number.isFinite(input.olderThanDays) || olderThanDays < 1 || olderThanDays > 3650) {
     throw new HttpError(400, "INVALID_RETENTION_WINDOW", "olderThanDays must be between 1 and 3650")
   }
+  const keepLatest = input.keepLatest !== undefined ? Math.max(1, Math.trunc(input.keepLatest)) : 1
+
+  const values: unknown[] = [olderThanDays]
+  const userFilter = input.userId
+    ? `AND physical_path LIKE $${(() => { values.push(`users/${input.userId}/%`); return values.length })()} `
+    : ""
 
   const { rows } = await db.query<{ id: string }>(
     `DELETE FROM mx_revision
      WHERE created_at < now() - ($1 || ' days')::interval
+     ${userFilter}
+     AND id NOT IN (
+       SELECT id FROM (
+         SELECT id, ROW_NUMBER() OVER (PARTITION BY physical_path ORDER BY created_at DESC) AS rn
+         FROM mx_revision
+       ) ranked WHERE rn <= $${(() => { values.push(keepLatest); return values.length })()}
+     )
      RETURNING id`,
-    [olderThanDays],
+    values,
   )
 
   return { deleted: rows.length }
+}
+
+export async function deleteAdminUser(db: Db, userId: string) {
+  if (!userId?.trim()) throw new HttpError(400, "USER_ID_REQUIRED", "userId is required")
+
+  const pathPrefix = `users/${userId}/%`
+
+  const { rows: fileRows } = await db.query<{ id: string }>(
+    `DELETE FROM mx_file WHERE physical_path LIKE $1 RETURNING id`,
+    [pathPrefix],
+  )
+
+  const { rows: revRows } = await db.query<{ id: string }>(
+    `DELETE FROM mx_revision WHERE physical_path LIKE $1 RETURNING id`,
+    [pathPrefix],
+  )
+
+  const { rows: logRows } = await db.query<{ id: string }>(
+    `DELETE FROM mx_access_log WHERE physical_path LIKE $1 OR user_id = $2 RETURNING id`,
+    [pathPrefix, userId],
+  )
+
+  const { rows: dreamRows } = await db.query<{ user_id: string }>(
+    `DELETE FROM mx_dream_run WHERE user_id = $1 RETURNING user_id`,
+    [userId],
+  )
+
+  return {
+    userId,
+    filesDeleted: fileRows.length,
+    revisionsDeleted: revRows.length,
+    logsDeleted: logRows.length,
+    dreamRunDeleted: dreamRows.length,
+  }
+}
+
+export async function deleteAdminFile(db: Db, physicalPath: string) {
+  if (!physicalPath) throw new HttpError(400, "PHYSICAL_PATH_REQUIRED", "physicalPath is required")
+
+  const { rows } = await db.query<{ id: string }>(
+    `DELETE FROM mx_file WHERE physical_path = $1 RETURNING id`,
+    [physicalPath],
+  )
+
+  if (rows.length === 0) throw new HttpError(404, "FILE_NOT_FOUND", `File not found: ${physicalPath}`)
+  return { physicalPath, deleted: true }
+}
+
+export async function getAdminRevisionDiff(db: Db, physicalPath: string, revAId?: string, revBId?: string) {
+  if (!physicalPath) throw new HttpError(400, "PHYSICAL_PATH_REQUIRED", "physicalPath is required")
+
+  const formatRev = (r: AdminRevisionRow) => ({ id: r.id, actor: r.actor, reason: r.reason, createdAt: r.created_at, content: r.content_text })
+
+  if (revAId && revBId) {
+    const { rows } = await db.query<AdminRevisionRow>(
+      `SELECT id, file_id, physical_path, operation, content_text, reason, actor, user_id, tool_call_id, created_at
+       FROM mx_revision WHERE id = ANY($1) AND physical_path = $2`,
+      [[revAId, revBId], physicalPath],
+    )
+    const rA = rows.find((r) => r.id === revAId)
+    const rB = rows.find((r) => r.id === revBId)
+    if (!rA) throw new HttpError(404, "REVISION_NOT_FOUND", `Revision not found: ${revAId}`)
+    if (!rB) throw new HttpError(404, "REVISION_NOT_FOUND", `Revision not found: ${revBId}`)
+    return { path: physicalPath, revA: formatRev(rA), revB: formatRev(rB) }
+  }
+
+  const { rows } = await db.query<AdminRevisionRow>(
+    `SELECT id, file_id, physical_path, operation, content_text, reason, actor, user_id, tool_call_id, created_at
+     FROM mx_revision WHERE physical_path = $1
+     ORDER BY created_at DESC LIMIT 2`,
+    [physicalPath],
+  )
+  if (rows.length < 2) throw new HttpError(400, "NOT_ENOUGH_REVISIONS", "Need at least 2 revisions to diff")
+  return { path: physicalPath, revA: formatRev(rows[1]!), revB: formatRev(rows[0]!) }
+}
+
+export async function getAdminTrace(db: Db, toolCallId: string) {
+  if (!toolCallId) throw new HttpError(400, "TOOL_CALL_ID_REQUIRED", "toolCallId is required")
+
+  const { rows: events } = await db.query<{
+    id: string; event_type: string; status: string; duration_ms: number | null
+    user_id: string | null; actor: string | null; tool_name: string | null
+    operation: string | null; physical_path: string | null
+    trace_id: string | null; span_id: string | null; parent_span_id: string | null
+    error_code: string | null; attributes: Record<string, unknown> | null; created_at: Date
+  }>(
+    `SELECT id, event_type, status, duration_ms, user_id, actor, tool_name, operation,
+            physical_path, trace_id, span_id, parent_span_id, error_code, attributes, created_at
+     FROM mx_observation_event WHERE tool_call_id = $1 ORDER BY created_at ASC LIMIT 1`,
+    [toolCallId],
+  )
+
+  const { rows: accessLogs } = await db.query<AdminAccessLogRow>(
+    `SELECT id, file_id, physical_path, operation, actor, user_id, tool_call_id, created_at
+     FROM mx_access_log WHERE tool_call_id = $1 ORDER BY created_at ASC`,
+    [toolCallId],
+  )
+
+  const { rows: revisions } = await db.query<AdminRevisionRow>(
+    `SELECT id, file_id, physical_path, operation, content_text, reason, actor, user_id, tool_call_id, created_at
+     FROM mx_revision WHERE tool_call_id = $1 ORDER BY created_at ASC`,
+    [toolCallId],
+  )
+
+  const event = events[0]
+  return {
+    toolCallId,
+    event: event
+      ? {
+          id: event.id,
+          eventType: event.event_type,
+          status: event.status,
+          durationMs: event.duration_ms,
+          userId: event.user_id,
+          actor: event.actor,
+          toolName: event.tool_name,
+          operation: event.operation,
+          physicalPath: event.physical_path,
+          traceId: event.trace_id,
+          spanId: event.span_id,
+          parentSpanId: event.parent_span_id,
+          errorCode: event.error_code,
+          createdAt: event.created_at,
+        }
+      : null,
+    filesAccessed: accessLogs.map((r) => ({
+      physicalPath: r.physical_path,
+      operation: r.operation,
+      actor: r.actor,
+      createdAt: r.created_at,
+    })),
+    revisionsWritten: revisions.map((r) => ({
+      id: r.id,
+      physicalPath: r.physical_path,
+      operation: r.operation,
+      actor: r.actor,
+      reason: r.reason,
+      createdAt: r.created_at,
+    })),
+  }
+}
+
+export async function listAdminTraceSession(db: Db, input: { userId: string; from?: string; limit?: number }) {
+  const limit = clampInt(input.limit, 50, 1, 200)
+  const values: unknown[] = [input.userId]
+  const filters = ["user_id = $1"]
+
+  addDateFilter(filters, values, "created_at", ">=", input.from)
+  values.push(limit)
+
+  const { rows } = await db.query<{
+    tool_call_id: string; tool_name: string | null; status: string
+    duration_ms: number | null; operation: string | null; physical_path: string | null; created_at: Date
+  }>(
+    `SELECT tool_call_id, tool_name, status, duration_ms, operation, physical_path, created_at
+     FROM mx_observation_event
+     WHERE ${filters.join(" AND ")}
+     ORDER BY created_at DESC
+     LIMIT $${values.length}`,
+    values,
+  )
+
+  return {
+    userId: input.userId,
+    events: rows.map((r) => ({
+      toolCallId: r.tool_call_id,
+      toolName: r.tool_name,
+      status: r.status,
+      durationMs: r.duration_ms,
+      operation: r.operation,
+      physicalPath: r.physical_path,
+      createdAt: r.created_at,
+    })),
+  }
 }
 
 export async function listAdminDreamUsers(db: Db, input: {

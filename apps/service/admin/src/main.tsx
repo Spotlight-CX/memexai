@@ -262,8 +262,14 @@ function AdminApp({ secret, apiKey, onSignOut, onApiKeyInvalid, gateError: _gate
 }
 
 function App() {
-  const [secret, setSecret] = useState(() => localStorage.getItem(ADMIN_SECRET_KEY) ?? "")
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_KEY) ?? "")
+  const [secret, setSecret] = useState(() => {
+    const qp = new URLSearchParams(window.location.search)
+    return qp.get("secret") ?? localStorage.getItem(ADMIN_SECRET_KEY) ?? ""
+  })
+  const [apiKey, setApiKey] = useState(() => {
+    const qp = new URLSearchParams(window.location.search)
+    return qp.get("key") ?? localStorage.getItem(API_KEY_KEY) ?? ""
+  })
   const [gateError, setGateError] = useState<string | null>(null)
 
   const signOut = () => {

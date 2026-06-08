@@ -29,4 +29,7 @@ export {
   listAgenticTraceSession,
   getAdminSetupStatus,
   writeAdminSetupComplete,
+  deleteAdminUser,
+  deleteAdminFile,
+  getAdminRevisionDiff,
 } from "./admin"

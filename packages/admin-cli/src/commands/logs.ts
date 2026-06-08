@@ -5,15 +5,25 @@ import { flag, intFlag, type ParsedArgs } from "../args"
 const HELP = `
 Usage: memex-admin logs list [options]
 
+Every memory read and write is logged here. Use tool-call-id to correlate
+a specific agent action with the revisions it produced.
+
 Options:
   --path <p>           Filter by exact physical path
   --user, -u <id>      Filter by userId
-  --tool-call-id <id>  Filter by toolCallId
+  --tool-call-id <id>  Filter by toolCallId (links to revisions)
   --from <iso>         Start timestamp (ISO 8601)
   --to <iso>           End timestamp (ISO 8601)
   --limit <n>          Max results (default 50)
   --offset <n>         Pagination offset
   --json               Output raw JSON
+
+Examples:
+  memex-admin logs list                                 # all recent activity
+  memex-admin logs list --user alice                    # all activity for alice
+  memex-admin logs list --path users/alice/profile.md   # reads/writes for one file
+  memex-admin logs list --tool-call-id abc123           # trace one agent action
+  memex-admin logs list --from 2024-01-15T00:00:00Z --limit 100
 `
 
 export async function logsCommand(

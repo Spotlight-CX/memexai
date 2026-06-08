@@ -15,6 +15,9 @@ import {
   listAgenticTraceSession,
   getAdminSetupStatus,
   writeAdminSetupComplete,
+  deleteAdminUser,
+  deleteAdminFile,
+  getAdminRevisionDiff,
 } from "@memexai/core"
 import type { Db } from "@memexai/core"
 
@@ -37,17 +40,25 @@ export type ListTraceSessionOpts = { userId: string; from?: string; limit?: numb
 
 // ─── AdminClient interface ────────────────────────────────────────────────────
 
+export type PruneRevisionsOpts = { olderThanDays: number; userId?: string; keepLatest?: number }
+export type RevisionDiffOpts = { path: string; revA?: string; revB?: string }
+
 export interface AdminClient {
   readonly mode: "direct" | "http"
   listUsers(opts?: ListUsersOpts): Promise<unknown>
   listFiles(opts?: ListFilesOpts): Promise<unknown>
   getFile(path: string): Promise<unknown>
   writeFile(path: string, content: string, reason?: string): Promise<unknown>
+  deleteFile(path: string): Promise<unknown>
+  deleteUser(userId: string): Promise<unknown>
   listRevisions(opts?: ListRevisionsOpts): Promise<unknown>
-  pruneRevisions(olderThanDays: number): Promise<unknown>
+  pruneRevisions(opts: PruneRevisionsOpts): Promise<unknown>
   getRevisionAtOffset(path: string, offset: number): Promise<unknown>
+  getRevisionDiff(opts: RevisionDiffOpts): Promise<unknown>
   listAccessLogs(opts?: ListLogsOpts): Promise<unknown>
   listDreamUsers(opts?: ListDreamOpts): Promise<unknown>
+  getDreamConfig(): Promise<unknown>
+  setDreamConfig(updates: Record<string, string>): Promise<unknown>
   getMemorySnapshot(userId: string, asOf?: string): Promise<unknown>
   getAgenticTrace(toolCallId: string): Promise<unknown>
   listTraceSession(opts: ListTraceSessionOpts): Promise<unknown>
@@ -76,11 +87,32 @@ class DirectAdminClient implements AdminClient {
   listFiles(opts?: ListFilesOpts) { return listAdminFiles(this.db, opts ?? {}) }
   getFile(path: string) { return getAdminFile(this.db, path) }
   writeFile(path: string, content: string, reason?: string) { return writeAdminFile(this.db, path, content, reason) }
+  deleteFile(path: string) { return deleteAdminFile(this.db, path) }
+  deleteUser(userId: string) { return deleteAdminUser(this.db, userId) }
   listRevisions(opts?: ListRevisionsOpts) { return listAdminRevisions(this.db, opts) }
-  pruneRevisions(olderThanDays: number) { return pruneAdminRevisions(this.db, { olderThanDays }) }
+  pruneRevisions(opts: PruneRevisionsOpts) { return pruneAdminRevisions(this.db, opts) }
   getRevisionAtOffset(path: string, offset: number) { return getRevisionAtOffset(this.db, path, offset) }
+  getRevisionDiff(opts: RevisionDiffOpts) { return getAdminRevisionDiff(this.db, opts.path, opts.revA, opts.revB) }
   listAccessLogs(opts?: ListLogsOpts) { return listAdminAccessLogs(this.db, opts) }
   listDreamUsers(opts?: ListDreamOpts) { return listAdminDreamUsers(this.db, opts) }
+  getDreamConfig() {
+    return this.db.query<{ key: string; value: string; description: string | null; updated_at: Date }>(
+      "SELECT key, value, description, updated_at FROM mx_config WHERE key LIKE 'dream_%' ORDER BY key ASC",
+    ).then(({ rows }) => ({
+      config: Object.fromEntries(rows.map((r) => [r.key, r.value])),
+      rows: rows.map((r) => ({ key: r.key, value: r.value, description: r.description, updatedAt: r.updated_at })),
+    }))
+  }
+  setDreamConfig(updates: Record<string, string>) {
+    const entries = Object.entries(updates).filter(([k]) => k.startsWith("dream_"))
+    return Promise.all(entries.map(([key, value]) =>
+      this.db.query(
+        `INSERT INTO mx_config (key, value, updated_at) VALUES ($1, $2, now())
+         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
+        [key, value],
+      ),
+    )).then(() => ({ updated: entries.map(([k]) => k) }))
+  }
   getMemorySnapshot(userId: string, asOf?: string) {
     return getMemorySnapshot(this.db, userId, asOf ? new Date(asOf) : undefined)
   }
@@ -138,14 +170,27 @@ class HttpAdminClient implements AdminClient {
   writeFile(path: string, content: string, reason?: string) {
     return this.fetch("PUT", `/v1/admin/files/${encodePath(path)}`, undefined, { content, reason })
   }
+  deleteFile(path: string) {
+    return this.fetch("DELETE", `/v1/admin/files/${encodePath(path)}`)
+  }
+  deleteUser(userId: string) {
+    return this.fetch("DELETE", `/v1/admin/users/${encodeURIComponent(userId)}`)
+  }
   listRevisions(opts?: ListRevisionsOpts) {
     return this.fetch("GET", "/v1/admin/revisions", opts as Record<string, string | number | boolean | undefined>)
   }
-  pruneRevisions(olderThanDays: number) {
-    return this.fetch("POST", "/v1/admin/revisions/prune", undefined, { olderThanDays })
+  pruneRevisions(opts: PruneRevisionsOpts) {
+    return this.fetch("POST", "/v1/admin/revisions/prune", undefined, opts)
   }
   getRevisionAtOffset(_path: string, _offset: number): Promise<unknown> {
-    return Promise.reject(new Error("revisions diff requires direct --database-url mode"))
+    return Promise.reject(new Error("getRevisionAtOffset requires direct --database-url mode"))
+  }
+  getRevisionDiff(opts: RevisionDiffOpts) {
+    return this.fetch("GET", "/v1/admin/revisions/diff", {
+      path: opts.path,
+      revA: opts.revA,
+      revB: opts.revB,
+    } as Record<string, string | undefined>)
   }
   listAccessLogs(opts?: ListLogsOpts) {
     return this.fetch("GET", "/v1/admin/access-logs", opts as Record<string, string | number | boolean | undefined>)
@@ -153,14 +198,20 @@ class HttpAdminClient implements AdminClient {
   listDreamUsers(opts?: ListDreamOpts) {
     return this.fetch("GET", "/v1/admin/dream/users", opts as Record<string, string | number | boolean | undefined>)
   }
+  getDreamConfig() {
+    return this.fetch("GET", "/v1/admin/dream/config")
+  }
+  setDreamConfig(updates: Record<string, string>) {
+    return this.fetch("PUT", "/v1/admin/dream/config", undefined, { config: updates })
+  }
   getMemorySnapshot(_userId: string, _asOf?: string): Promise<unknown> {
     return Promise.reject(new Error("memory snapshot requires direct --database-url mode"))
   }
-  getAgenticTrace(_toolCallId: string): Promise<unknown> {
-    return Promise.reject(new Error("trace requires direct --database-url mode"))
+  getAgenticTrace(toolCallId: string) {
+    return this.fetch("GET", `/v1/admin/trace/${encodeURIComponent(toolCallId)}`)
   }
-  listTraceSession(_opts: ListTraceSessionOpts): Promise<unknown> {
-    return Promise.reject(new Error("trace session requires direct --database-url mode"))
+  listTraceSession(opts: ListTraceSessionOpts) {
+    return this.fetch("GET", "/v1/admin/trace/session", { userId: opts.userId, from: opts.from, limit: opts.limit })
   }
   getSetupStatus() {
     return this.fetch("GET", "/v1/admin/setup/status")

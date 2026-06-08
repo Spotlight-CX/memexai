@@ -114,7 +114,7 @@ function createAdminDb() {
       }
 
       if (sql.includes("DELETE FROM mx_revision") && sql.includes("RETURNING id")) {
-        expect(values).toEqual([30])
+        expect(values?.[0]).toBe(30)
         return { rows: [{ id: "rev_old_1" }, { id: "rev_old_2" }] }
       }
 

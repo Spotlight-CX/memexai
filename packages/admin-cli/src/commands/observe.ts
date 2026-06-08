@@ -5,10 +5,13 @@ import { flag, intFlag, type ParsedArgs } from "../args"
 const HELP = `
 Usage: memex-admin observe <subcommand> [options]
 
+Aggregate observability metrics for the memory system.
+Requires HTTP service mode (--service-url).
+
 Subcommands:
-  summary               Overall usage summary (HTTP service mode only)
-  user <userId>         Memory observability for a specific user (HTTP mode only)
-  top-files [--limit]   Most accessed files (HTTP mode only)
+  summary               Overall usage — tool call counts, error rates, latency
+  user <userId>         Breakdown for a single user — files, reads, writes
+  top-files [--limit]   Most-accessed files ranked by read/write frequency
 
 Options:
   --from <iso>          Start timestamp
@@ -17,7 +20,11 @@ Options:
   --limit <n>           Max results (default 20)
   --json                Output raw JSON
 
-Note: observe commands require --service-url (HTTP proxy mode).
+Examples:
+  memex-admin observe summary                        # overall health
+  memex-admin observe user alice                     # alice's memory activity
+  memex-admin observe top-files --limit 10           # most-read files
+  memex-admin observe summary --from 2024-01-15T00:00:00Z
 `
 
 export async function observeCommand(

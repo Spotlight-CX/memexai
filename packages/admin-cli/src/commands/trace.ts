@@ -3,13 +3,14 @@ import { printJson, printTable, printError } from "../output"
 import { flag, intFlag, type ParsedArgs } from "../args"
 
 const HELP = `
-Usage: memex-admin trace <toolCallId>           Trace a single tool call
-       memex-admin trace session --user <id>    List all tool calls for a user
+Usage: memex-admin trace <toolCallId>             Trace a single tool call
+       memex-admin trace session --user <id>       List all tool calls for a user
 
-Trace shows: observation event + files accessed + revisions written.
+Trace shows: observation event, files accessed, revisions written, span chain.
+Works in both direct (--database-url) and HTTP service (--service-url) modes.
 
 Options (single trace):
-  <toolCallId>            The tool_call_id to trace (positional)
+  <toolCallId>            The tool_call_id to trace (from access logs or revisions)
   --json                  Output raw JSON
 
 Options (session):
@@ -17,6 +18,12 @@ Options (session):
   --from <iso>            Start timestamp
   --limit <n>             Max events (default 50)
   --json                  Output raw JSON
+
+Examples:
+  memex-admin trace a1b2c3d4-e5f6-...             # full trace for one tool call
+  memex-admin trace session --user alice            # all tool calls in alice's history
+  memex-admin trace session --user alice --from 2024-01-15T09:00:00Z
+  memex-admin trace session --user alice --limit 10
 `
 
 export async function traceCommand(
