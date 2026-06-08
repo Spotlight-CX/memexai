@@ -44,6 +44,9 @@ switch (command) {
   case "recall":
     await recallPreference()
     break
+  case "learn-tool-result":
+    await learnFromToolResult()
+    break
   default:
     printUsageAndExit()
 }
@@ -97,6 +100,42 @@ async function recallPreference() {
   printResult("recall", result.text, toolNames(result))
 }
 
+async function learnFromToolResult() {
+  const toolResult = {
+    toolName: "run_sql",
+    ok: false,
+    error: "ILIKE is not supported in this SQL dialect; use LOWER(column) LIKE LOWER(pattern).",
+    permanent: true,
+  }
+  const insight = extractInsight(toolResult)
+  if (!insight) {
+    console.log("No durable insight found.")
+    return
+  }
+
+  const result = await memory.remember({
+    text: insight,
+    toolCallId: "example_tool_result_run_sql",
+  })
+
+  console.log("command: learn-tool-result")
+  console.log(`memex_url: ${MEMEX_URL}`)
+  console.log(`memex_user_id: ${MEMEX_USER_ID}`)
+  console.log(`insight: ${insight}`)
+  console.log(`writes: ${result.writes.map((write) => write.path).join(", ") || "none"}`)
+  console.log("")
+  console.log([
+    "In a real Vercel AI SDK loop, inspect result.steps after generateText/streamText.",
+    "Filter step.toolResults for permanent, reusable failures, extract a compact fact,",
+    "then call memory.remember({ text }) from your application code.",
+  ].join("\n"))
+}
+
+function extractInsight(result: { toolName: string; ok: boolean; error?: string; permanent?: boolean }) {
+  if (result.ok || !result.permanent || !result.error) return null
+  return `${result.toolName} permanent failure: ${result.error}`
+}
+
 function printResult(commandName: string, text: string, tools: string[]) {
   console.log(`command: ${commandName}`)
   console.log(`memex_url: ${MEMEX_URL}`)
@@ -113,5 +152,6 @@ function toolNames(result: { steps: Array<{ toolCalls: Array<{ toolName: string 
 function printUsageAndExit(): never {
   console.error("Usage: bun run remember [preference text]")
   console.error("       bun run recall")
+  console.error("       bun run learn-tool-result")
   process.exit(1)
 }

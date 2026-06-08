@@ -80,6 +80,43 @@ const result = await generateText({
 
 The two important pieces are `tools` and `system`. Tools let the model write or search memory. The system prompt block tells the model when memory exists and how to use it on the next call.
 
+## Extraction patterns
+
+`memory_remember` accepts any durable text candidate — user input, tool results, assistant observations, task outputs, or session summaries. You control what gets passed to it and when.
+
+There are two common paths:
+
+| Path | Use when |
+| --- | --- |
+| Hot path | The current turn depends on memory, or the user expects an immediate save |
+| Background path | Latency matters, or you want batching, dedupe, review, or a cheaper extractor |
+
+Neither path is the only correct architecture. A hot-path `await memory.remember(...)` is right for explicit “remember this” turns. Background extraction is right when learning can happen after the response.
+
+For tool-call learning, extract a compact insight before calling MemexAI:
+
+```ts
+for (const step of result.steps) {
+  for (const toolResult of step.toolResults ?? []) {
+    if (isPermanentError(toolResult.result)) {
+      const insight = await extractInsight(toolResult) // app-owned policy
+      if (insight) memory.remember({ text: insight }).catch(console.error)
+    }
+  }
+}
+```
+
+For operational facts worth sharing across all users (SQL dialect quirks, API limitations), write to `shared/` by adding a routing entry in `shared/index.md` and enabling `MEMEX_SHARED_WRITE_MODE=rw` on the service. See [Memory Tools — Extraction patterns](/docs/concepts/memory-tools#extraction-patterns) for SDK examples.
+
+| Framework | Recommended extraction point |
+| --- | --- |
+| Vercel AI SDK | `result.steps` or stream step events |
+| OpenAI / Anthropic SDK | manual tool-call loop |
+| LangChain / LangGraph | callback, runnable wrapper, or graph node |
+| LlamaIndex | post-response workflow step |
+| CrewAI | task-output extraction |
+| Google ADK | native memory service lifecycle |
+
 ## Schema setup
 
 After the service is running, the agent inspects your app's domain and drafts a `shared/index.md` before finishing the SDK wiring.

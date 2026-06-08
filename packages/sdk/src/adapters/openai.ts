@@ -1,11 +1,13 @@
 import type { MemexMemory } from "../client"
-import { memoryToolDefinitions } from "../tool-definitions"
+import { selectToolDefinitions, type ToolMode } from "./shared"
 
 export type OpenAIToolDefinition = {
   type: "function"
-  name: string
-  description: string
-  parameters: Record<string, unknown>
+  function: {
+    name: string
+    description: string
+    parameters: Record<string, unknown>
+  }
 }
 
 export type OpenAIToolCall = {
@@ -14,13 +16,15 @@ export type OpenAIToolCall = {
   toolCallId?: string
 }
 
-export function createOpenAITools(memory: MemexMemory) {
+export function createOpenAITools(memory: MemexMemory, options: { mode?: ToolMode } = {}) {
   return {
-    definitions: memoryToolDefinitions.map((tool) => ({
+    definitions: selectToolDefinitions(options.mode).map((tool) => ({
       type: "function" as const,
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.inputSchema,
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.inputSchema,
+      },
     })) satisfies OpenAIToolDefinition[],
 
     execute: (toolCall: OpenAIToolCall) => memory.executeTool({
@@ -31,15 +35,19 @@ export function createOpenAITools(memory: MemexMemory) {
   }
 }
 
-export async function createOpenAIToolsFromService(memory: MemexMemory) {
-  const definitions = await memory.getToolDefinitions()
+export async function createOpenAIToolsFromService(memory: MemexMemory, options: { mode?: ToolMode } = {}) {
+  const definitions = options.mode === "all"
+    ? await memory.getToolDefinitions()
+    : selectToolDefinitions(options.mode)
 
   return {
     definitions: definitions.map((tool) => ({
       type: "function" as const,
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.inputSchema,
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.inputSchema,
+      },
     })) satisfies OpenAIToolDefinition[],
 
     execute: (toolCall: OpenAIToolCall) => memory.executeTool({

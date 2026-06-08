@@ -67,7 +67,7 @@ memex = await create_memex({
 await memex.migrate()
 
 memory = memex.for_user("user_123", actor="assistant")
-result = await memory.search("quiet neighborhoods")
+result = await memory.find("quiet neighborhoods")
 
 await memex.close()
 ```
@@ -87,9 +87,11 @@ await memory.patch_file(
     lines=["- Likes good tests"],
     reason="new preference",
 )
-await memory.search("quiet neighborhoods")
-await memory.memorize("Remember that the user prefers quiet neighborhoods.")
+await memory.find("quiet neighborhoods")
+await memory.remember("Remember that the user prefers quiet neighborhoods.")
 ```
+
+`search(...)` and `memorize(...)` remain compatibility aliases for older Python examples.
 
 Raw MCP-style execution is also available:
 

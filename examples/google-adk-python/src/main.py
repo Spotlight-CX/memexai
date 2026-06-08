@@ -6,14 +6,12 @@ from pathlib import Path
 
 import httpx
 from google.adk.agents import Agent
-from google.adk.memory import BaseMemoryService
-from google.adk.memory.base_memory_service import SearchMemoryResponse
-from google.adk.memory.memory_entry import MemoryEntry
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService, Session
 from google.adk.tools import load_memory
 from google.genai.types import Content, Part
 from memexai import MemexAI
+from memexai.adapters.google_adk import MemexAdkMemoryService
 
 
 APP_NAME = "memexai_adk_example"
@@ -54,72 +52,6 @@ def get_config() -> dict[str, str]:
         "user_id": os.environ.get("MEMEX_USER_ID", "adk_demo_user"),
         "model": os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
     }
-
-
-class MemexAdkMemoryService(BaseMemoryService):
-    def __init__(self, memex: MemexAI):
-        self.memex = memex
-
-    async def add_session_to_memory(self, session: Session) -> None:
-        text = session_to_text(session)
-        if not text:
-            return
-
-        memory = self.memex.for_user(session_user_id(session), actor="google-adk")
-
-        # This is the natural ADK post-turn hook point. In production, call it
-        # only for interactions with durable facts; do not blindly memorize every
-        # turn. For noisier apps, run memory_search or memory_memorize(dryRun=True)
-        # first to reduce duplicate writes.
-        await memory.memorize(
-            {
-                "text": text,
-                "maxWrites": 3,
-            },
-            tool_call_id=f"adk-session-{session.id}",
-        )
-
-    async def search_memory(
-        self,
-        *,
-        app_name: str,
-        user_id: str,
-        query: str,
-    ) -> SearchMemoryResponse:
-        memory = self.memex.for_user(user_id, actor="google-adk")
-        result = await memory.search({"query": query, "limit": 5, "maxChars": 4000})
-
-        entries: list[MemoryEntry] = []
-        if result.get("answer"):
-            entries.append(memory_entry(result["answer"], author="memexai-memory_search"))
-
-        for item in result.get("results", []):
-            snippet = f"{item.get('path')}: {item.get('snippet')}"
-            entries.append(memory_entry(snippet, author="memexai-bm25"))
-
-        return SearchMemoryResponse(memories=entries)
-
-
-def memory_entry(text: str, *, author: str) -> MemoryEntry:
-    return MemoryEntry(
-        content=Content(role="model", parts=[Part(text=text)]),
-        author=author,
-    )
-
-
-def session_to_text(session: Session) -> str:
-    lines: list[str] = []
-    for event in session.events:
-        if not event.content or not event.content.parts:
-            continue
-        text = " ".join(part.text for part in event.content.parts if getattr(part, "text", None))
-        if text:
-            lines.append(f"{event.author}: {text}")
-    return "\n".join(lines)
-
-
-def session_user_id(session: Session) -> str:
-    return getattr(session, "user_id", None) or getattr(session, "userId")
 
 
 async def assert_service_ready(memex_url: str, api_key: str, user_id: str) -> None:
@@ -207,7 +139,12 @@ async def run(command: str, prompt: str | None) -> None:
     await assert_service_ready(config["memex_url"], config["memex_api_key"], config["user_id"])
 
     memex = MemexAI(url=config["memex_url"], api_key=config["memex_api_key"])
-    memory_service = MemexAdkMemoryService(memex)
+    memory_service = MemexAdkMemoryService(
+        memex,
+        actor="google-adk",
+        max_writes=3,
+        max_chars=4000,
+    )
 
     try:
         if command in {"remember", "smoke"}:
