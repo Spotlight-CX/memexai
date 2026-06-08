@@ -62,7 +62,7 @@ async function rememberPreference(text: string) {
       "",
       text,
     ].join("\n"),
-    tools: memory.createAgenticToolset(),
+    tools: memory.createMemorySubagentToolset(),
     prepareStep: ({ stepNumber }) =>
       stepNumber === 0
         ? {
@@ -83,7 +83,7 @@ async function recallPreference() {
     model: google("gemini-2.5-flash"),
     system,
     prompt: "Search MemexAI memory and tell me my coffee preference. Include the exact preference if it is found.",
-    tools: memory.createAgenticToolset(),
+    tools: memory.createMemorySubagentToolset(),
     prepareStep: ({ stepNumber }) =>
       stepNumber === 0
         ? {

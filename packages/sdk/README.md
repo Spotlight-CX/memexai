@@ -31,7 +31,7 @@ console.log(result.answer ?? result.results)
 
 When the service has no model configured, `memory.search()` still works through Postgres full-text search, or hybrid pgvector search when embeddings are configured. `memory.memorize()` requires a service-side model and returns `MODEL_NOT_CONFIGURED` when none is available.
 
-## Agentic Toolset
+## Memory Subagent Toolset
 
 Use this for most agents. MemexAI handles memory file bookkeeping.
 
@@ -46,7 +46,7 @@ const result = await generateText({
   model,
   system,
   prompt: "Remember that I prefer quiet projects near good schools.",
-  tools: memory.createAgenticToolset(),
+  tools: memory.createMemorySubagentToolset(),
   stopWhen: stepCountIs(5),
 })
 
@@ -63,7 +63,7 @@ Tools alone are not the product moment. The model also needs the MemexAI prompt 
 
 ## Raw File Toolset
 
-Use raw mode when you want the agent or app to manage memory files explicitly.
+Use raw file tools when you want the agent or app to manage memory files explicitly.
 
 ```ts
 const tools = memory.createRawToolset()
@@ -88,7 +88,7 @@ console.log(file.content)
 ```ts
 import { createVercelAITools } from "@memexai/sdk/adapters/vercel-ai"
 
-const agenticTools = createVercelAITools(memory)
+const memorySubagentTools = createVercelAITools(memory)
 const rawTools = createVercelAITools(memory, { mode: "raw" })
 ```
 

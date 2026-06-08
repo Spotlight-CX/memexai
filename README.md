@@ -47,20 +47,20 @@ mem0 and Zep are strong when you want managed or graph/vector-backed memory extr
 
 ## Two Integration Paths
 
-### Agentic Tools: The Default
+### Memory Subagent: The Default
 
-Use this for most assistants. The model gets two tools, and your system prompt gets the MemexAI prompt block.
+Give the model `memory_memorize` and `memory_search`; MemexAI decides what is durable, searches memory, and handles file bookkeeping. Your system prompt gets the MemexAI prompt block.
 
 ```ts
 const system = await memory.getSystemPrompt("You are a helpful assistant with durable user memory.")
-const tools = memory.createAgenticToolset()
+const tools = memory.createMemorySubagentToolset()
 // memory_memorize, memory_search
 ```
 
 - `memory_memorize` extracts durable facts and writes or patches memory.
 - `memory_search` recalls relevant memory. Without a model, it falls back to Postgres full-text search or hybrid pgvector search when embeddings are configured. With a configured model, it resolves over memory files and returns grounded answers with source paths.
 
-### Raw Tools: Explicit File Control
+### Raw File Tools: Explicit File Control
 
 Use this when your agent or app should manage memory files directly.
 
@@ -143,7 +143,7 @@ const result = await generateText({
   model: createGoogleGenerativeAI()("gemini-2.5-flash"),
   system,
   prompt: "Remember that I prefer quiet neighborhoods near good schools.",
-  tools: memory.createAgenticToolset(),
+  tools: memory.createMemorySubagentToolset(),
   stopWhen: stepCountIs(5),
 })
 
@@ -161,7 +161,7 @@ result = await memory.search("What does this user prefer?")
 await memex.close()
 ```
 
-LLM-backed `memory_memorize` and agentic `memory_search` are configured on the service, not in the SDK. Set one of these in the service environment:
+LLM-backed `memory_memorize` and memory subagent `memory_search` are configured on the service, not in the SDK. Set one of these in the service environment:
 
 ```bash
 GEMINI_API_KEY=...
@@ -274,7 +274,7 @@ const result = await generateText({
   model: google("gemini-2.5-flash"),
   system,
   prompt: "Remember that I prefer quiet neighborhoods near good schools.",
-  tools: memory.createAgenticToolset(),
+  tools: memory.createMemorySubagentToolset(),
   stopWhen: stepCountIs(5),
 })
 
@@ -295,7 +295,7 @@ npx @memexai/admin -d $DATABASE_URL memory snapshot --user alice --at "2025-06-0
 npx @memexai/admin -d $DATABASE_URL trace <toolCallId>
 ```
 
-The CLI for agents supports time-travel (reconstruct memory at a past timestamp), agentic trace (what did a specific tool call do?), setup bootstrapping, and all CRUD operations. See [`docs/admin-cli.md`](docs/admin-cli.md) for the full reference.
+The CLI for agents supports time-travel (reconstruct memory at a past timestamp), memory subagent trace (what did a specific tool call do?), setup bootstrapping, and all CRUD operations. See [`docs/admin-cli.md`](docs/admin-cli.md) for the full reference.
 
 **Docker exec:** the `memex-admin` binary is built into the runtime image:
 ```bash
@@ -336,7 +336,7 @@ The instance methods are the shortest path. For model calls, use both the prompt
 
 ```ts
 const system = await memory.getSystemPrompt("You are a helpful assistant with durable user memory.")
-const agenticTools = memory.createAgenticToolset()
+const memorySubagentTools = memory.createMemorySubagentToolset()
 const rawTools = memory.createRawToolset()
 ```
 
@@ -397,7 +397,7 @@ Most durable agent memory is not a nearest-neighbor problem. It is structured re
 - Which shared file explains this workflow?
 - What changed, and who changed it?
 
-Postgres gives MemexAI durable storage, full-text search, migrations, access control boundaries, and audit tables in one place. Postgres full-text ranking is enough for deterministic candidate discovery. When a model is configured, MemexAI can resolve over memory files agentically, with bounded reads and cited source paths.
+Postgres gives MemexAI durable storage, full-text search, migrations, access control boundaries, and audit tables in one place. Postgres full-text ranking is enough for deterministic candidate discovery. When a model is configured, MemexAI can resolve over memory files through the memory subagent path, with bounded reads and cited source paths.
 
 ## Comparison
 

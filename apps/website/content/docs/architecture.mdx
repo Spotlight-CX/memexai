@@ -46,14 +46,14 @@ There is no HTTP layer, no service auth, and no separate MemexAI container. Your
 
 ## Tool layers
 
-### Agentic tools
+### Memory subagent
 
 | Tool | What it does |
 | --- | --- |
 | `memory_memorize` | Feeds raw text to an inner model that decides what durable facts should be written or patched. |
 | `memory_search` | Recalls relevant memory with BM25-first search, optional pgvector hybrid candidates, and model-backed answer synthesis when configured. |
 
-### Raw tools
+### Raw file tools
 
 | Tool | What it does |
 | --- | --- |

@@ -1,6 +1,6 @@
 export { MemexAI, MemexMemory } from "./client"
 export { MemexAIError } from "./errors"
-export { agenticToolDefinitions, memoryToolDefinitions, rawToolDefinitions } from "./tool-definitions"
+export { agenticToolDefinitions, memorySubagentToolDefinitions, memoryToolDefinitions, rawToolDefinitions } from "./tool-definitions"
 export type {
   JsonSchema,
   ListFilesInput,

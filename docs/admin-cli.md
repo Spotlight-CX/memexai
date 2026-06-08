@@ -116,7 +116,7 @@ Every memory tool call (read, write, search, smart_read) is logged here. Use `--
 
 ---
 
-### `trace` — Agentic route tracing
+### `trace` — Memory subagent route tracing
 
 ```bash
 memex-admin trace <toolCallId>

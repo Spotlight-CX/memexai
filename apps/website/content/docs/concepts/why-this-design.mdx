@@ -1,6 +1,6 @@
 ---
 title: Why MemexAI works the way it does
-description: The engineering decisions behind MemexAI — why markdown files, why agentic tools, why not git, why auth is structural, and why retrieval is single-shot.
+description: The engineering decisions behind MemexAI — why markdown files, why memory subagent tools, why not git, why auth is structural, and why retrieval is single-shot.
 ---
 
 A few questions come up when developers first look at MemexAI. This page answers them directly.
@@ -15,16 +15,16 @@ MemexAI stores memory as Markdown text in Postgres. BM25 full-text search is the
 
 This makes memory inspectable by humans and reproducible in tests.
 
-## Why agentic tools, not host-app injection
+## Why memory subagent tools, not host-app injection
 
 Two approaches exist for giving an agent memory context:
 
 1. **Host-app injection** — the server pre-loads relevant memory and injects it into the system prompt.
-2. **Agentic tools** — the model calls `memory_read`, `memory_list`, `memory_write` as needed.
+2. **Memory subagent tools** — the model calls `memory_memorize` and `memory_search` while MemexAI handles file bookkeeping.
 
-Both are valid. Best systems often use both: agentic tools for model-driven decisions, direct writes for deterministic product events (e.g., an end-of-session summary triggered by your server code).
+Both are valid. Best systems often use both: memory subagent tools for model-driven memory decisions, direct writes for deterministic product events (e.g., an end-of-session summary triggered by your server code).
 
-The advantage of agentic tools is that the model decides what to read based on the current context — the host app doesn't need to anticipate relevance. Every read and write is logged with a `tool_call_id`, so every memory operation is traceable to a specific LLM response. That traceability is what makes post-hoc debugging possible.
+The advantage of the memory subagent path is that the model gets a small surface while MemexAI decides what durable facts to write and which files to search. Every read and write is logged with a `tool_call_id`, so every memory operation is traceable to a specific LLM response. That traceability is what makes post-hoc debugging possible.
 
 ## Why not git as memory
 

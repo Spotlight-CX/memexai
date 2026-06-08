@@ -121,5 +121,5 @@ Use the admin secret from Compose, default `dev-admin-secret`.
 - `MEMEX_API_KEY` defaults to the Docker development key, `dev-agent-key`.
 - `MEMEX_USER_ID` is stable by default so repeated runs show persistent memory.
 - `GEMINI_API_KEY` is required because both the example agent and service-backed `memory_memorize` need an LLM.
-- The LangChain adapter exposes all MemexAI tools; this example passes only `memory_memorize` and `memory_search` to keep the agent on the recommended agentic path.
+- The LangChain adapter exposes all MemexAI tools; this example passes only `memory_memorize` and `memory_search` to keep the agent on the recommended memory subagent path.
 - The first turn asks the agent to store a fact. In a production chat app, you may instead run `memory_memorize` after a user turn or completed exchange. That post-turn pattern is convenient, but it should be gated to avoid feeding the same fact repeatedly and creating duplicate memory churn.

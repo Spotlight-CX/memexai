@@ -1,13 +1,13 @@
 ---
 title: Memory Tools
-description: Choose between agentic memory tools and raw file-level tools.
+description: Choose between the memory subagent and raw file-level tools.
 ---
 
-MemexAI exposes two tool sets. Most assistants should start with the agentic tools. Use raw tools when the agent or application should control memory files directly.
+MemexAI exposes two tool sets. Most assistants should start with the memory subagent. Use raw file tools when the agent or application should control memory files directly.
 
-## Agentic tools
+## Memory subagent
 
-Agentic tools give the model a smaller surface:
+The memory subagent gives the model a smaller surface:
 
 | Tool | What it does |
 | --- | --- |
@@ -18,16 +18,16 @@ Use this mode for assistants, copilots, support agents, and product agents where
 
 ```ts
 const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
-const tools = memory.createAgenticToolset()
+const tools = memory.createMemorySubagentToolset()
 ```
 
 Pass both values to the model. `memory_memorize` stores durable facts, `memory_search` retrieves relevant files, and the prompt block tells the model when memory should influence the next response.
 
 In service mode, `memory_memorize` needs an LLM configured on the service with `GEMINI_API_KEY` or `OPENAI_API_KEY`. Without a service model, `memory_search` can still use Postgres full-text search, or hybrid pgvector search when embeddings are configured, but `memory_memorize` cannot decide what to write.
 
-## Raw tools
+## Raw file tools
 
-Raw tools expose file-level control:
+Raw file tools expose file-level control:
 
 | Tool | What it does |
 | --- | --- |
@@ -37,7 +37,7 @@ Raw tools expose file-level control:
 | `memory_patch` | Appends under a heading or replaces exact text. |
 | `memory_smart_read` | Builds a bounded context block from visible files. |
 
-Use raw tools when your workflow has a file plan, needs deterministic writes, or should let the application decide exactly where memory lives.
+Use raw file tools when your workflow has a file plan, needs deterministic writes, or should let the application decide exactly where memory lives.
 
 ```ts
 const tools = memory.createRawToolset()
@@ -52,7 +52,7 @@ memory_memorize
 memory_search
 ```
 
-Add raw tools only when the agent has a reason to manage files directly.
+Add raw file tools only when the agent has a reason to manage files directly.
 
 ## Tool calls and auditability
 

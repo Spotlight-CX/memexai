@@ -9,7 +9,7 @@ The CLI runs two turns:
 
 ## Setup
 
-From the repository root, give the MemexAI service a model key. The CLI uses `GEMINI_API_KEY`, and the service also needs it because `memory_memorize` and agentic `memory_search` run inside the container:
+From the repository root, give the MemexAI service a model key. The CLI uses `GEMINI_API_KEY`, and the service also needs it because `memory_memorize` and memory subagent `memory_search` run inside the container:
 
 ```bash
 cp .env.example .env

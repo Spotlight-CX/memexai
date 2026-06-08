@@ -34,7 +34,7 @@ const result = await generateText({
   model: google('gemini-2.5-flash'),
   system,
   prompt: 'Remember that I prefer quiet neighborhoods near good schools.',
-  tools: memory.createAgenticToolset(),
+  tools: memory.createMemorySubagentToolset(),
   stopWhen: stepCountIs(5),
 })
 

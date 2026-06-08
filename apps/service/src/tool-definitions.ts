@@ -1,8 +1,10 @@
 export {
   agenticToolDefinitions,
   getAgenticToolDefinitions,
+  getMemorySubagentToolDefinitions,
   getRawToolDefinitions,
   getToolDefinitions,
+  memorySubagentToolDefinitions,
   rawToolDefinitions,
   toolDefinitions,
 } from "@memexai/core"

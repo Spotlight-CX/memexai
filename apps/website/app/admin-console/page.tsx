@@ -56,7 +56,7 @@ const consoleAreas = [
   {
     icon: PlayCircle,
     title: 'Tool playground',
-    text: 'In a local or private operator session, call memory tools from the console, test raw and agentic flows, inspect responses, and copy integration snippets.',
+    text: 'In a local or private operator session, call memory tools from the console, test raw file and memory subagent flows, inspect responses, and copy integration snippets.',
     why: 'The first proof should be concrete before a team invests in a full integration.',
   },
   {

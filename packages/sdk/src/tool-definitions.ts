@@ -108,6 +108,8 @@ export const agenticToolDefinitions = [
   },
 ] satisfies ToolDefinition[]
 
+export const memorySubagentToolDefinitions = agenticToolDefinitions
+
 export const memoryToolDefinitions = [
   ...agenticToolDefinitions,
   ...rawToolDefinitions,

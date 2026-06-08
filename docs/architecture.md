@@ -78,9 +78,9 @@ The Python SDK follows the same direct-Postgres pattern as `@memexai/core`. It s
 
 ## Tool layers
 
-MemexAI exposes memory through two layers. Most applications use the agentic layer; the raw layer is available for precise control.
+MemexAI exposes memory through two layers. Most applications use the memory subagent layer; the raw layer is available for precise control.
 
-### Agentic tools (recommended — 2 tools)
+### Memory subagent (recommended — 2 tools)
 
 | Tool | What it does |
 |---|---|
@@ -112,7 +112,7 @@ The admin UX is available via the Dreams panel in the admin UI and the API:
 - `GET /v1/admin/dream/users` lists per-user dream status, errors, and counts.
 - `PUT /v1/admin/dream/users/:userId/paused` pauses or resumes dreaming for one user.
 
-### Raw tools (5 tools)
+### Raw file tools (5 tools)
 
 | Tool | What it does |
 |---|---|
@@ -122,13 +122,13 @@ The admin UX is available via the Dreams panel in the admin UI and the API:
 | `memory_patch` | Append or replace lines within a file |
 | `memory_smart_read` | Build one bounded markdown context block from visible memory files; query reads can include deterministic one-hop linked context |
 
-These give the model (or your code) precise control over individual files. Use them when you need deterministic writes, custom extraction logic, or when you're building tooling on top of MemexAI. Every write through raw tools still creates a revision snapshot and an access log entry.
+These give the model (or your code) precise control over individual files. Use them when you need deterministic writes, custom extraction logic, or when you're building tooling on top of MemexAI. Every write through raw file tools still creates a revision snapshot and an access log entry.
 
 ---
 
 ## Tool call flow
 
-This is the same in both modes — the difference is whether step 3 crosses an HTTP boundary. Agentic tools (`memory_memorize`, `memory_search`) resolve internally and then call the raw tool path for any actual writes.
+This is the same in both modes — the difference is whether step 3 crosses an HTTP boundary. Memory subagent (`memory_memorize`, `memory_search`) resolve internally and then call the raw tool path for any actual writes.
 
 ```
 1.  AI model generates a tool call

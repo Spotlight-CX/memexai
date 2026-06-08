@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest"
 import { createMemex, Memex, MemexUser } from "../src/memex"
 import { MemexError } from "../src/errors"
-import { agenticToolDefinitions, rawToolDefinitions, toolDefinitions } from "../src/tool-definitions"
+import { agenticToolDefinitions, memorySubagentToolDefinitions, rawToolDefinitions, toolDefinitions } from "../src/tool-definitions"
 
 function createMockDb(overrides: Partial<{ query: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn>; connect: ReturnType<typeof vi.fn> }> = {}) {
   return {
@@ -25,6 +25,7 @@ describe("Memex", () => {
 
   test("tool definitions are split into agentic and raw sets", () => {
     expect(agenticToolDefinitions.map((tool) => tool.name)).toEqual(["memory_memorize", "memory_search"])
+    expect(memorySubagentToolDefinitions.map((tool) => tool.name)).toEqual(["memory_memorize", "memory_search"])
     expect(rawToolDefinitions.map((tool) => tool.name)).toEqual([
       "memory_list",
       "memory_read",
@@ -32,6 +33,14 @@ describe("Memex", () => {
       "memory_patch",
       "memory_smart_read",
     ])
+  })
+
+  test("memory subagent aliases match legacy agentic APIs", () => {
+    const memex = new Memex(createMockDb())
+    const user = memex.forUser({ userId: "u1" })
+
+    expect(memex.getMemorySubagentTools()).toEqual(memex.getAgenticTools())
+    expect(Object.keys(user.createMemorySubagentToolset())).toEqual(Object.keys(user.createAgenticToolset()))
   })
 
   test("getTools() returns MCP-compatible shape (name, description, inputSchema)", () => {

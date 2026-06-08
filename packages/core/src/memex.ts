@@ -2,7 +2,7 @@ import { createPool, type Db } from "./db"
 import { runMigrations } from "./migrations"
 import { resolveMemoryPermissions, type MemoryPermissions, type SharedWriteMode, type ToolContext } from "./paths"
 import { buildPromptBlock } from "./prompt-block"
-import { getAgenticToolDefinitions, getRawToolDefinitions, getToolDefinitions, type ToolDefinition } from "./tool-definitions"
+import { getAgenticToolDefinitions, getMemorySubagentToolDefinitions, getRawToolDefinitions, getToolDefinitions, type ToolDefinition } from "./tool-definitions"
 import { executeTool } from "./tools"
 import { jsonSchema } from "ai"
 
@@ -12,13 +12,18 @@ type VercelAITool = {
   execute: (args: unknown, options?: { toolCallId?: string }) => Promise<unknown>
 }
 
+type MemexOptions = {
+  sharedWriteMode?: SharedWriteMode
+  permissions?: MemoryPermissions
+}
+
 export class Memex {
   private readonly permissions: MemoryPermissions
 
   constructor(
     private readonly db: Db,
     private readonly model?: unknown,
-    input: { sharedWriteMode?: SharedWriteMode; permissions?: MemoryPermissions } = {},
+    input: MemexOptions = {},
   ) {
     this.permissions = input.permissions ?? resolveMemoryPermissions({ sharedWriteMode: input.sharedWriteMode })
   }
@@ -33,6 +38,10 @@ export class Memex {
 
   getAgenticTools() {
     return getAgenticToolDefinitions(this.permissions)
+  }
+
+  getMemorySubagentTools() {
+    return getMemorySubagentToolDefinitions(this.permissions)
   }
 
   getRawTools() {
@@ -77,6 +86,10 @@ export class MemexUser {
 
   getTools() {
     return this.memex.getTools()
+  }
+
+  getMemorySubagentTools() {
+    return this.memex.getMemorySubagentTools()
   }
 
   async list(prefix?: string) {
@@ -142,6 +155,10 @@ export class MemexUser {
 
   createAgenticToolset(): Record<string, VercelAITool> {
     return this.createToolset(this.memex.getAgenticTools())
+  }
+
+  createMemorySubagentToolset(): Record<string, VercelAITool> {
+    return this.createAgenticToolset()
   }
 
   createRawToolset(): Record<string, VercelAITool> {

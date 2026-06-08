@@ -4,7 +4,7 @@ This is a minimal terminal example that uses the containerized MemexAI HTTP serv
 
 The CLI has two turns:
 
-- `remember` asks Gemini, through the Vercel AI SDK, to call MemexAI's `memory_memorize` agentic tool.
+- `remember` asks Gemini, through the Vercel AI SDK, to call MemexAI's `memory_memorize` memory subagent tool.
 - `recall` asks Gemini to call `memory_search` and answer from durable memory.
 
 ## Setup
@@ -101,8 +101,8 @@ http://localhost:18080/admin
 
 Use the compose development admin secret `dev-admin-secret`, then filter files or revisions for `example_vercel_ai_service_user`.
 
-## Why Agentic Tools
+## Why Memory Subagent
 
-This example uses `memory_memorize` and `memory_search` instead of raw file tools because terminal examples should demonstrate the default agent workflow: the model supplies conversational text, and MemexAI decides which memory files to read, write, or patch. Raw tools such as `memory_write`, `memory_patch`, and `memory_read` are better when your application owns the file layout and wants exact path-level control.
+This example uses `memory_memorize` and `memory_search` instead of raw file tools because terminal examples should demonstrate the default agent workflow: the model supplies conversational text, and MemexAI decides which memory files to read, write, or patch. Raw file tools such as `memory_write`, `memory_patch`, and `memory_read` are better when your application owns the file layout and wants exact path-level control.
 
 The `remember` command is deliberately shaped like a post-turn memorize pass. In a real assistant, you would usually answer the user first, then run a focused follow-up turn that extracts durable facts and calls `memory_memorize`.

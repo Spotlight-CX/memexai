@@ -1,9 +1,11 @@
 import type { MemexMemory } from "../client"
 
-export function createVercelAITools(memory: MemexMemory, options: { mode?: "agentic" | "raw" } = {}) {
-  return options.mode === "raw" ? memory.createRawToolset() : memory.createAgenticToolset()
+type ToolMode = "subagent" | "agentic" | "raw"
+
+export function createVercelAITools(memory: MemexMemory, options: { mode?: ToolMode } = {}) {
+  return options.mode === "raw" ? memory.createRawToolset() : memory.createMemorySubagentToolset()
 }
 
-export async function createVercelAIToolsFromService(memory: MemexMemory, options: { mode?: "agentic" | "raw" } = {}) {
-  return options.mode === "raw" ? memory.createRawToolsetFromService() : memory.createAgenticToolsetFromService()
+export async function createVercelAIToolsFromService(memory: MemexMemory, options: { mode?: ToolMode } = {}) {
+  return options.mode === "raw" ? memory.createRawToolsetFromService() : memory.createMemorySubagentToolsetFromService()
 }

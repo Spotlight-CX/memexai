@@ -18,7 +18,7 @@ const result = await generateText({
     'You are a helpful assistant with durable user memory.',
   ),
   prompt: userMessage,
-  tools: memory.createAgenticToolset(),
+  tools: memory.createMemorySubagentToolset(),
   stopWhen: stepCountIs(5),
 })
 ```

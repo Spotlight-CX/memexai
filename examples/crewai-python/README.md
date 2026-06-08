@@ -66,7 +66,7 @@ The program prints the CrewAI remember response, the post-turn MemexAI write sum
 
 ## Rationale
 
-The example checks the existing `memexai.adapters.crewai.get_crewai_tools()` adapter and confirms the two agentic tools are available: `memory_memorize` and `memory_search`. That matches the MemexAI prompt block guidance and keeps the agent away from raw file bookkeeping.
+The example checks the existing `memexai.adapters.crewai.get_crewai_tools()` adapter and confirms the memory subagent tools are available: `memory_memorize` and `memory_search`. That matches the MemexAI prompt block guidance and keeps the agent away from raw file bookkeeping.
 
 CrewAI documents async tool support in standard crews. In local smoke testing with CrewAI 1.14.6, the async adapter worked for the remember turn, but the terminal flow hit an `Event loop is closed` error when the script immediately performed post-turn MemexAI verification with the same async HTTP client. The CLI therefore uses small synchronous CrewAI tool wrappers around the same MemexAI service methods, with short-lived clients per tool call.
 
