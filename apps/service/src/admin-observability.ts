@@ -161,8 +161,8 @@ export async function getObservabilitySummary(db: Db, input: ObservabilityFilter
           COUNT(*) AS file_hits,
           COUNT(*) FILTER (WHERE operation = 'read') AS reads,
           COUNT(*) FILTER (WHERE operation IN ('write', 'patch')) AS writes,
-          COUNT(*) FILTER (WHERE operation = 'search') AS searches,
-          COUNT(*) FILTER (WHERE operation = 'smart_read') AS smart_reads
+          COUNT(*) FILTER (WHERE operation IN ('search', 'find')) AS searches,
+          COUNT(*) FILTER (WHERE operation IN ('smart_read', 'context')) AS smart_reads
         FROM mx_access_log
         ${access.where}
       `,
@@ -228,8 +228,8 @@ export async function getObservabilityTimeseries(db: Db, input: ObservabilityFil
           ${bucket} AS bucket_start,
           COUNT(*) FILTER (WHERE operation = 'read') AS reads,
           COUNT(*) FILTER (WHERE operation IN ('write', 'patch')) AS writes,
-          COUNT(*) FILTER (WHERE operation = 'search') AS searches,
-          COUNT(*) FILTER (WHERE operation = 'smart_read') AS smart_reads
+          COUNT(*) FILTER (WHERE operation IN ('search', 'find')) AS searches,
+          COUNT(*) FILTER (WHERE operation IN ('smart_read', 'context')) AS smart_reads
         FROM mx_access_log
         ${access.where}
         GROUP BY 1
@@ -297,8 +297,8 @@ export async function listObservabilityTopFiles(db: Db, input: ObservabilityFilt
         ${normalizedPathExpr("l.physical_path")} AS normalized_path,
         COUNT(*) FILTER (WHERE l.operation = 'read') AS reads,
         COUNT(*) FILTER (WHERE l.operation IN ('write', 'patch')) AS writes,
-        COUNT(*) FILTER (WHERE l.operation = 'search') AS searches,
-        COUNT(*) FILTER (WHERE l.operation = 'smart_read') AS smart_reads,
+        COUNT(*) FILTER (WHERE l.operation IN ('search', 'find')) AS searches,
+        COUNT(*) FILTER (WHERE l.operation IN ('smart_read', 'context')) AS smart_reads,
         COUNT(*) AS total_hits,
         COUNT(DISTINCT l.user_id) FILTER (WHERE l.user_id IS NOT NULL) AS unique_users,
         MAX(length(f.content_text)) AS size,
@@ -356,8 +356,8 @@ export async function getObservabilityTree(db: Db, input: ObservabilityFilters =
           ${normalizedPathExpr("l.physical_path")} AS normalized_path,
           COUNT(*) FILTER (WHERE l.operation = 'read') AS reads,
           COUNT(*) FILTER (WHERE l.operation IN ('write', 'patch')) AS writes,
-          COUNT(*) FILTER (WHERE l.operation = 'search') AS searches,
-          COUNT(*) FILTER (WHERE l.operation = 'smart_read') AS smart_reads,
+          COUNT(*) FILTER (WHERE l.operation IN ('search', 'find')) AS searches,
+          COUNT(*) FILTER (WHERE l.operation IN ('smart_read', 'context')) AS smart_reads,
           COUNT(*) AS total_hits,
           COUNT(DISTINCT l.user_id) FILTER (WHERE l.user_id IS NOT NULL) AS unique_users,
           ARRAY_AGG(DISTINCT l.user_id) FILTER (WHERE l.user_id IS NOT NULL) AS user_ids,
@@ -476,8 +476,8 @@ export async function getObservabilityTreeNode(db: Db, normalizedPath: string, i
           ${bucket.replaceAll("created_at", "l.created_at")} AS bucket_start,
           COUNT(*) FILTER (WHERE l.operation = 'read') AS reads,
           COUNT(*) FILTER (WHERE l.operation IN ('write', 'patch')) AS writes,
-          COUNT(*) FILTER (WHERE l.operation = 'search') AS searches,
-          COUNT(*) FILTER (WHERE l.operation = 'smart_read') AS smart_reads
+          COUNT(*) FILTER (WHERE l.operation IN ('search', 'find')) AS searches,
+          COUNT(*) FILTER (WHERE l.operation IN ('smart_read', 'context')) AS smart_reads
         FROM mx_access_log l
         ${accessWhere}
         GROUP BY 1
@@ -608,7 +608,7 @@ export async function getUserMemoryObservability(db: Db, input: ObservabilityFil
         SELECT
           COUNT(DISTINCT physical_path) FILTER (WHERE operation = 'read') AS files_read,
           COUNT(DISTINCT physical_path) FILTER (WHERE operation IN ('write', 'patch')) AS files_written,
-          COUNT(*) FILTER (WHERE operation IN ('search', 'smart_read')) AS searches
+          COUNT(*) FILTER (WHERE operation IN ('search', 'find', 'smart_read', 'context')) AS searches
         FROM mx_access_log
         ${access.where}
       `,
@@ -791,7 +791,7 @@ export async function getObservabilitySchemaSignals(db: Db, input: Observability
       `
         SELECT user_id, COUNT(*) AS count, MAX(created_at) AS last_seen_at
         FROM mx_access_log
-        ${access.where ? `${access.where} AND` : "WHERE"} operation IN ('search', 'smart_read')
+        ${access.where ? `${access.where} AND` : "WHERE"} operation IN ('search', 'find', 'smart_read', 'context')
         GROUP BY user_id
         ORDER BY count DESC, last_seen_at DESC
         LIMIT 8
@@ -863,8 +863,8 @@ export async function getFileObservability(db: Db, physicalPath: string, input: 
         SELECT
           COUNT(*) FILTER (WHERE operation = 'read') AS reads,
           COUNT(*) FILTER (WHERE operation IN ('write', 'patch')) AS writes,
-          COUNT(*) FILTER (WHERE operation = 'search') AS searches,
-          COUNT(*) FILTER (WHERE operation = 'smart_read') AS smart_reads,
+          COUNT(*) FILTER (WHERE operation IN ('search', 'find')) AS searches,
+          COUNT(*) FILTER (WHERE operation IN ('smart_read', 'context')) AS smart_reads,
           COUNT(DISTINCT user_id) FILTER (WHERE user_id IS NOT NULL) AS unique_users,
           MAX(created_at) AS last_accessed_at,
           MAX(created_at) FILTER (WHERE operation IN ('write', 'patch')) AS last_written_at,
@@ -886,8 +886,8 @@ export async function getFileObservability(db: Db, physicalPath: string, input: 
           ${bucket} AS bucket_start,
           COUNT(*) FILTER (WHERE operation = 'read') AS reads,
           COUNT(*) FILTER (WHERE operation IN ('write', 'patch')) AS writes,
-          COUNT(*) FILTER (WHERE operation = 'search') AS searches,
-          COUNT(*) FILTER (WHERE operation = 'smart_read') AS smart_reads
+          COUNT(*) FILTER (WHERE operation IN ('search', 'find')) AS searches,
+          COUNT(*) FILTER (WHERE operation IN ('smart_read', 'context')) AS smart_reads
         FROM mx_access_log
         ${access.where}
         GROUP BY 1
@@ -907,7 +907,7 @@ export async function getFileObservability(db: Db, physicalPath: string, input: 
           user_id,
           COUNT(*) FILTER (WHERE operation = 'read') AS reads,
           COUNT(*) FILTER (WHERE operation IN ('write', 'patch')) AS writes,
-          COUNT(*) FILTER (WHERE operation IN ('search', 'smart_read')) AS searches,
+          COUNT(*) FILTER (WHERE operation IN ('search', 'find', 'smart_read', 'context')) AS searches,
           MAX(created_at) AS last_accessed_at
         FROM mx_access_log
         ${access.where}

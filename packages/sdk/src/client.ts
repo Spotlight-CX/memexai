@@ -14,6 +14,8 @@ import type {
   RememberInput,
   RememberResult,
   RequestContext,
+  RetrieveContextInput,
+  RetrieveContextResult,
   ToolDefinition,
   WriteFileInput,
   WriteFileResult,
@@ -164,6 +166,16 @@ export class MemexMemory {
     const { toolCallId, ...args } = normalized
     return this.client.executeTool({
       name: "memory_remember",
+      context: withToolCallId(this.context, toolCallId),
+      arguments: args,
+    })
+  }
+
+  async retrieveContext(input: RetrieveContextInput | string = {}): Promise<RetrieveContextResult> {
+    const normalized = typeof input === "string" ? { query: input } : input
+    const { toolCallId, ...args } = normalized
+    return this.client.executeTool({
+      name: "memory_context",
       context: withToolCallId(this.context, toolCallId),
       arguments: args,
     })

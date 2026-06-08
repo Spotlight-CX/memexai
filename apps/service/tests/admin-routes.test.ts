@@ -379,7 +379,7 @@ function createAdminDb() {
         }
       }
 
-      if (sql.includes("operation IN ('search', 'context')") && sql.includes("GROUP BY user_id")) {
+      if (sql.includes("GROUP BY user_id") && (sql.includes("operation IN ('search', 'context')") || sql.includes("operation IN ('search', 'find', 'smart_read', 'context')"))) {
         return {
           rows: [{
             user_id: "user_123",

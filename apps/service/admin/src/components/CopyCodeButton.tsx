@@ -15,7 +15,7 @@ type SnippetSelection = {
   harness: SnippetHarness
 }
 
-const AGENTIC_TOOLS = new Set(["memory_memorize", "memory_search"])
+const AGENTIC_TOOLS = new Set(["memory_remember", "memory_context"])
 const TYPESCRIPT_HARNESSES: { label: string; value: TypeScriptSnippetHarness }[] = [
   { label: "Raw SDK", value: "raw-sdk" },
   { label: "LangChain", value: "langchain" },
@@ -261,8 +261,9 @@ await memex.close()`
 
 function buildTsMemoryCall(toolName: string, args: unknown): string {
   const obj = asRecord(args)
-  if (toolName === "memory_memorize") return `memory.memorize(${formatTsObjectOrString(obj, "text")})`
-  if (toolName === "memory_search") return `memory.search(${formatTsObjectOrString(obj, "query")})`
+  if (toolName === "memory_remember") return `memory.remember(${formatTsObjectOrString(obj, "text")})`
+  if (toolName === "memory_find") return `memory.find(${formatTsObjectOrString(obj, "query")})`
+  if (toolName === "memory_context") return `memory.retrieveContext(${formatTsObjectOrString(obj, "query")})`
   if (toolName === "memory_list") return `memory.listFiles(${formatTs(obj)})`
   if (toolName === "memory_read") return `memory.readFile(${formatTs(obj)})`
   if (toolName === "memory_write") return `memory.writeFile(${formatTs(obj)})`
@@ -275,8 +276,9 @@ function buildTsMemoryCall(toolName: string, args: unknown): string {
 
 function buildPythonMemoryCall(toolName: string, args: unknown): string {
   const obj = asRecord(args)
-  if (toolName === "memory_memorize") return `memory.memorize(${formatPythonObjectOrString(obj, "text")})`
-  if (toolName === "memory_search") return `memory.search(${formatPythonObjectOrString(obj, "query")})`
+  if (toolName === "memory_remember") return `memory.remember(${formatPythonObjectOrString(obj, "text")})`
+  if (toolName === "memory_find") return `memory.find(${formatPythonObjectOrString(obj, "query")})`
+  if (toolName === "memory_context") return `memory.retrieve_context(${formatPythonObjectOrString(obj, "query")})`
   if (toolName === "memory_list") return `memory.list_files(${formatPythonKwargs(obj)})`
   if (toolName === "memory_read") return `memory.read_file(${formatPythonRequiredString(obj, "path")})`
   if (toolName === "memory_write") return `memory.write_file(${formatPythonWriteArgs(obj)})`
@@ -286,8 +288,9 @@ function buildPythonMemoryCall(toolName: string, args: unknown): string {
 
 function makePrompt(toolName: string, args: unknown): string {
   const obj = asRecord(args)
-  if (toolName === "memory_memorize" && typeof obj.text === "string" && obj.text.trim()) return obj.text
-  if (toolName === "memory_search" && typeof obj.query === "string" && obj.query.trim()) return obj.query
+  if (toolName === "memory_remember" && typeof obj.text === "string" && obj.text.trim()) return obj.text
+  if (toolName === "memory_find" && typeof obj.query === "string" && obj.query.trim()) return obj.query
+  if (toolName === "memory_context" && typeof obj.query === "string" && obj.query.trim()) return obj.query
   return `Use ${toolName} with these arguments: ${JSON.stringify(args)}`
 }
 

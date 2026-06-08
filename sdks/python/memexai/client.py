@@ -123,15 +123,24 @@ class MemexAIMemory:
         args = {"path": path, "operation": operation, **kwargs}
         return await self.execute_tool("memory_patch", args, tool_call_id=tool_call_id)
 
-    async def search(self, query: Union[str, Dict[str, Any]], tool_call_id: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    async def find(self, query: Union[str, Dict[str, Any]], tool_call_id: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         args = {"query": query, **kwargs} if isinstance(query, str) else {**query, **kwargs}
         tool_id = args.pop("tool_call_id", tool_call_id)
-        return await self.execute_tool("memory_search", args, tool_call_id=tool_id)
+        return await self.execute_tool("memory_find", args, tool_call_id=tool_id)
 
-    async def memorize(self, text: Union[str, Dict[str, Any]], tool_call_id: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    async def remember(self, text: Union[str, Dict[str, Any]], tool_call_id: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         args = {"text": text, **kwargs} if isinstance(text, str) else {**text, **kwargs}
         tool_id = args.pop("tool_call_id", tool_call_id)
-        return await self.execute_tool("memory_memorize", args, tool_call_id=tool_id)
+        return await self.execute_tool("memory_remember", args, tool_call_id=tool_id)
+
+    async def retrieve_context(self, query: Optional[Union[str, Dict[str, Any]]] = None, tool_call_id: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+        if query is None:
+            args = {}
+        else:
+            args = {"query": query, **kwargs} if isinstance(query, str) else {**query, **kwargs}
+        tool_id = args.pop("tool_call_id", tool_call_id)
+        return await self.execute_tool("memory_context", args, tool_call_id=tool_id)
+
 
     async def execute_tool(self, tool_name: str, args: Dict[str, Any], tool_call_id: Optional[str] = None) -> Any:
         return await self.client.execute_tool(
