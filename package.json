@@ -36,7 +36,7 @@
     "test:watch": "vitest",
     "bench:longmemeval": "bun run apps/benchmark/src/longmemeval.ts",
     "bench:docker-smoke": "node apps/benchmark/src/docker-smoke-eval.mjs",
-    "test:e2e": "bun scripts/e2e-recall-test.ts"
+    "test:e2e": "bun scripts/e2e/run.ts"
   },
   "devDependencies": {
     "@types/node": "^20.19.25",
