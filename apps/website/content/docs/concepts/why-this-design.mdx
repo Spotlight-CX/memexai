@@ -1,0 +1,83 @@
+---
+title: Why MemexAI works the way it does
+description: The engineering decisions behind MemexAI — why markdown files, why agentic tools, why not git, why auth is structural, and why retrieval is single-shot.
+---
+
+A few questions come up when developers first look at MemexAI. This page answers them directly.
+
+## Why markdown files, not embeddings as the substrate
+
+Embeddings are useful for semantic recall — they are not bad. The problem is using them as the *canonical memory substrate*: the thing you trust as the source of truth.
+
+An embedding store is a black box. You cannot inspect what the agent knows, reproduce why it retrieved something, or run deterministic evals against a known memory state. Debugging a wrong answer requires statistical analysis, not a SQL query.
+
+MemexAI stores memory as Markdown text in Postgres. BM25 full-text search is the default retrieval layer — fast, reproducible, testable. pgvector (via `MEMEX_SEARCH_MODE=auto`) is optional semantic acceleration, not the source of truth. Both modes produce results with a `reason` field so you know exactly how each file was found.
+
+This makes memory inspectable by humans and reproducible in tests.
+
+## Why agentic tools, not host-app injection
+
+Two approaches exist for giving an agent memory context:
+
+1. **Host-app injection** — the server pre-loads relevant memory and injects it into the system prompt.
+2. **Agentic tools** — the model calls `memory_read`, `memory_list`, `memory_write` as needed.
+
+Both are valid. Best systems often use both: agentic tools for model-driven decisions, direct writes for deterministic product events (e.g., an end-of-session summary triggered by your server code).
+
+The advantage of agentic tools is that the model decides what to read based on the current context — the host app doesn't need to anticipate relevance. Every read and write is logged with a `tool_call_id`, so every memory operation is traceable to a specific LLM response. That traceability is what makes post-hoc debugging possible.
+
+## Why not git as memory
+
+Git is designed for structured, human-reviewed diffs with deliberate branching and merge strategies. Agent writes are high-frequency, unpredictable, and don't map naturally to commits.
+
+Specific problems with git as memory:
+
+- No per-row access control or per-path visibility rules
+- No BM25 or vector search without a separate indexing layer
+- Conflict resolution requires agent intervention or a merge strategy the agent must manage
+- Replaying a git history to reconstruct state requires diffing every intermediate commit
+
+`mx_revision` stores full-content snapshots per write. Reconstructing memory at a past timestamp is a single SQL query. No diff replay, no conflict resolution.
+
+## Why auth is structural, not advisory
+
+If `userId` isolation were enforced by the model prompt ("only access paths for user_123"), a prompt injection, jailbreak, or accidental model output could break it.
+
+MemexAI enforces isolation at the path validation layer. When an agent calls `memory_write` with `user/profile.md`, the system injects the `userId` from the tool context — the agent never specifies it. Physical paths like `users/someone_else/profile.md` are rejected at the validation layer with `PHYSICAL_PATH_FORBIDDEN`.
+
+Admin and agent trust levels are structurally different routes, not advisory separation. Changing them requires changing how the service is deployed or extending the path rules in code.
+
+## Why single-shot retrieval
+
+Naive multi-turn retrieval burns latency and tokens: one turn to list files, another to read them, another to follow links to related files. On every agent call, before the model can even start reasoning.
+
+`memory_smart_read` resolves forward memory links within a character budget in a single call. If `user/profile.md` contains `[[user/preferences.md]]`, both files are returned in one response. Each file in the response carries a `reason` field — `query_match`, `linked`, or `recency` — so the agent knows how each file was found and can avoid redundant re-retrieval.
+
+This means one tool call returns the right context. No planning loop needed for memory retrieval.
+
+*Note: forward link traversal is active. Bidirectional backlinks and hub scoring are on the roadmap.*
+
+---
+
+## What you'd build yourself
+
+If you roll your own agent memory, here is what you would eventually need to build and what breaks in the naive version:
+
+| Failure mode | Naive DIY | MemexAI mechanism |
+|---|---|---|
+| Agent forges a path to another user's data | No prevention unless you validate every write yourself | Path validation layer — `PHYSICAL_PATH_FORBIDDEN` blocks physical paths |
+| Bad write corrupts context, no rollback | Overwritten and gone | `mx_revision` snapshots the full content on every write |
+| "What does the agent currently know?" | Open the file | Admin UI + access logs + full revision history |
+| Loading too much memory degrades output quality | Full file dumped into the prompt | Context budget in prompt block assembly; smart_read respects a character limit |
+| Share policy/canon globally while keeping user data private | Two separate stores or manual conditional logic | `shared/` (read-only by default) + `user/` isolation, enforced at the path layer |
+| Write-on-every-call grows storage unbounded | Manual cleanup scripts | Dreaming: background compaction that merges duplicates and removes stale content |
+| Debug why an agent gave a wrong answer | Logs if you remembered to add them | Access logs correlated to `tool_call_id`, linked to specific LLM responses |
+
+No moat claims here. These are failure modes that appear as usage scales, and the mechanisms that prevent them. You can build each one. The question is whether you want to.
+
+## Related
+
+- [Memory Scopes](/docs/concepts/scopes) — how `user/` and `shared/` path isolation works
+- [When do you need memory infrastructure?](/docs/concepts/when-do-you-need-memory-infrastructure) — decide whether you need MemexAI at all
+- [Revisions](/docs/concepts/revisions) — how the revision history is structured
+- [Access logs](/docs/concepts/access-logs) — what the access log records and how to use it

@@ -1,5 +1,5 @@
 {
   "title": "Concepts",
   "defaultOpen": true,
-  "pages": ["design-principles", "how-it-works", "memory-tools", "prompt-block", "shared-memory", "scopes", "revisions", "access-logs"]
+  "pages": ["design-principles", "how-it-works", "when-do-you-need-memory-infrastructure", "memory-tools", "prompt-block", "shared-memory", "scopes", "revisions", "access-logs", "why-this-design"]
 }

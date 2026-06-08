@@ -1,0 +1,45 @@
+---
+title: When do you need memory infrastructure?
+description: A practical guide to deciding when MemexAI adds value versus when a simpler approach is fine.
+---
+
+The decision is not about scale or user count. It is about what happens when things go wrong, and whether you need to understand what your agent currently knows.
+
+## You probably don't need it yet
+
+- Memory loss or corruption is acceptable — demo, prototype, or single-session use
+- Your agent runs once with no continuity between calls
+- You have no audit, isolation, or recovery requirements
+- You are the only user and can inspect state directly
+
+A file on disk or an in-memory dict is fine here. Adding infrastructure before the need is real adds setup cost with no return.
+
+## You probably do need it when
+
+- **A bad write corrupts context and you have no recovery path.** If an agent overwrites a memory file incorrectly, can you restore the previous state? Without revision history, the answer is no.
+
+- **You can't inspect what the agent currently "knows."** When an agent gives a wrong answer, can you see the exact memory it read? Without access logs and a human-readable memory store, debugging is guesswork.
+
+- **You need per-identity isolation without managing it manually.** Multi-user or multi-agent deployments need isolation. Doing it correctly — path injection prevention, scoped contexts — takes non-trivial effort to get right.
+
+- **You want to share learned context safely.** Policies, canon, style guides, and cross-user insights are valuable to share. But sharing without a clear boundary between private and global state causes leaks.
+
+- **You want to guide memory shape without hardcoding it into the prompt.** Structured files let the agent and operator read, edit, and inspect memory independently. A blob of JSON in a database does not.
+
+## The transition moment
+
+Most teams hit one of these before they plan to:
+
+1. First bad write in production with no rollback
+2. First time debugging why an agent gave a wrong answer
+3. First multi-user or multi-agent isolation requirement
+
+MemexAI is designed so adding it early costs very little. The setup is a Docker Compose or a `createMemex(DATABASE_URL)` call. The benefit compounds as usage grows: revision history, access logs, and dreaming all become more valuable over time.
+
+You don't have to wait for the pain to justify the infrastructure.
+
+## Related
+
+- [Memory Scopes](/docs/concepts/scopes) — how `user/` and `shared/` isolation works
+- [Why MemexAI works the way it does](/docs/concepts/why-this-design) — the design decisions behind the system
+- [Quickstart: Docker service](/docs/quickstart/docker-service) — get up and running in minutes

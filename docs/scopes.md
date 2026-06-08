@@ -51,6 +51,54 @@ The full mapping rules:
 | `user` (directory prefix) | `users/{userId}` |
 | `shared/index.md` | `shared/index.md` (no translation) |
 
+**`userId` is a partition key, not necessarily a person.** Most deployments pass a human user ID, but it can be a background agent ID, a tenant ID, a workspace ID, or any stable application identity. The system enforces isolation by that key regardless of what it represents.
+
+```ts
+// Human user
+memex.forUser({ userId: "user_alice_123", actor: "assistant" })
+
+// Background agent with its own private workspace
+memex.forUser({ userId: "agent_research_bot_v2", actor: "agent" })
+
+// Tenant-scoped deployment
+memex.forUser({ userId: "tenant_acme_prod", actor: "assistant" })
+```
+
+### Multi-agent patterns
+
+**Pattern A — Per-agent private memory**
+
+Pass the agent's ID as `userId`. The agent gets a private `user/` workspace with no special setup:
+
+```ts
+const agentMemex = memex.forUser({ userId: "agent_research_bot_v2", actor: "agent" })
+await agentMemex.execute("memory_write", {
+  path: "user/scratchpad.md",
+  content: "Research notes…",
+})
+// Stored as: users/agent_research_bot_v2/scratchpad.md
+```
+
+**Pattern B — Org-level shared memory via deep paths** *(for trusted deployments only)*
+
+Use deep paths under `shared/` with `MEMEX_SHARED_WRITE_MODE=rw` to emulate org-level scoping:
+
+```ts
+await memex.execute("memory_write", {
+  path: "shared/orgs/acme/teams/marketing/q4-brief.md",
+  content: "…",
+})
+```
+
+```bash
+# Filter admin view by prefix
+memex-admin files list --prefix shared/orgs/acme/
+```
+
+> **This is not tenant isolation.** When shared writable mode is on, all agents can write anywhere under `shared/`. No per-path RBAC exists yet. Do not use this if untrusted agents can write. Named mounts (roadmap) is the RBAC-correct solution.
+
+---
+
 **Why implicit translation?** If agents specified `userId` directly in paths, they could accidentally (or intentionally) write to another user's memory by guessing an ID. The translation layer makes user isolation a property of the context, not of the prompt. A model cannot escape its `userId` no matter what path string it generates.
 
 The system also blocks:

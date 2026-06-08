@@ -58,7 +58,7 @@ The boundary is not advisory — it is enforced at the route and path validation
 
 | Term | Meaning |
 |---|---|
-| **User** | The person the AI product serves. Each user has a private `user/` namespace. |
+| **User** | In the API, `userId` is the isolation key for the current call. It is usually a human user ID, but it can also be a tenant ID, agent ID, workspace ID, or any stable application identity. Everything under `user/` is private to that `userId`. |
 | **Agent** | The LLM acting on behalf of the user. Can read+write `user/*`, read `shared/*`, and write `shared/*` only when shared writable mode is enabled. |
 | **Operator** | The team or developer running the deployment. Controls `shared/*`, admin config, and model settings. |
 | **Virtual path** | The path agents see: `user/profile.md`, `shared/index.md`. |
