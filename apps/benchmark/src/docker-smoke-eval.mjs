@@ -407,7 +407,7 @@ async function runItem(item, index, totalItems) {
           sessions[s],
           item.haystack_dates[s] ?? "unknown date",
         )
-        const result = await executeToolWithRetry("memory_memorize", context, {
+        const result = await executeToolWithRetry("memory_remember", context, {
           text,
           maxWrites: 3,
           dryRun: DRY_RUN,
@@ -447,7 +447,7 @@ async function runItem(item, index, totalItems) {
 
     const queryStart = Date.now()
     log("query start")
-    const searchResult = await executeToolWithRetry("memory_search", context, {
+    const searchResult = await executeToolWithRetry("memory_find", context, {
       query: item.question,
       limit: 5,
     })

@@ -33,3 +33,6 @@ export {
   deleteAdminFile,
   getAdminRevisionDiff,
 } from "./admin"
+
+export { rankMemoryCandidates, searchScope } from "./search-ranking"
+

@@ -16,15 +16,13 @@ import {
   type ObservationUsage,
 } from "./observability"
 import {
-  SearchError,
-  bm25Search,
-  hybridSearch,
-  prepareFileEmbedding,
   storePreparedEmbedding,
   type EmbeddingConfig,
   type SearchMatchReason,
-  type SearchScope,
+
 } from "@memexai/search"
+import { searchScope, prepareCoreFileEmbedding, rankMemoryCandidates } from "./search-ranking"
+
 
 type FileRow = {
   id: string
@@ -71,37 +69,6 @@ function modelName(model: unknown): string | null {
   return typeof id === "string" ? id : null
 }
 
-function searchScope(ctx: ToolContext, prefix?: string): SearchScope {
-  if (!prefix) {
-    return {
-      defaultUserLike: `users/${ctx.userId}/%`,
-      physicalToVirtual: (physicalPath) => physicalToVirtual(physicalPath, ctx),
-    }
-  }
-
-  const physicalPrefix = prefixToPhysical(prefix, ctx)
-  if (!physicalPrefix) throw new MemexError("INVALID_PATH", "prefix is required")
-  return {
-    defaultUserLike: `users/${ctx.userId}/%`,
-    prefixExact: physicalPrefix,
-    prefixLike: `${physicalPrefix.endsWith("/") ? physicalPrefix : `${physicalPrefix}/`}%`,
-    physicalToVirtual: (physicalPath) => physicalToVirtual(physicalPath, ctx),
-  }
-}
-
-async function prepareCoreFileEmbedding(db: Db, content: string, options: EmbeddingConfig) {
-  if (!options.adapter) return prepareFileEmbedding(content, options)
-  return withObservationSpan(db, { name: "embedding", operation: "embedding" }, async () => {
-    try {
-      return await prepareFileEmbedding(content, options)
-    } catch (error) {
-      if (error instanceof SearchError) {
-        throw new MemexError(error.code, error.message)
-      }
-      throw error
-    }
-  })
-}
 
 async function logAccess(db: Db, input: {
   fileId?: string | null
@@ -316,31 +283,6 @@ type MemoryContextMeta = {
   depth: number
 }
 
-function buildMemoryBlock(input: {
-  included: { path: string; content: string; updatedAt: Date }[]
-  omitted: string[]
-}): string {
-  const sections = input.included.map((file) => [
-    `## ${file.path}`,
-    `(updated ${file.updatedAt.toISOString()})`,
-    "",
-    file.content,
-  ].join("\n"))
-
-  const note = input.omitted.length > 0
-    ? [
-      "---",
-      `Note: ${input.omitted.length} file(s) omitted (budget limit). Use memory_find to find specific content.`,
-    ].join("\n")
-    : null
-
-  return [
-    "<memexai_memory>",
-    ...sections,
-    note,
-    "</memexai_memory>",
-  ].filter(Boolean).join("\n\n")
-}
 
 export function extractMemoryLinks(content: string): string[] {
   const links = new Set<string>()
@@ -409,87 +351,6 @@ function reasonPriority(reason: MemoryContextReason): number {
   return reason === "linked" ? 1 : 0
 }
 
-async function fetchSmartReadSeeds(db: Db, input: { query?: string }, ctx: ToolContext): Promise<MemoryContextFile[]> {
-  const values: unknown[] = [`users/${ctx.userId}/%`]
-  let sql = `
-    SELECT id, physical_path, content_text, created_at, updated_at
-    FROM mx_file
-    WHERE physical_path LIKE $1 OR physical_path LIKE 'shared/%'
-    ORDER BY updated_at DESC
-  `
-
-  if (input.query) {
-    values.unshift(input.query)
-    sql = `
-      WITH q AS (SELECT plainto_tsquery('english', $1) AS query)
-      SELECT id, physical_path, content_text, created_at, updated_at, ts_rank_cd(search_vector, q.query) AS rank
-      FROM mx_file, q
-      WHERE (physical_path LIKE $2 OR physical_path LIKE 'shared/%')
-        AND search_vector @@ q.query
-      ORDER BY rank DESC, updated_at DESC
-    `
-  }
-
-  const { rows } = await withObservationSpan(db, { name: "db_read", operation: input.query ? "search" : "list" }, () => db.query<SmartReadRow>(sql, values))
-  return rows.flatMap((row, index) => {
-    const file = rowToMemoryContextFile(row, ctx, index, input.query ? "query_match" : "recency")
-    return file ? [file] : []
-  })
-}
-
-async function fetchSmartReadHybridSeeds(db: Db, input: {
-  query: string
-  adapter: NonNullable<EmbeddingConfig["adapter"]>
-  rrfK?: number
-  bm25CandidateLimit?: number
-  vectorCandidateLimit?: number
-}, ctx: ToolContext): Promise<MemoryContextFile[]> {
-  const preparedQueryEmbedding = await prepareCoreFileEmbedding(db, input.query, {
-    adapter: input.adapter,
-    maxChars: Number.MAX_SAFE_INTEGER,
-  })
-  const queryEmbedding = preparedQueryEmbedding?.status === "ready" ? preparedQueryEmbedding.vector : undefined
-
-  const ranked = await withObservationSpan(db, {
-    name: "hybrid_search",
-    operation: "smart_read",
-    attributes: {
-      search_mode: "hybrid",
-      query_embedding: Boolean(queryEmbedding),
-      bm25_candidate_limit: input.bm25CandidateLimit ?? null,
-      vector_candidate_limit: input.vectorCandidateLimit ?? null,
-      rrf_k: input.rrfK ?? null,
-    },
-  }, () => hybridSearch(db, {
-    query: input.query,
-    queryEmbedding,
-    rrfK: input.rrfK,
-    bm25CandidateLimit: input.bm25CandidateLimit,
-    vectorCandidateLimit: input.vectorCandidateLimit,
-    dimensions: input.adapter.dimensions,
-    scope: searchScope(ctx),
-  }))
-
-  const rankedByPath = new Map(ranked.map((result, index) => [result.path, { result, index }]))
-  const files = await fetchVisibleFilesByVirtualPath(db, ranked.map((result) => result.path), ctx)
-  return files
-    .flatMap((file) => {
-      const rankedFile = rankedByPath.get(file.path)
-      if (!rankedFile) return []
-      return [{
-        ...file,
-        score: rankedFile.result.score,
-        reason: "query_match" as const,
-        matchReason: rankedFile.result.matchReason,
-        bm25Rank: rankedFile.result.bm25Rank,
-        vectorRank: rankedFile.result.vectorRank,
-        depth: 0,
-        order: rankedFile.index,
-      }]
-    })
-    .sort((a, b) => a.order - b.order)
-}
-
 export async function retrieveMemoryContext(db: Db, ctx: ToolContext, options: {
   maxChars: number
   query?: string
@@ -500,15 +361,50 @@ export async function retrieveMemoryContext(db: Db, ctx: ToolContext, options: {
   const relatedDepth = options.relatedDepth ?? 1
   const includeRelated = options.includeRelated ?? Boolean(options.query)
   const linkedScoreMultiplier = options.linkedScoreMultiplier ?? 0.35
-  const seeds = options.query && options.adapter
-    ? await fetchSmartReadHybridSeeds(db, {
-      query: options.query,
+
+  let seeds: MemoryContextFile[] = []
+
+  if (options.query) {
+    const ranked = await rankMemoryCandidates(db, options.query, searchScope(ctx), {
       adapter: options.adapter,
       rrfK: options.rrfK,
       bm25CandidateLimit: options.bm25CandidateLimit,
       vectorCandidateLimit: options.vectorCandidateLimit,
-    }, ctx)
-    : await fetchSmartReadSeeds(db, { query: options.query }, ctx)
+    })
+
+    const rankedByPath = new Map(ranked.map((result, index) => [result.path, { result, index }]))
+    const files = await fetchVisibleFilesByVirtualPath(db, ranked.map((result) => result.path), ctx)
+    seeds = files
+      .flatMap((file) => {
+        const rankedFile = rankedByPath.get(file.path)
+        if (!rankedFile) return []
+        return [{
+          ...file,
+          score: rankedFile.result.score,
+          reason: "query_match" as const,
+          matchReason: rankedFile.result.matchReason,
+          bm25Rank: rankedFile.result.bm25Rank,
+          vectorRank: rankedFile.result.vectorRank,
+          depth: 0,
+          order: rankedFile.index,
+        }]
+      })
+      .sort((a, b) => a.order - b.order)
+  } else {
+    const values: unknown[] = [`users/${ctx.userId}/%`]
+    const sql = `
+      SELECT id, physical_path, content_text, created_at, updated_at
+      FROM mx_file
+      WHERE physical_path LIKE $1 OR physical_path LIKE 'shared/%'
+      ORDER BY updated_at DESC
+    `
+    const { rows } = await withObservationSpan(db, { name: "db_read", operation: "list" }, () => db.query<SmartReadRow>(sql, values))
+    seeds = rows.flatMap((row, index) => {
+      const file = rowToMemoryContextFile(row, ctx, index, "recency")
+      return file ? [file] : []
+    })
+  }
+
   const candidatesByPath = new Map<string, MemoryContextFile>()
   const visited = new Set<string>()
 
@@ -585,13 +481,108 @@ export async function retrieveMemoryContext(db: Db, ctx: ToolContext, options: {
   }
 }
 
+type MemoryContextLlmResult = {
+  context: string
+  filesRead: string[]
+  usage?: ObservationUsage
+}
+
+async function runMemoryContextLlmPass(
+  db: Db,
+  ctx: ToolContext,
+  options: {
+    query?: string
+    maxChars: number
+    model: unknown
+    maxReads?: number
+    rrfK?: number
+    bm25CandidateLimit?: number
+    vectorCandidateLimit?: number
+  } & EmbeddingConfig,
+): Promise<MemoryContextLlmResult> {
+  const maxReads = options.maxReads ?? 10
+  const filesRead: string[] = []
+  let reads = 0
+
+  type LlmTool = { description: string; inputSchema: unknown; execute: (args: unknown) => Promise<unknown> }
+  const tools: Record<string, LlmTool> = {
+    memory_list: {
+      description: "List memory files under user/ or shared/ to discover what exists.",
+      inputSchema: jsonSchema({
+        type: "object",
+        additionalProperties: false,
+        properties: { prefix: { type: "string" } },
+      }),
+      execute: async (toolArgs: unknown) => executeMemoryList(db, listArgsSchema.parse(toolArgs ?? {}), ctx),
+    },
+    memory_find: {
+      description: "Search memory files using BM25 full-text search (and hybrid vector search when available). Returns ranked file snippets.",
+      inputSchema: jsonSchema({
+        type: "object",
+        required: ["query"],
+        additionalProperties: false,
+        properties: {
+          query: { type: "string" },
+          limit: { type: "number" },
+          prefix: { type: "string" },
+        },
+      }),
+      execute: async (toolArgs: unknown) => executeMemoryFind(db, findArgsSchema.parse(toolArgs), ctx, options),
+    },
+    memory_read: {
+      description: "Read the full content of a specific memory file by virtual path.",
+      inputSchema: jsonSchema({
+        type: "object",
+        required: ["path"],
+        additionalProperties: false,
+        properties: { path: { type: "string" } },
+      }),
+      execute: async (toolArgs: unknown) => {
+        if (reads >= maxReads) throw new MemexError("MAX_READS_EXCEEDED", "memory_context read budget exceeded")
+        reads += 1
+        const parsed = readArgsSchema.parse(toolArgs)
+        if (!filesRead.includes(parsed.path)) filesRead.push(parsed.path)
+        return executeMemoryRead(db, parsed, ctx)
+      },
+    },
+  }
+
+  const queryLine = options.query
+    ? `Query: ${options.query}`
+    : "No specific query — retrieve all relevant memory."
+
+  const result = await withObservationSpan(db, {
+    name: "llm_generate",
+    operation: "context",
+    attributes: { model: modelName(options.model) },
+  }, () => generateText({
+    model: options.model as never,
+    system: [
+      "You are a memory retrieval agent. Gather the most relevant memory context for the given query.",
+      "Use memory_find to search for relevant files by keyword or concept.",
+      "Use memory_read to read the full content of files you want to include.",
+      "Use memory_list to discover what files exist when needed.",
+      `Keep total context under ${options.maxChars} characters.`,
+      "Return the assembled memory context as your final text response.",
+    ].join("\n"),
+    prompt: `${queryLine}\n\nGather the relevant memory context and return it.`,
+    tools: tools as any,
+    stopWhen: stepCountIs(maxReads + 2),
+  }))
+
+  return { context: result.text, filesRead, usage: usageFromGenerateTextResult(result) }
+}
+
 export async function executeMemoryContext(db: Db, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}) {
-  const { maxChars = 24_000, query, includeRelated, relatedDepth = 1 } = contextArgsSchema.parse(args ?? {})
-  const context = await retrieveMemoryContext(db, ctx, {
-    maxChars,
+  const { maxChars = 24_000, query } = contextArgsSchema.parse(args ?? {})
+  if (!options.model) {
+    throw new MemexError("MODEL_NOT_CONFIGURED", "memory_context requires a configured model")
+  }
+
+  const passResult = await runMemoryContextLlmPass(db, ctx, {
     query,
-    includeRelated,
-    relatedDepth,
+    maxChars,
+    model: options.model,
     adapter: options.adapter,
     rrfK: options.rrfK,
     bm25CandidateLimit: options.bm25CandidateLimit,
@@ -601,67 +592,57 @@ export async function executeMemoryContext(db: Db, args: unknown, ctx: ToolConte
   await logAccess(db, { physicalPath: "*", operation: "context", ctx })
 
   return {
-    content: buildMemoryBlock({ included: context.included, omitted: context.omitted }),
-    filesIncluded: context.included.map((file) => file.path),
-    filesOmitted: context.omitted,
-    filesIncludedMeta: context.filesIncludedMeta,
-    truncated: context.omitted.length > 0,
+    context: passResult.context,
+    filesRead: passResult.filesRead,
+    usage: passResult.usage,
   }
 }
 
 export async function executeMemoryFind(db: Db, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}): Promise<MemorySearchResult> {
   const parsed = findArgsSchema.parse(args)
   const { query, limit = 10, prefix } = parsed
-  if (options.adapter) {
-    const adapter = options.adapter
-    const preparedQueryEmbedding = await prepareCoreFileEmbedding(db, query, { adapter, maxChars: Number.MAX_SAFE_INTEGER })
-    const queryEmbedding = preparedQueryEmbedding?.status === "ready" ? preparedQueryEmbedding.vector : undefined
-    const results = await withObservationSpan(db, {
-      name: "hybrid_search",
-      operation: "search",
-      attributes: {
-        search_mode: "hybrid",
-        query_embedding: Boolean(queryEmbedding),
-        bm25_candidate_limit: options.bm25CandidateLimit ?? null,
-        vector_candidate_limit: options.vectorCandidateLimit ?? null,
-        rrf_k: options.rrfK ?? null,
-      },
-    }, () => hybridSearch(db, {
-      query,
-      queryEmbedding,
-      limit,
-      rrfK: options.rrfK,
-      bm25CandidateLimit: options.bm25CandidateLimit,
-      vectorCandidateLimit: options.vectorCandidateLimit,
-      dimensions: adapter.dimensions,
-      scope: searchScope(ctx, prefix),
-    }))
 
-    const logPath = prefix ? prefixToPhysical(prefix, ctx) : "*"
-    await logAccess(db, { physicalPath: logPath ?? "*", operation: "find", ctx })
+  const scope = searchScope(ctx, prefix)
+  const searchMode = options.adapter ? "hybrid" : "bm25"
 
-    return {
-      query,
-      results: results.map((result) => ({
-        path: result.path,
-        snippet: result.snippet ?? result.content?.slice(0, 240) ?? "",
-        rank: result.score,
-        matchReason: result.matchReason,
-        bm25Rank: result.bm25Rank,
-        vectorRank: result.vectorRank,
-        bm25Score: result.bm25Score,
-        vectorDistance: result.vectorDistance,
-        updatedAt: result.updatedAt,
-      })),
-      truncated: false,
-      searchStats: {
-        searchMode: "hybrid",
-        candidateCount: results.length,
-        filesReturned: results.length,
-      },
-    }
+  const results = await withObservationSpan(db, {
+    name: searchMode === "hybrid" ? "hybrid_search" : "bm25_search",
+    operation: "find",
+    attributes: {
+      search_mode: searchMode,
+      candidate_count: limit,
+    },
+  }, () => rankMemoryCandidates(db, query, scope, {
+    adapter: options.adapter,
+    limit,
+    rrfK: options.rrfK,
+    bm25CandidateLimit: options.bm25CandidateLimit,
+    vectorCandidateLimit: options.vectorCandidateLimit,
+  }))
+
+  const logPath = prefix ? prefixToPhysical(prefix, ctx) : "*"
+  await logAccess(db, { physicalPath: logPath ?? "*", operation: "find", ctx })
+
+  return {
+    query,
+    results: results.map((result) => ({
+      path: result.path,
+      snippet: result.snippet ?? result.content?.slice(0, 240) ?? "",
+      rank: result.score,
+      matchReason: result.matchReason,
+      bm25Rank: result.bm25Rank,
+      vectorRank: result.vectorRank,
+      bm25Score: result.bm25Score,
+      vectorDistance: result.vectorDistance,
+      updatedAt: result.updatedAt,
+    })),
+    truncated: false,
+    searchStats: {
+      searchMode,
+      candidateCount: results.length,
+      filesReturned: results.length,
+    },
   }
-  return executeMemoryFindBm25(db, { query, limit, prefix }, ctx)
 }
 
 type MemorizeWrite = {
@@ -971,36 +952,6 @@ export async function executeMemoryConsolidate(
 }
 
 
-async function executeMemoryFindBm25(db: Db, input: { query: string; limit?: number; prefix?: string }, ctx: ToolContext): Promise<MemorySearchResult> {
-  const { query, limit = 10, prefix } = input
-  const results = await withObservationSpan(db, {
-    name: "bm25_search",
-    operation: "find",
-    attributes: { search_mode: "bm25", candidate_count: limit },
-  }, () => bm25Search(db, { query, limit, scope: searchScope(ctx, prefix) }))
-
-  const logPath = prefix ? prefixToPhysical(prefix, ctx) : "*"
-  await logAccess(db, { physicalPath: logPath ?? "*", operation: "find", ctx })
-
-  return {
-    query,
-    results: results.map((result) => ({
-      path: result.path,
-      snippet: result.snippet,
-      rank: result.bm25Score ?? result.score,
-      matchReason: "lexical" as const,
-      bm25Rank: result.bm25Rank,
-      bm25Score: result.bm25Score,
-      updatedAt: result.updatedAt,
-    })),
-    truncated: false,
-    searchStats: {
-      searchMode: "bm25",
-      candidateCount: results.length,
-      filesReturned: results.length,
-    },
-  }
-}
 
 export async function executeTool(db: Db, toolName: string, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}): Promise<unknown> {
   if (options.observeRoot !== false) {

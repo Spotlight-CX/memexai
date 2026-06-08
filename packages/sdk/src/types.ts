@@ -121,3 +121,28 @@ export type ToolDefinition = {
   description: string
   inputSchema: JsonSchema
 }
+
+export type RetrieveContextInput = {
+  maxChars?: number
+  query?: string
+  includeRelated?: boolean
+  relatedDepth?: number
+  toolCallId?: string
+}
+
+export type RetrieveContextResult = {
+  content: string
+  filesIncluded: string[]
+  filesOmitted: string[]
+  filesIncludedMeta: {
+    path: string
+    reason: "query_match" | "recency" | "linked"
+    matchReason?: "lexical" | "semantic" | "hybrid"
+    bm25Rank?: number
+    vectorRank?: number
+    linkedFrom?: string
+    depth: number
+  }[]
+  truncated: boolean
+}
+
