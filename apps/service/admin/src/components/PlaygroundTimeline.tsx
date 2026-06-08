@@ -213,18 +213,23 @@ function FileRightPanel({
   }
 
   if (entry.kind === "recall" && isObj(body)) {
+    // memory_context returns { context, filesRead }
+    const filesRead = Array.isArray(body.filesRead)
+      ? body.filesRead.filter((s): s is string => typeof s === "string")
+      : []
+    // legacy memory_find returns { results }
     const results = Array.isArray(body.results) ? body.results.filter(isObj) : []
     const sources = Array.isArray(body.sources)
       ? body.sources.filter((s): s is string => typeof s === "string")
       : []
-    const sourceSet = new Set(sources)
 
+    const allPaths = filesRead.length > 0 ? filesRead : sources
     const items =
       results.length > 0
         ? results
-        : sources.map((s) => ({ path: s, snippet: null as string | null, sourceOnly: true }))
+        : allPaths.map((s) => ({ path: s, snippet: null as string | null, sourceOnly: true }))
 
-    if (items.length === 0) {
+    if (items.length === 0 && filesRead.length === 0) {
       return (
         <Stack gap="xs">
           <Text size="xs" fw={700} tt="uppercase" c="dimmed">{label}</Text>
@@ -237,29 +242,37 @@ function FileRightPanel({
       <Stack gap="md">
         <Stack gap={2}>
           <Text size="xs" fw={700} tt="uppercase" c="dimmed">
-            {results.length > 0 ? "Retrieved candidates" : label}
+            {filesRead.length > 0 ? "Files read" : results.length > 0 ? "Retrieved candidates" : label}
           </Text>
-          {results.length > 0 && (
+          {filesRead.length > 0 && (
             <Text size="xs" c="dimmed">
-              Retrieval order before answer assembly. Green files were read by the resolver.
+              Files the agent read while assembling context.
+            </Text>
+          )}
+          {results.length > 0 && filesRead.length === 0 && (
+            <Text size="xs" c="dimmed">
+              Retrieval order before answer assembly.
             </Text>
           )}
         </Stack>
         {items.map((item, i) => {
           const path = typeof item.path === "string" ? item.path : null
-          const snippet = typeof item.snippet === "string" ? item.snippet : null
           if (!path) return null
+          const snippet = typeof item.snippet === "string" ? item.snippet : null
           return (
             <RecallSourceCell
               key={`${path}-${i}`}
               path={path}
               snippet={snippet}
               result={item}
-              wasRead={sourceSet.has(path) || item.sourceOnly === true}
+              wasRead={true}
               onNavigate={() => onNavigateToFile(toPhysicalPath(path, entry.userId))}
             />
           )
         })}
+        {items.length === 0 && filesRead.length > 0 && (
+          <Text size="xs" c="dimmed">No files needed (answered from index).</Text>
+        )}
       </Stack>
     )
   }
