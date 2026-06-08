@@ -597,7 +597,7 @@ async def execute_agentic_memory_search(db: DbPool, args: Dict[str, Any], ctx: R
             "Visible files:",
             str(list_res["files"]),
             "",
-            "BM25 candidates:",
+            "Search candidates:",
             str(candidates["results"]),
             "",
             "Index files:",

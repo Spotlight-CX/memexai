@@ -93,11 +93,12 @@ export default function HomePage() {
                 <path d="M7 10h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
             </div>
-            <h3>Vector stores hide the wrong facts</h3>
+            <h3>Vector stores should not be the source of truth</h3>
             <p>
               Dumping conversations into a vector database retrieves similar-looking
               fragments — including outdated or conflicting ones. When the agent says
-              something wrong, you can&apos;t see why. You can&apos;t fix it.
+              something wrong, you need an editable memory record, not just a nearest
+              neighbor.
             </p>
             <div className="mx-problem-blur" aria-label="Opaque memory representation">
               ??? ??? ???
@@ -115,9 +116,9 @@ export default function HomePage() {
           <h2>Memory as Markdown files in your Postgres</h2>
           <p className="mx-lede">
             MemexAI stores what your agent knows about each user as structured
-            Markdown files — not opaque embeddings. Files live in your own Postgres
-            database. Agents read and write them with simple tools. You read them
-            with your eyes.
+            Markdown files — not embeddings as the source of truth. Files live in
+            your own Postgres database. Optional pgvector ranking can improve recall,
+            while the memory record stays readable and editable.
           </p>
         </Reveal>
 
@@ -234,10 +235,10 @@ export default function HomePage() {
           <span className="mx-kicker">Debuggability</span>
           <h2>When the AI gets a fact wrong, open the file and fix it.</h2>
           <p className="mx-lede">
-            No re-indexing. No opaque embedding adjustments. Edit the Markdown line,
-            and the next prompt block updates instantly. Revisions track every write.
-            Access logs track every read. You can trace exactly which tool call wrote
-            the wrong fact.
+            Edit the Markdown line, and the next prompt block updates instantly.
+            Hybrid deployments refresh optional pgvector ranking on writes. Revisions
+            track every write. Access logs track every read. You can trace exactly
+            which tool call wrote the wrong fact.
           </p>
         </Reveal>
 

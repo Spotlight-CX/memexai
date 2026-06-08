@@ -100,4 +100,4 @@ Every step after tool execution is shared by the containerized service, MCP, and
 
 MemexAI stores the current memory record in `mx_file`, full write snapshots in `mx_revision`, and every read/write event in `mx_access_log`.
 
-Search starts with Postgres full-text search over the `search_vector` column. In hybrid mode, the service also stores embeddings in Postgres with pgvector and merges lexical and semantic candidates. BM25 remains the default; pgvector is an optional enhancement, not a separate vector database requirement.
+Search starts with Postgres full-text search over the `search_vector` column. In hybrid mode, the service also stores embeddings in Postgres with pgvector and merges lexical and semantic candidates for `memory_search` and query-seeded `memory_smart_read`. BM25 remains the default; pgvector is an optional enhancement, not a separate vector database requirement.

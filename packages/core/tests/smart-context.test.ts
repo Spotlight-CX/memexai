@@ -32,6 +32,28 @@ function createMockDb(rows: ReturnType<typeof row>[]) {
   } as unknown as import("../src/db").Db
 }
 
+function createHybridMockDb(input: {
+  rows: ReturnType<typeof row>[]
+  vectorRows: { physical_path: string; content_text: string; distance: number; updated_at: Date }[]
+}) {
+  return {
+    query: vi.fn(async (sql: string, values: unknown[] = []) => {
+      if (sql.includes("mx_access_log")) return { rows: [] }
+      if (sql.includes("embedding <=>")) return { rows: input.vectorRows }
+      if (sql.includes("physical_path = ANY")) {
+        const paths = values[0] as string[]
+        return { rows: input.rows.filter((file) => paths.includes(file.physical_path)) }
+      }
+      if (sql.includes("search_vector @@ q.query")) {
+        return { rows: input.rows.filter((file) => "rank" in file) }
+      }
+      return { rows: input.rows }
+    }),
+    connect: vi.fn(),
+    end: vi.fn(),
+  } as unknown as import("../src/db").Db
+}
+
 describe("executeMemorySmartRead", () => {
   test("includes all visible files under budget with virtual paths", async () => {
     const db = createMockDb([
@@ -73,6 +95,77 @@ describe("executeMemorySmartRead", () => {
     expect(sql).toContain("plainto_tsquery")
     expect(sql).toContain("ts_rank_cd")
     expect(values).toEqual(["budget", "users/u1/%"])
+  })
+
+  test("uses hybrid ranking for query smart reads when an embedding adapter is configured", async () => {
+    const db = createHybridMockDb({
+      rows: [
+        row("users/u1/profile.md", "# Profile\n[[user/preferences.md]]"),
+        row("users/u1/preferences.md", "# Preferences\n- Loves parks and green spaces"),
+        row("users/other/profile.md", "# Other"),
+      ],
+      vectorRows: [
+        {
+          physical_path: "users/u1/profile.md",
+          content_text: "# Profile\n[[user/preferences.md]]",
+          distance: 0.1,
+          updated_at: now,
+        },
+        {
+          physical_path: "users/other/profile.md",
+          content_text: "# Other",
+          distance: 0.01,
+          updated_at: now,
+        },
+      ],
+    })
+
+    const result = await executeMemorySmartRead(db, {
+      query: "nature nearby",
+      maxChars: 10_000,
+    }, { userId: "u1" }, {
+      adapter: {
+        model: "mock-embedding",
+        dimensions: 3,
+        embed: vi.fn(async () => [1, 0, 0]),
+      },
+    })
+
+    expect(result.filesIncluded).toEqual(["user/profile.md", "user/preferences.md"])
+    expect(result.filesIncludedMeta).toEqual([
+      { path: "user/profile.md", reason: "query_match", matchReason: "semantic", vectorRank: 1, depth: 0 },
+      { path: "user/preferences.md", reason: "linked", linkedFrom: "user/profile.md", depth: 1 },
+    ])
+    expect((db.query as ReturnType<typeof vi.fn>).mock.calls.some(([sql]) => String(sql).includes("embedding <=>"))).toBe(true)
+    expect(result.content).not.toContain("users/other")
+  })
+
+  test("falls back to BM25 query seeds when embedding generation fails", async () => {
+    const db = createHybridMockDb({
+      rows: [row("users/u1/profile.md", "# Profile\n- Budget buyer", now, 0.8)],
+      vectorRows: [],
+    })
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+
+    const result = await executeMemorySmartRead(db, {
+      query: "budget",
+      maxChars: 10_000,
+    }, { userId: "u1" }, {
+      adapter: {
+        model: "mock-embedding",
+        dimensions: 3,
+        embed: vi.fn(async () => {
+          throw new Error("provider down")
+        }),
+      },
+    })
+
+    expect(result.filesIncluded).toEqual(["user/profile.md"])
+    expect(result.filesIncludedMeta).toEqual([
+      { path: "user/profile.md", reason: "query_match", matchReason: "lexical", bm25Rank: 1, depth: 0 },
+    ])
+    expect((db.query as ReturnType<typeof vi.fn>).mock.calls.some(([sql]) => String(sql).includes("embedding <=>"))).toBe(false)
+    warn.mockRestore()
   })
 
   test("expands one-hop memory links for query smart reads", async () => {

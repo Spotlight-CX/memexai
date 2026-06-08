@@ -187,7 +187,7 @@ Two operations available:
     name: "memory_smart_read",
     description: `Read all (or the most relevant) memory files within a character budget, returned as a single merged context block ready to inject into a system prompt.
 
-Optionally pass a \`query\` to rank files by keyword relevance so the most useful content fits within \`maxChars\`.
+Optionally pass a \`query\` to rank files by relevance so the most useful content fits within \`maxChars\`. In service hybrid mode, query ranking can use BM25 plus pgvector semantic candidates; otherwise it uses BM25.
 When a query is provided, deterministic linked recall is enabled by default: directly matched files are included first, then visible one-hop \`[[user/...]]\` or \`[[shared/...]]\` links are added if budget remains.
 
 ### Parameters
@@ -195,7 +195,7 @@ When a query is provided, deterministic linked recall is enabled by default: dir
 | Field | Type | Required | Description |
 |---|---|---|---|
 | \`maxChars\` | number | no | Maximum characters to return. Default: 24 000 |
-| \`query\` | string | no | Keyword query to rank files by relevance |
+| \`query\` | string | no | Query to rank files by relevance |
 | \`includeRelated\` | boolean | no | Include directly linked memory files. Defaults to true when query is set |
 | \`relatedDepth\` | number | no | Link expansion depth, 0-2. Default: 1 |
 
@@ -219,7 +219,7 @@ When a query is provided, deterministic linked recall is enabled by default: dir
       additionalProperties: false,
       properties: {
         maxChars: { type: "number", description: "Maximum characters to return. Default: 24000." },
-        query: { type: "string", description: "Optional query to rank files by keyword relevance." },
+        query: { type: "string", description: "Optional query to rank files by relevance. Uses hybrid ranking in service hybrid mode." },
         includeRelated: { type: "boolean", description: "Include visible files linked with [[user/...]] or [[shared/...]]. Defaults to true when query is provided." },
         relatedDepth: { type: "number", description: "Maximum link expansion depth. 0 disables linked retrieval. Default: 1, max: 2." },
       },
@@ -279,9 +279,9 @@ ${writablePathDescription(permissions)}
   },
   {
     name: "memory_search",
-    description: `Search memory for a question using BM25 full-text search.
+    description: `Search memory for a question. Uses BM25 by default and optional pgvector hybrid search when service hybrid mode is configured.
 
-When an LLM is configured, agentic resolution reads the top BM25 candidates and synthesizes a grounded answer. Without an LLM, returns raw matching file excerpts.
+When an LLM is configured, agentic resolution reads the top search candidates and synthesizes a grounded answer. Without an LLM, returns raw matching file excerpts.
 
 ### Parameters
 
@@ -289,7 +289,7 @@ When an LLM is configured, agentic resolution reads the top BM25 candidates and 
 |---|---|---|---|
 | \`query\` | string | **yes** | Question or topic to search for |
 | \`maxChars\` | number | no | Max characters to return. Default: 8 000 |
-| \`limit\` | number | no | Max BM25 candidates. Default: 10 |
+| \`limit\` | number | no | Max search candidates. Default: 10 |
 | \`maxReads\` | number | no | Max files the agentic resolver may inspect. Default: 5 |
 | \`prefix\` | string | no | Optional virtual path prefix, e.g. \`user/\` |
 
@@ -317,7 +317,7 @@ When an LLM is configured, agentic resolution reads the top BM25 candidates and 
       properties: {
         query: { type: "string", description: "Question or topic to search memory for." },
         maxChars: { type: "number", description: "Maximum characters to return. Default: 8000." },
-        limit: { type: "number", description: "Maximum BM25 candidates. Default: 10." },
+        limit: { type: "number", description: "Maximum search candidates. Default: 10." },
         maxReads: { type: "number", description: "Maximum files the agentic resolver may inspect. Default: 5." },
         prefix: { type: "string", description: "Optional virtual path prefix, e.g. user/ or shared/." },
       },

@@ -78,7 +78,7 @@ def get_llamaindex_tools(user: MemexUser) -> List[Any]:
     tools.append(FunctionTool.from_defaults(
         async_fn=search,
         name="memory_search",
-        description="Search memory for a question using BM25 full-text search.",
+        description="Search memory for a question using BM25 or service hybrid search.",
     ))
 
     # memory_memorize

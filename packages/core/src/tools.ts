@@ -22,6 +22,7 @@ import {
   prepareFileEmbedding,
   storePreparedEmbedding,
   type EmbeddingConfig,
+  type SearchMatchReason,
   type SearchScope,
 } from "@memexai/search"
 
@@ -297,6 +298,9 @@ type MemoryContextFile = {
   updatedAt: Date
   score: number
   reason: MemoryContextReason
+  matchReason?: SearchMatchReason
+  bm25Rank?: number
+  vectorRank?: number
   linkedFrom?: string
   depth: number
   order: number
@@ -305,6 +309,9 @@ type MemoryContextFile = {
 type MemoryContextMeta = {
   path: string
   reason: MemoryContextReason
+  matchReason?: SearchMatchReason
+  bm25Rank?: number
+  vectorRank?: number
   linkedFrom?: string
   depth: number
 }
@@ -430,17 +437,78 @@ async function fetchSmartReadSeeds(db: Db, input: { query?: string }, ctx: ToolC
   })
 }
 
+async function fetchSmartReadHybridSeeds(db: Db, input: {
+  query: string
+  adapter: NonNullable<EmbeddingConfig["adapter"]>
+  rrfK?: number
+  bm25CandidateLimit?: number
+  vectorCandidateLimit?: number
+}, ctx: ToolContext): Promise<MemoryContextFile[]> {
+  const preparedQueryEmbedding = await prepareCoreFileEmbedding(db, input.query, {
+    adapter: input.adapter,
+    maxChars: Number.MAX_SAFE_INTEGER,
+  })
+  const queryEmbedding = preparedQueryEmbedding?.status === "ready" ? preparedQueryEmbedding.vector : undefined
+
+  const ranked = await withObservationSpan(db, {
+    name: "hybrid_search",
+    operation: "smart_read",
+    attributes: {
+      search_mode: "hybrid",
+      query_embedding: Boolean(queryEmbedding),
+      bm25_candidate_limit: input.bm25CandidateLimit ?? null,
+      vector_candidate_limit: input.vectorCandidateLimit ?? null,
+      rrf_k: input.rrfK ?? null,
+    },
+  }, () => hybridSearch(db, {
+    query: input.query,
+    queryEmbedding,
+    rrfK: input.rrfK,
+    bm25CandidateLimit: input.bm25CandidateLimit,
+    vectorCandidateLimit: input.vectorCandidateLimit,
+    dimensions: input.adapter.dimensions,
+    scope: searchScope(ctx),
+  }))
+
+  const rankedByPath = new Map(ranked.map((result, index) => [result.path, { result, index }]))
+  const files = await fetchVisibleFilesByVirtualPath(db, ranked.map((result) => result.path), ctx)
+  return files
+    .flatMap((file) => {
+      const rankedFile = rankedByPath.get(file.path)
+      if (!rankedFile) return []
+      return [{
+        ...file,
+        score: rankedFile.result.score,
+        reason: "query_match" as const,
+        matchReason: rankedFile.result.matchReason,
+        bm25Rank: rankedFile.result.bm25Rank,
+        vectorRank: rankedFile.result.vectorRank,
+        depth: 0,
+        order: rankedFile.index,
+      }]
+    })
+    .sort((a, b) => a.order - b.order)
+}
+
 export async function retrieveMemoryContext(db: Db, ctx: ToolContext, options: {
   maxChars: number
   query?: string
   includeRelated?: boolean
   relatedDepth?: number
   linkedScoreMultiplier?: number
-}) {
+} & Pick<ExecuteToolOptions, "adapter" | "rrfK" | "bm25CandidateLimit" | "vectorCandidateLimit">) {
   const relatedDepth = options.relatedDepth ?? 1
   const includeRelated = options.includeRelated ?? Boolean(options.query)
   const linkedScoreMultiplier = options.linkedScoreMultiplier ?? 0.35
-  const seeds = await fetchSmartReadSeeds(db, { query: options.query }, ctx)
+  const seeds = options.query && options.adapter
+    ? await fetchSmartReadHybridSeeds(db, {
+      query: options.query,
+      adapter: options.adapter,
+      rrfK: options.rrfK,
+      bm25CandidateLimit: options.bm25CandidateLimit,
+      vectorCandidateLimit: options.vectorCandidateLimit,
+    }, ctx)
+    : await fetchSmartReadSeeds(db, { query: options.query }, ctx)
   const candidatesByPath = new Map<string, MemoryContextFile>()
   const visited = new Set<string>()
 
@@ -508,15 +576,27 @@ export async function retrieveMemoryContext(db: Db, ctx: ToolContext, options: {
     filesIncludedMeta: included.map((file): MemoryContextMeta => ({
       path: file.path,
       reason: file.reason,
+      matchReason: file.matchReason,
+      bm25Rank: file.bm25Rank,
+      vectorRank: file.vectorRank,
       linkedFrom: file.linkedFrom,
       depth: file.depth,
     })),
   }
 }
 
-export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolContext) {
+export async function executeMemorySmartRead(db: Db, args: unknown, ctx: ToolContext, options: ExecuteToolOptions = {}) {
   const { maxChars = 24_000, query, includeRelated, relatedDepth = 1 } = smartReadArgsSchema.parse(args ?? {})
-  const context = await retrieveMemoryContext(db, ctx, { maxChars, query, includeRelated, relatedDepth })
+  const context = await retrieveMemoryContext(db, ctx, {
+    maxChars,
+    query,
+    includeRelated,
+    relatedDepth,
+    adapter: options.adapter,
+    rrfK: options.rrfK,
+    bm25CandidateLimit: options.bm25CandidateLimit,
+    vectorCandidateLimit: options.vectorCandidateLimit,
+  })
 
   await logAccess(db, { physicalPath: "*", operation: "smart_read", ctx })
 
@@ -965,7 +1045,7 @@ async function executeAgenticMemorySearch(
       "Visible files:",
       JSON.stringify(list.files, null, 2),
       "",
-      "BM25 candidates:",
+      "Search candidates:",
       JSON.stringify(candidates.results, null, 2),
       "",
       "Index files:",
@@ -1004,7 +1084,7 @@ async function executeAgenticMemorySearch(
         execute: async (args: unknown) => {
           if (reads >= maxReads) throw new MemexError("MAX_READS_EXCEEDED", "memory_search read budget exceeded")
           reads += 1
-          const block = await executeMemorySmartRead(db, args, ctx)
+          const block = await executeMemorySmartRead(db, args, ctx, options)
           for (const path of block.filesIncluded) sources.add(path)
           return block
         },
@@ -1035,8 +1115,8 @@ export async function executeTool(db: Db, toolName: string, args: unknown, ctx: 
       toolName,
       operation: toolOperation(toolName),
       attributes: {
-        search_mode: toolName === "memory_search"
-          ? (options.model ? "agentic" : options.adapter ? "hybrid" : "bm25")
+        search_mode: toolName === "memory_search" || toolName === "memory_smart_read"
+          ? (toolName === "memory_search" && options.model ? "agentic" : options.adapter ? "hybrid" : "bm25")
           : null,
         model: modelName(options.model),
       },
@@ -1056,7 +1136,7 @@ export async function executeTool(db: Db, toolName: string, args: unknown, ctx: 
     case "memory_patch":
       return executeMemoryPatch(db, args, ctx, toolOptions)
     case "memory_smart_read":
-      return executeMemorySmartRead(db, args, ctx)
+      return executeMemorySmartRead(db, args, ctx, toolOptions)
     case "memory_search":
       return executeMemorySearch(db, args, ctx, toolOptions)
     case "memory_memorize":
