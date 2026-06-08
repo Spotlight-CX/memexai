@@ -269,8 +269,8 @@ export default function HomePage() {
             <code>memory subagent</code>
             <strong>Recommended default</strong>
             <p>
-              Give the model <code>memory_memorize</code> and <code>memory_search</code>;
-              MemexAI decides what is durable, searches memory, and handles file bookkeeping.
+              Give the model <code>memory_remember</code> and <code>memory_context</code>;
+              MemexAI decides what is durable, retrieves relevant context, and handles file bookkeeping.
             </p>
           </div>
           <div className="mx-scope-card">

@@ -50,8 +50,8 @@ There is no HTTP layer, no service auth, and no separate MemexAI container. Your
 
 | Tool | What it does |
 | --- | --- |
-| `memory_memorize` | Feeds raw text to an inner model that decides what durable facts should be written or patched. |
-| `memory_search` | Recalls relevant memory with BM25-first search, optional pgvector hybrid candidates, and model-backed answer synthesis when configured. |
+| `memory_remember` | Feeds raw text to an inner model that decides what durable facts should be written or patched. |
+| `memory_context` | Assembles retrieval context; internally calls `memory_find`, `memory_read`, and `memory_list` to build a grounded response with cited sources. |
 
 ### Raw file tools
 
@@ -61,7 +61,7 @@ There is no HTTP layer, no service auth, and no separate MemexAI container. Your
 | `memory_read` | Reads one file by virtual path. |
 | `memory_write` | Creates or overwrites a user file. |
 | `memory_patch` | Appends under a heading or replaces exact text. |
-| `memory_smart_read` | Builds one bounded context block from visible files. |
+| `memory_find` | BM25 full-text search with optional pgvector hybrid ranking and RRF fusion. |
 
 ## Background dreaming
 
@@ -100,4 +100,4 @@ Every step after tool execution is shared by the containerized service, MCP, and
 
 MemexAI stores the current memory record in `mx_file`, full write snapshots in `mx_revision`, and every read/write event in `mx_access_log`.
 
-Search starts with Postgres full-text search over the `search_vector` column. In hybrid mode, the service also stores embeddings in Postgres with pgvector and merges lexical and semantic candidates for `memory_search` and query-seeded `memory_smart_read`. BM25 remains the default; pgvector is an optional enhancement, not a separate vector database requirement.
+Search starts with Postgres full-text search (`tsvector`) via `memory_find` — BM25 is always available with no configuration. When `GEMINI_API_KEY` is set and `MEMEX_SEARCH_MODE=auto` (the default), the service also generates pgvector embeddings and merges BM25 and vector candidates with Reciprocal Rank Fusion (RRF) into a single ranked list. Set `MEMEX_SEARCH_MODE=bm25` to force BM25-only. `memory_context` calls `memory_find` internally, so hybrid search is available to the agentic layer automatically whenever configured. BM25 remains the default; pgvector is an optional enhancement, not a separate vector database requirement.

@@ -49,16 +49,16 @@ mem0 and Zep are strong when you want managed or graph/vector-backed memory extr
 
 ### Memory Subagent: The Default
 
-Give the model `memory_memorize` and `memory_search`; MemexAI decides what is durable, searches memory, and handles file bookkeeping. Your system prompt gets the MemexAI prompt block.
+Give the model `memory_remember` and `memory_context`; MemexAI decides what is durable, retrieves relevant context, and handles file bookkeeping. Your system prompt gets the MemexAI prompt block.
 
 ```ts
 const system = await memory.getSystemPrompt("You are a helpful assistant with durable user memory.")
 const tools = memory.createMemorySubagentToolset()
-// memory_memorize, memory_search
+// memory_remember, memory_context
 ```
 
-- `memory_memorize` extracts durable facts and writes or patches memory.
-- `memory_search` recalls relevant memory. Without a model, it falls back to Postgres full-text search or hybrid pgvector search when embeddings are configured. With a configured model, it resolves over memory files and returns grounded answers with source paths.
+- `memory_remember` extracts durable facts and writes or patches memory.
+- `memory_context` retrieves relevant context. It internally calls `memory_find` (BM25 full-text search, or hybrid BM25 + pgvector with RRF fusion when `GEMINI_API_KEY` is set), `memory_read`, and `memory_list`, then returns a grounded response with cited source paths.
 
 ### Raw File Tools: Explicit File Control
 
@@ -66,7 +66,7 @@ Use this when your agent or app should manage memory files directly.
 
 ```ts
 const tools = memory.createRawToolset()
-// memory_list, memory_read, memory_write, memory_patch, memory_smart_read
+// memory_list, memory_read, memory_write, memory_patch, memory_find
 ```
 
 Both paths use the same scoped paths, revision history, and access logs.
@@ -104,7 +104,7 @@ services:
       DATABASE_URL: postgresql://memexai:memexai@postgres:5432/memexai
       MEMEX_API_KEY: dev-agent-key
       MEMEX_ADMIN_SECRET: dev-admin-secret
-      GEMINI_API_KEY: ...     # RECOMMENDED — enables LLM-backed memory_memorize / memory_search
+      GEMINI_API_KEY: ...     # RECOMMENDED — enables LLM-backed memory_remember / memory_context and hybrid search
       MEMEX_DREAM_ENABLED: "false"
       # MEMEX_TELEMETRY_DISABLED: "true" # optional opt-out
       # OPENAI_API_KEY: ...
@@ -161,7 +161,7 @@ result = await memory.search("What does this user prefer?")
 await memex.close()
 ```
 
-LLM-backed `memory_memorize` and memory subagent `memory_search` are configured on the service, not in the SDK. Set one of these in the service environment:
+LLM-backed `memory_remember` and memory subagent `memory_context` are configured on the service, not in the SDK. Set one of these in the service environment:
 
 ```bash
 GEMINI_API_KEY=...
@@ -199,7 +199,7 @@ Smoke the Vertex path:
 ```bash
 curl -s http://localhost:8080/health
 
-curl -s -X POST http://localhost:8080/v1/tools/memory_memorize/execute \
+curl -s -X POST http://localhost:8080/v1/tools/memory_remember/execute \
   -H "Authorization: Bearer ${MEMEX_API_KEY:-dev-agent-key}" \
   -H "Content-Type: application/json" \
   -d '{"context":{"userId":"vertex_smoke","actor":"curl"},"arguments":{"text":"Remember that I prefer 2BHK apartments near metro stations.","maxWrites":2}}'
@@ -207,7 +207,7 @@ curl -s -X POST http://localhost:8080/v1/tools/memory_memorize/execute \
 bun run --cwd apps/benchmark docker-smoke -- --limit 1 --max-sessions 3
 ```
 
-Without a service model, `memory_search` still works through Postgres full-text search, or hybrid pgvector search when embeddings are configured. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.
+Without a service model, `memory_context` still works through `memory_find` (Postgres full-text search), or hybrid pgvector search with RRF when `GEMINI_API_KEY` is set and `MEMEX_SEARCH_MODE=auto`. `memory_remember` returns `MODEL_NOT_CONFIGURED`.
 
 Open the admin UI at `http://localhost:8080/admin`.
 
@@ -457,7 +457,7 @@ bun run demo:agent -- --smoke
 
 ## Status
 
-Early stage. The core loop works: Postgres-backed files, scoped agent tools, prompt-block injection, Postgres full-text search, optional pgvector hybrid search, model-backed memorize/search, revisions, access logs, SDKs, and admin UI.
+Early stage. The core loop works: Postgres-backed files, scoped agent tools, prompt-block injection, BM25 full-text search via `memory_find`, optional pgvector hybrid search with RRF fusion, model-backed `memory_remember`/`memory_context`, revisions, access logs, SDKs, and admin UI.
 
 ## Community
 

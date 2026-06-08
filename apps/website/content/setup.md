@@ -26,7 +26,7 @@ Ask these before editing code:
 
 1. "Do you want recommended Memory subagent mode, or advanced Raw file tools mode?"
    - Recommend Memory subagent mode.
-   - Memory subagent mode exposes `memory_memorize` and `memory_search`.
+   - Memory subagent mode exposes `memory_remember` and `memory_context`.
    - Raw file tools mode exposes lower-level file tools such as `memory_list`, `memory_read`, `memory_write`, and `memory_patch`.
 2. "Should I set up a local Docker Compose MemexAI service for this project?"
    - Recommend yes for local development.
@@ -191,7 +191,7 @@ TLDR:
 
 1. Docker runs Postgres plus the MemexAI HTTP service.
 2. The app sends memory tool calls to the service with `MEMEX_API_KEY`.
-3. The agent gets two recommended tools: `memory_memorize` and `memory_search`.
+3. The agent gets two recommended tools: `memory_remember` and `memory_context`.
 4. The app must include `memory.getSystemPrompt(...)` on every model call so stored memory affects later answers.
 5. The admin UI shows the files, revisions, access logs, and tool activity behind the behavior.
 
@@ -352,7 +352,7 @@ curl -fsS "http://localhost:8080/v1/prompt-block?userId=demo_user&actor=assistan
 Execute a tool:
 
 ```bash
-curl -fsS http://localhost:8080/v1/tools/memory_memorize/execute \
+curl -fsS http://localhost:8080/v1/tools/memory_remember/execute \
   -H "Authorization: Bearer dev-agent-key" \
   -H "Content-Type: application/json" \
   -d '{"context":{"userId":"demo_user","actor":"assistant"},"arguments":{"text":"I prefer quiet neighborhoods near parks."}}'
@@ -360,8 +360,8 @@ curl -fsS http://localhost:8080/v1/tools/memory_memorize/execute \
 
 Memory subagent mode should expose only:
 
-- `memory_memorize`
-- `memory_search`
+- `memory_remember`
+- `memory_context`
 
 Raw file tools mode may expose:
 
@@ -369,7 +369,7 @@ Raw file tools mode may expose:
 - `memory_read`
 - `memory_write`
 - `memory_patch`
-- `memory_smart_read`
+- `memory_find`
 
 ## Validation script
 
@@ -398,7 +398,7 @@ Success criteria:
 
 ## Troubleshooting
 
-If `memory_memorize` returns `MODEL_NOT_CONFIGURED`, the MemexAI service does not have an LLM key. Set `GEMINI_API_KEY` in the service environment and restart Docker Compose.
+If `memory_remember` returns `MODEL_NOT_CONFIGURED`, the MemexAI service does not have an LLM key. Set `GEMINI_API_KEY` in the service environment and restart Docker Compose.
 
 If tool calls never happen, confirm:
 

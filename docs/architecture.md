@@ -84,12 +84,14 @@ MemexAI exposes memory through two layers. Most applications use the memory suba
 
 | Tool | What it does |
 |---|---|
-| `memory_memorize` | Feed raw text; an inner model decides what's durable, writes fact files, and maintains bookkeeping (`user/index.md`, `user/log.md`, cross-reference links) |
-| `memory_search` | Recalls relevant memory. Without a model it returns BM25-ranked excerpts; with a configured model it resolves over memory files and returns an answer with sources |
+| `memory_remember` | Feed raw text; an inner model decides what's durable, writes fact files, and maintains bookkeeping (`user/index.md`, `user/log.md`, cross-reference links) |
+| `memory_context` | Assembles retrieval context; the inner agent calls `memory_find`, `memory_read`, and `memory_list` internally to build a grounded response with cited sources |
 
-These are the default tools injected into the model's system prompt via `getPromptBlock()`. The model calls `memory_memorize` to persist facts and `memory_search` to retrieve them. Neither requires the model to reason about file paths or write operations directly.
+These are the default tools injected into the model's system prompt via `getPromptBlock()`. The model calls `memory_remember` to persist facts and `memory_context` to retrieve them. Neither requires the model to reason about file paths or write operations directly.
 
-`memory_memorize` runs an inner agentic loop: it lists existing files, reads the current index, and calls an inner model that has access only to `memory_write` and `memory_patch`. This prevents runaway reads while still producing structured, auditable writes. After every write the inner model also patches `user/index.md` (content catalog), appends to `user/log.md` (dated ingest timeline), and adds `## See also` cross-reference links between related files.
+`memory_remember` runs an inner agentic loop: it lists existing files, reads the current index, and calls an inner model that has access only to `memory_write` and `memory_patch`. This prevents runaway reads while still producing structured, auditable writes. After every write the inner model also patches `user/index.md` (content catalog), appends to `user/log.md` (dated ingest timeline), and adds `## See also` cross-reference links between related files.
+
+`memory_context` internally uses `memory_find` (BM25 full-text search, with RRF-fused hybrid ranking when pgvector is configured), `memory_read`, and `memory_list` to assemble a bounded context block.
 
 ### Background dreaming
 
@@ -100,7 +102,7 @@ In service mode, MemexAI can run an opt-in background consolidation loop. This d
 - resolves direct contradictions inside existing memory,
 - writes a terse audit line to `user/dream-log.md` **only when something was actually changed**.
 
-The dream agent uses the same `memory_write` and `memory_patch` execution path as `memory_memorize`, so writes still create `mx_revision` rows with `actor='dream-agent'`. Dream reads exclude `user/log.md`, `user/dream-log.md`, files ending in `-log.md`, and files ending in `.log` so the audit trail does not feed back into future consolidation.
+The dream agent uses the same `memory_write` and `memory_patch` execution path as `memory_remember`, so writes still create `mx_revision` rows with `actor='dream-agent'`. Dream reads exclude `user/log.md`, `user/dream-log.md`, files ending in `-log.md`, and files ending in `.log` so the audit trail does not feed back into future consolidation.
 
 Each scheduler tick only selects users who have **non-excluded file writes newer than their last dream**. If no users qualify, the tick logs a skip message to stdout and returns without making any LLM calls. When the agent runs but finds nothing to consolidate, `files_touched` in `mx_dream_run` is `0` and no `dream-log.md` entry is written.
 
@@ -120,19 +122,23 @@ The admin UX is available via the Dreams panel in the admin UI and the API:
 | `memory_read` | Read a single file by virtual path |
 | `memory_write` | Create or overwrite a file |
 | `memory_patch` | Append or replace lines within a file |
-| `memory_smart_read` | Build one bounded markdown context block from visible memory files; query reads can include deterministic one-hop linked context |
+| `memory_find` | BM25 full-text search + optional pgvector hybrid ranking via RRF fusion |
 
 These give the model (or your code) precise control over individual files. Use them when you need deterministic writes, custom extraction logic, or when you're building tooling on top of MemexAI. Every write through raw file tools still creates a revision snapshot and an access log entry.
+
+### Search inside `memory_find`
+
+`memory_find` uses Postgres `tsvector` BM25 full-text search, which is always available with no configuration. When `GEMINI_API_KEY` is set and `MEMEX_SEARCH_MODE=auto` (the default), the service also generates pgvector embeddings for memory files and runs a hybrid pass — BM25 candidates and vector candidates are merged with Reciprocal Rank Fusion (RRF) into a single ranked list. Set `MEMEX_SEARCH_MODE=bm25` to force BM25-only regardless of the API key. `memory_context` always uses `memory_find` internally, so hybrid search is available to the agentic layer automatically whenever the raw search is hybrid.
 
 ---
 
 ## Tool call flow
 
-This is the same in both modes — the difference is whether step 3 crosses an HTTP boundary. Memory subagent (`memory_memorize`, `memory_search`) resolve internally and then call the raw tool path for any actual writes.
+This is the same in both modes — the difference is whether step 3 crosses an HTTP boundary. Memory subagent (`memory_remember`, `memory_context`) resolve internally and then call the raw tool path for any actual writes.
 
 ```
 1.  AI model generates a tool call
-    e.g. { name: "memory_memorize", input: { text: "User prefers 2BHK" } }
+    e.g. { name: "memory_remember", input: { text: "User prefers 2BHK" } }
          or { name: "memory_write", input: { path: "user/profile.md", content: "..." } }
 
 2.  Framework adapter intercepts

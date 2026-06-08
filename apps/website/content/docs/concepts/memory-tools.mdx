@@ -11,8 +11,8 @@ The memory subagent gives the model a smaller surface:
 
 | Tool | What it does |
 | --- | --- |
-| `memory_memorize` | Takes raw text and decides what durable facts should be written or patched. |
-| `memory_search` | Searches memory and returns relevant records, with model-backed answer synthesis when configured. |
+| `memory_remember` | Takes raw text and decides what durable facts should be written or patched. |
+| `memory_context` | Assembles retrieval context by calling `memory_find` (BM25/hybrid), `memory_read`, and `memory_list` internally, then returns a grounded response with cited sources. |
 
 Use this mode for assistants, copilots, support agents, and product agents where the model should remember useful facts without managing file paths itself.
 
@@ -21,9 +21,9 @@ const system = await memory.getSystemPrompt('You are a helpful assistant with du
 const tools = memory.createMemorySubagentToolset()
 ```
 
-Pass both values to the model. `memory_memorize` stores durable facts, `memory_search` retrieves relevant files, and the prompt block tells the model when memory should influence the next response.
+Pass both values to the model. `memory_remember` stores durable facts, `memory_context` retrieves relevant context, and the prompt block tells the model when memory should influence the next response.
 
-In service mode, `memory_memorize` needs an LLM configured on the service with `GEMINI_API_KEY` or `OPENAI_API_KEY`. Without a service model, `memory_search` can still use Postgres full-text search, or hybrid pgvector search when embeddings are configured, but `memory_memorize` cannot decide what to write.
+In service mode, `memory_remember` needs an LLM configured on the service with `GEMINI_API_KEY` or `OPENAI_API_KEY`. Without a service model, `memory_context` can still use Postgres full-text search via `memory_find`, or hybrid pgvector search when embeddings are configured, but `memory_remember` cannot decide what to write.
 
 ## Raw file tools
 
@@ -35,7 +35,7 @@ Raw file tools expose file-level control:
 | `memory_read` | Reads one file by virtual path. |
 | `memory_write` | Creates or overwrites a file under `user/`. |
 | `memory_patch` | Appends under a heading or replaces exact text. |
-| `memory_smart_read` | Builds a bounded context block from visible files. |
+| `memory_find` | BM25 full-text search with optional pgvector hybrid ranking and RRF fusion. |
 
 Use raw file tools when your workflow has a file plan, needs deterministic writes, or should let the application decide exactly where memory lives.
 
@@ -48,8 +48,8 @@ const tools = memory.createRawToolset()
 Adapter examples sometimes show all tools so you can see the full integration shape. For a production assistant, start with two tools:
 
 ```txt
-memory_memorize
-memory_search
+memory_remember
+memory_context
 ```
 
 Add raw file tools only when the agent has a reason to manage files directly.
