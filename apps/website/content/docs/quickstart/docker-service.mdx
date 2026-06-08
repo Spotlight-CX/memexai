@@ -33,7 +33,7 @@ Under the hood:
 - agent routes execute memory tools and write revisions/access logs
 - admin routes let you inspect and correct memory files
 - `memory.getSystemPrompt(...)` fetches the prompt block that makes stored memory affect the next answer
-- optional model configuration powers `memory_memorize`, answer synthesis in `memory_search`, hybrid search embeddings, and background dreaming
+- optional model configuration powers `memory_remember`, answer synthesis in `memory_context`, hybrid search embeddings, and background dreaming
 
 ## Compose file
 
@@ -194,7 +194,7 @@ See [MCP Clients](/docs/mcp) for details.
 
 ## Model configuration
 
-LLM-backed `memory_memorize` and memory subagent `memory_search` are configured on the service, not in the SDK.
+LLM-backed `memory_remember` and memory subagent `memory_context` are configured on the service, not in the SDK.
 
 ```bash
 GEMINI_API_KEY=...
@@ -205,9 +205,9 @@ OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-4.1-mini
 ```
 
-Without a service model, `memory_search` still works through Postgres full-text search, or hybrid pgvector search when embeddings are configured. `memory_memorize` returns `MODEL_NOT_CONFIGURED`.
+Without a service model, `memory_context` still works through `memory_find` (Postgres full-text search), or hybrid pgvector search when embeddings are configured. `memory_remember` returns `MODEL_NOT_CONFIGURED`.
 
-For the smoothest first run, set `GEMINI_API_KEY` on the service so the memory subagent `memory_memorize` tool can decide what should become durable memory.
+For the smoothest first run, set `GEMINI_API_KEY` on the service so the memory subagent `memory_remember` tool can decide what should become durable memory.
 
 ## Shared writable mode
 
@@ -221,14 +221,14 @@ Keep this disabled for untrusted public-user agents. When enabled, prefer `memor
 
 ## Search configuration
 
-MemexAI uses BM25 Postgres full-text search by default. With `MEMEX_SEARCH_MODE=auto` and a Gemini API key, the service also stores pgvector embeddings for memory files and runs hybrid BM25 + vector search with reciprocal rank fusion.
+`memory_find` uses BM25 Postgres full-text search by default — always available with no configuration. Set `MEMEX_SEARCH_MODE=auto` (the default) and provide `GEMINI_API_KEY` to enable hybrid mode: the service stores pgvector embeddings per memory file and merges BM25 and vector candidates with Reciprocal Rank Fusion (RRF) into a single ranked list. `memory_context` calls `memory_find` internally, so hybrid search is active for the agentic layer automatically.
 
 ```bash
-MEMEX_SEARCH_MODE=auto
+MEMEX_SEARCH_MODE=auto   # default; activates hybrid automatically when GEMINI_API_KEY is set
 GEMINI_API_KEY=...
 ```
 
-Set `MEMEX_SEARCH_MODE=bm25` to force full-text search only.
+Set `MEMEX_SEARCH_MODE=bm25` to force BM25-only regardless of configured API keys.
 
 ## Anonymous telemetry
 

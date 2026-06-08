@@ -50,8 +50,8 @@ await memex.close()
 | `memory_read` | Read a single file by virtual path |
 | `memory_write` | Create or overwrite a user file |
 | `memory_patch` | Apply targeted updates (append, replace) |
-| `memory_smart_read` | Read all memory into a bounded context block |
-| `memory_search` | BM25 or hybrid pgvector search over memory |
-| `memory_memorize` | Feed raw text and let MemexAI decide what to write |
+| `memory_find` | BM25 or hybrid pgvector search with RRF fusion over memory |
+| `memory_remember` | Feed raw text and let MemexAI decide what to write |
+| `memory_context` | Assemble retrieval context using memory_find, memory_read, and memory_list internally |
 
-This example exposes all tools so you can see the full adapter shape. For most assistants, passing only `memory_memorize` and `memory_search` is enough. Include the full set when the agent needs direct file control.
+This example exposes all tools so you can see the full adapter shape. For most assistants, passing only `memory_remember` and `memory_context` is enough. Include the full set when the agent needs direct file control.

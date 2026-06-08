@@ -52,12 +52,12 @@ Use this for embedded deployments, local experiments, or environments where shar
 
 ### Memory subagent
 
-Give the model `memory_memorize` and `memory_search`; MemexAI decides what is durable, searches memory, and handles file bookkeeping. Use this for most assistants.
+Give the model `memory_remember` and `memory_context`; MemexAI decides what is durable, retrieves relevant context, and handles file bookkeeping. Use this for most assistants.
 
 ```ts
 const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
 const tools = memory.createMemorySubagentToolset()
-// memory_memorize, memory_search
+// memory_remember, memory_context
 ```
 
 Pass both `system` and `tools` into your model call. Tools store and retrieve memory; the prompt block is what makes stored memory available to the next answer.
@@ -68,7 +68,7 @@ Use this when your agent or application needs exact path control over memory fil
 
 ```ts
 const tools = memory.createRawToolset()
-// memory_list, memory_read, memory_write, memory_patch, memory_smart_read
+// memory_list, memory_read, memory_write, memory_patch, memory_find
 ```
 
 ## Framework adapters

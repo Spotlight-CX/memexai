@@ -35,8 +35,8 @@ The setup file asks the agent to confirm two decisions before editing code:
 
 Memory subagent mode exposes the higher-level memory tools:
 
-- `memory_memorize`
-- `memory_search`
+- `memory_remember`
+- `memory_context`
 
 Raw file tools mode is for advanced integrations and debugging. It may expose file-level tools such as `memory_list`, `memory_read`, `memory_write`, and `memory_patch`.
 
@@ -97,7 +97,7 @@ You can review or edit the schema at any time from the admin UI Files tab.
 
 The local Docker service runs MemexAI plus Postgres. Your app never needs database credentials; it only calls the service with `MEMEX_API_KEY`.
 
-When the model calls `memory_memorize`, MemexAI decides what durable facts are worth keeping, validates the requested virtual path, translates `user/...` to the current user's physical database path, writes the file, and stores a revision plus an access log. When the next model call uses `memory.getSystemPrompt(...)`, MemexAI injects shared memory and the current user's memory index into the system prompt so the model can search, read, and answer from the durable record.
+When the model calls `memory_remember`, MemexAI decides what durable facts are worth keeping, validates the requested virtual path, translates `user/...` to the current user's physical database path, writes the file, and stores a revision plus an access log. When the next model call uses `memory.getSystemPrompt(...)`, MemexAI injects shared memory and the current user's memory index into the system prompt so the model can search, read, and answer from the durable record.
 
 The admin UI shows the same record as files, revisions, access logs, and tool activity. That is the operating surface for debugging wrong or stale memory.
 
@@ -141,7 +141,7 @@ If the proof fails, ask the agent to check:
 
 - the app and service use the same `MEMEX_API_KEY`
 - both turns use the same `userId`
-- the service has `GEMINI_API_KEY` or another model provider when using `memory_memorize`
+- the service has `GEMINI_API_KEY` or another model provider when using `memory_remember`
 - the second model call includes `memory.getSystemPrompt(...)`
 - the admin UI shows a write revision after the first turn
 

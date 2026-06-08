@@ -20,7 +20,7 @@ This makes memory inspectable by humans and reproducible in tests.
 Two approaches exist for giving an agent memory context:
 
 1. **Host-app injection** — the server pre-loads relevant memory and injects it into the system prompt.
-2. **Memory subagent tools** — the model calls `memory_memorize` and `memory_search` while MemexAI handles file bookkeeping.
+2. **Memory subagent tools** — the model calls `memory_remember` and `memory_context` while MemexAI handles file bookkeeping.
 
 Both are valid. Best systems often use both: memory subagent tools for model-driven memory decisions, direct writes for deterministic product events (e.g., an end-of-session summary triggered by your server code).
 
@@ -51,7 +51,7 @@ Admin and agent trust levels are structurally different routes, not advisory sep
 
 Naive multi-turn retrieval burns latency and tokens: one turn to list files, another to read them, another to follow links to related files. On every agent call, before the model can even start reasoning.
 
-`memory_smart_read` resolves ranked seeds and forward memory links within a character budget in a single call. In hybrid service mode, query-seeded smart reads can use pgvector ranking before link traversal. If `user/profile.md` contains `[[user/preferences.md]]`, both files are returned in one response. Each file in the response carries a `reason` field — `query_match`, `linked`, or `recency` — so the agent knows how each file was found and can avoid redundant re-retrieval.
+`memory_find` resolves ranked seeds and forward memory links within a character budget in a single call. In hybrid service mode, query-seeded reads can use pgvector ranking via RRF before link traversal. If `user/profile.md` contains `[[user/preferences.md]]`, both files are returned in one response. Each file in the response carries a `reason` field — `query_match`, `linked`, or `recency` — so the agent knows how each file was found and can avoid redundant re-retrieval.
 
 This means one tool call returns the right context. No planning loop needed for memory retrieval.
 

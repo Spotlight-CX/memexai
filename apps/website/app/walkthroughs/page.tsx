@@ -31,7 +31,7 @@ const walkthroughs = [
   {
     title: 'Vercel AI SDK integration',
     duration: '6 min',
-    text: 'Wire `memory_memorize` and `memory_search` into a real assistant with the TypeScript SDK.',
+    text: 'Wire `memory_remember` and `memory_context` into a real assistant with the TypeScript SDK.',
   },
   {
     title: 'Debugging bad memory',

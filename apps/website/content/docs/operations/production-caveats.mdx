@@ -37,7 +37,7 @@ The built-in fallback search uses Postgres full-text search. It is useful for En
 
 In service mode, `MEMEX_SEARCH_MODE=auto` enables pgvector-backed hybrid search when a Gemini API key is configured. Hybrid search keeps BM25 results and adds semantic candidates inside Postgres using reciprocal rank fusion. If no embedding adapter is configured, MemexAI falls back to BM25-only search.
 
-If recall quality is critical, configure hybrid search and model-backed `memory_search`, keep memory files clear and explicit, and test your app's real queries.
+If recall quality is critical, configure hybrid search and model-backed `memory_context`, keep memory files clear and explicit, and test your app's real queries.
 
 ## Dreaming token cost
 

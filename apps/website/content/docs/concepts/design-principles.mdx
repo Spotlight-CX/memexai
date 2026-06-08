@@ -11,7 +11,7 @@ Memory is Markdown text stored as rows in Postgres — not embedding vectors in 
 
 This means memory is human-readable, grep-able, patchable by a script, and auditable with a SQL query. You can open any memory file in the admin UI and understand exactly what the agent knows. You can also run eval fixtures against a known memory state and get reproducible results.
 
-BM25 and memory-link traversal cover most retrieval cases in practice. When you need semantic recall, optional pgvector hybrid search is available via `MEMEX_SEARCH_MODE=auto` — see [Docker service setup](/docs/quickstart/docker-service). In hybrid mode, `memory_search` and query-seeded `memory_smart_read` can use vector ranking, but the Markdown file remains the canonical memory record.
+BM25 and memory-link traversal cover most retrieval cases in practice. When you need semantic recall, optional pgvector hybrid search is available via `MEMEX_SEARCH_MODE=auto` — see [Docker service setup](/docs/quickstart/docker-service). In hybrid mode, `memory_find` uses vector ranking merged with BM25 via RRF, and `memory_context` inherits this automatically. The Markdown file remains the canonical memory record.
 
 ## Path-enforced isolation
 
@@ -23,7 +23,7 @@ Shared memory is read-only for agents by default through the same mechanism. A w
 
 ## Deterministic retrieval
 
-`memory_smart_read` returns the same files for the same query on the same data and search mode, every time.
+`memory_find` returns the same files for the same query on the same data and search mode, every time.
 
 Retrieval is BM25 full-text search for initial candidates, or BM25 plus pgvector RRF when service hybrid mode is active, followed by forward memory-link traversal within a character budget. Every file in the response carries a `reason` field — `query_match`, `linked`, or `recency` — explaining how it was found.
 

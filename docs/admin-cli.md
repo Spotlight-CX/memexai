@@ -141,7 +141,7 @@ memex-admin -d $DB trace session --user alice --limit 20
 **Example output:**
 ```
 Trace: 9lmLNqFoYL3uIShY
-Tool:     memory_memorize  |  Status: success  |  Duration: 8592ms
+Tool:     memory_remember  |  Status: success  |  Duration: 8592ms
 User:     alice  |  Actor: my-agent
 
 Files accessed (5):
