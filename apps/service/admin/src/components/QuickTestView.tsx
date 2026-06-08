@@ -149,7 +149,7 @@ export function QuickTestView({ apiKey, secret, userId, onUserIdChange }: QuickT
                 <Box py={120} style={{ textAlign: "center" }}>
                   <Text size="lg" fw={500} c="gray.7">MemexAI Playground</Text>
                   <Text size="sm" c="gray.5" mt={4}>
-                    Interact with your agent's memory using Memorize or Search.
+                    Interact with your agent's memory using Remember or Find.
                   </Text>
                   <Button variant="subtle" size="xs" color="gray" mt="xl" onClick={openAdvanced}>
                     Advanced Tools
@@ -199,8 +199,8 @@ export function QuickTestView({ apiKey, secret, userId, onUserIdChange }: QuickT
                     value={mode}
                     onChange={(v) => setMode(v as "store" | "recall")}
                     data={[
-                      { label: "Memorize", value: "store" },
-                      { label: "Search", value: "recall" },
+                      { label: "Remember", value: "store" },
+                      { label: "Find", value: "recall" },
                     ]}
                     size="xs"
                     style={{ flexShrink: 0 }}
