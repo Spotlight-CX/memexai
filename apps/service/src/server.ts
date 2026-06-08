@@ -1,7 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify"
 import swagger from "@fastify/swagger"
 import { ZodError } from "zod"
-import { getAdminFile, listAdminAccessLogs, listAdminDreamUsers, listAdminFiles, listAdminRevisions, listAdminUsers, pruneAdminRevisions, writeAdminFile } from "./admin"
+import { deleteAdminFile, deleteAdminUser, getAdminFile, getAdminRevisionDiff, getAdminTrace, listAdminAccessLogs, listAdminDreamUsers, listAdminFiles, listAdminRevisions, listAdminTraceSession, listAdminUsers, pruneAdminRevisions, writeAdminFile } from "./admin"
 import { getDoc, listDocs } from "./docs"
 import { handleConfigureChat } from "./admin-configure"
 import {
@@ -387,8 +387,30 @@ export function buildServer(input: { db: Db; config: Config; model?: unknown; te
     })
   })
   app.post("/v1/admin/revisions/prune", { preHandler: adminAuth }, async (request) => {
-    const { olderThanDays } = (request.body ?? {}) as { olderThanDays?: number }
-    return pruneAdminRevisions(db, { olderThanDays: Number(olderThanDays) })
+    const { olderThanDays, userId, keepLatest } = (request.body ?? {}) as { olderThanDays?: number; userId?: string; keepLatest?: number }
+    return pruneAdminRevisions(db, { olderThanDays: Number(olderThanDays), userId, keepLatest: keepLatest !== undefined ? Number(keepLatest) : undefined })
+  })
+  app.get("/v1/admin/revisions/diff", { preHandler: adminAuth }, async (request) => {
+    const query = request.query as { path?: string; revA?: string; revB?: string }
+    if (!query.path) throw new HttpError(400, "PATH_REQUIRED", "path query param is required")
+    return getAdminRevisionDiff(db, decodeURIComponent(query.path), query.revA, query.revB)
+  })
+  app.delete("/v1/admin/users/:userId", { preHandler: adminAuth }, async (request) => {
+    const { userId } = request.params as { userId: string }
+    return deleteAdminUser(db, decodeURIComponent(userId))
+  })
+  app.delete("/v1/admin/files/*", { preHandler: adminAuth }, async (request) => {
+    const params = request.params as { "*": string }
+    return deleteAdminFile(db, decodeURIComponent(params["*"]))
+  })
+  app.get("/v1/admin/trace/session", { preHandler: adminAuth }, async (request) => {
+    const query = request.query as { userId?: string; from?: string; limit?: string }
+    if (!query.userId) throw new HttpError(400, "USER_ID_REQUIRED", "userId query param is required")
+    return listAdminTraceSession(db, { userId: query.userId, from: query.from, limit: query.limit ? Number(query.limit) : undefined })
+  })
+  app.get("/v1/admin/trace/:toolCallId", { preHandler: adminAuth }, async (request) => {
+    const { toolCallId } = request.params as { toolCallId: string }
+    return getAdminTrace(db, decodeURIComponent(toolCallId))
   })
   app.get("/v1/admin/access-logs", {
     preHandler: adminAuth,

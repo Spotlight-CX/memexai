@@ -1,4 +1,4 @@
-import { Alert, Box, Button, Code, Group, NumberInput, Paper, ScrollArea, Stack, Table, Text } from "@mantine/core"
+import { Alert, Box, Button, Code, Group, Modal, NumberInput, Paper, ScrollArea, Stack, Table, Text } from "@mantine/core"
 import { useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { adminHeaders, requestJson } from "../api"
@@ -8,31 +8,96 @@ import { formatDate } from "../utils"
 
 export function UsersView({ secret }: { secret: string }) {
   const { data, error } = useAdminData<{ users: AdminUser[] }>("/v1/admin/users", secret)
+  const queryClient = useQueryClient()
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      const res = await fetch(`/v1/admin/users/${encodeURIComponent(deleteTarget.userId)}`, {
+        method: "DELETE",
+        headers: adminHeaders(secret),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error((body as any)?.error?.message ?? "Delete failed")
+      }
+      setDeleteTarget(null)
+      await queryClient.invalidateQueries({ queryKey: adminQueryKey("/v1/admin/users") })
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Delete failed")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (error) return <ErrorText error={error} />
 
   return (
-    <TableShell>
-      <Table striped highlightOnHover stickyHeader>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>User ID</Table.Th>
-            <Table.Th>Files</Table.Th>
-            <Table.Th>Last Write</Table.Th>
-            <Table.Th>Last Read</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {(data?.users ?? []).map((user) => (
-            <Table.Tr key={user.userId}>
-              <Table.Td><Code>{user.userId}</Code></Table.Td>
-              <Table.Td>{user.fileCount}</Table.Td>
-              <Table.Td>{formatDate(user.lastWriteAt)}</Table.Td>
-              <Table.Td>{formatDate(user.lastReadAt)}</Table.Td>
+    <>
+      <TableShell>
+        <Table striped highlightOnHover stickyHeader>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>User ID</Table.Th>
+              <Table.Th>Files</Table.Th>
+              <Table.Th>Last Write</Table.Th>
+              <Table.Th>Last Read</Table.Th>
+              <Table.Th />
             </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </TableShell>
+          </Table.Thead>
+          <Table.Tbody>
+            {(data?.users ?? []).map((user) => (
+              <Table.Tr key={user.userId}>
+                <Table.Td><Code>{user.userId}</Code></Table.Td>
+                <Table.Td>{user.fileCount}</Table.Td>
+                <Table.Td>{formatDate(user.lastWriteAt)}</Table.Td>
+                <Table.Td>{formatDate(user.lastReadAt)}</Table.Td>
+                <Table.Td>
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    color="red"
+                    onClick={() => { setDeleteTarget(user); setDeleteError(null) }}
+                  >
+                    Delete
+                  </Button>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      </TableShell>
+      <Modal
+        opened={deleteTarget !== null}
+        onClose={() => { setDeleteTarget(null); setDeleteError(null) }}
+        title="Delete all memory for this identity?"
+        size="sm"
+        centered
+      >
+        {deleteTarget && (
+          <Stack gap="sm">
+            <Text size="sm">Identity: <Code>{deleteTarget.userId}</Code></Text>
+            <Text size="sm">This will permanently delete:</Text>
+            <Stack gap={2} pl="sm">
+              <Text size="xs" c="dimmed">• {deleteTarget.fileCount} memory file(s)</Text>
+              <Text size="xs" c="dimmed">• All revisions and access log entries</Text>
+              <Text size="xs" c="dimmed">• Dream run records</Text>
+            </Stack>
+            <Text size="xs" fw={600} c="red">This cannot be undone.</Text>
+            {deleteError ? <Text size="xs" c="red">{deleteError}</Text> : null}
+            <Group justify="flex-end" gap="xs">
+              <Button variant="subtle" color="gray" onClick={() => { setDeleteTarget(null); setDeleteError(null) }}>Cancel</Button>
+              <Button color="red" loading={deleting} onClick={handleDeleteConfirm}>Delete permanently</Button>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
+    </>
   )
 }
 

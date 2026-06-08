@@ -5,9 +5,12 @@ import { flag, intFlag, type ParsedArgs } from "../args"
 const HELP = `
 Usage: memex-admin memory <subcommand> [options]
 
+Reconstruct memory state at any point in time, or diff two revisions.
+Requires direct --database-url mode.
+
 Subcommands:
-  snapshot --user <id> [--at <iso>]   Reconstruct memory state at a timestamp
-  diff <path> [--rev-a N] [--rev-b M] Show diff between two revisions
+  snapshot --user <id> [--at <iso>]     Reconstruct memory at a timestamp
+  diff <path> [--rev-a N] [--rev-b M]   Show diff between two revisions by offset
 
 snapshot options:
   --user, -u <id>       User ID (required)
@@ -18,6 +21,13 @@ diff options:
   --rev-a <n>           Older revision offset (0 = latest, 1 = previous, …)
   --rev-b <n>           Newer revision offset (default 0 = latest)
   --json                Output raw JSON
+
+Examples:
+  memex-admin memory snapshot --user alice                         # current state
+  memex-admin memory snapshot --user alice --at 2024-01-15T09:00:00Z
+  memex-admin memory diff users/alice/profile.md                   # latest vs previous
+  memex-admin memory diff users/alice/profile.md --rev-a 2 --rev-b 1
+  memex-admin memory snapshot --user alice --json | jq '.files[].physicalPath'
 `
 
 export async function memoryCommand(

@@ -48,6 +48,10 @@ export function FilesView({ secret }: { secret: string }) {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [newFilePath, setNewFilePath] = useState<string | null>(null)
+  const [restoreRevision, setRestoreRevision] = useState<AdminRevision | null>(null)
+  const [restoreReason, setRestoreReason] = useState("")
+  const [restoring, setRestoring] = useState(false)
+  const [restoreError, setRestoreError] = useState<string | null>(null)
   const [centerPanel, setCenterPanel] = useState<"document" | "diff">("document")
   const queryClient = useQueryClient()
 
@@ -199,6 +203,34 @@ export function FilesView({ secret }: { secret: string }) {
       setSaveError(err instanceof Error ? err.message : "Save failed")
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleRestoreConfirm = async () => {
+    if (!selectedPath || !restoreRevision) return
+    setRestoring(true)
+    setRestoreError(null)
+    try {
+      const response = await fetch(`/v1/admin/files/${encodeURIComponent(selectedPath)}`, {
+        method: "PUT",
+        headers: { "x-memex-admin-secret": secret, "content-type": "application/json" },
+        body: JSON.stringify({
+          content: restoreRevision.content,
+          reason: restoreReason.trim() || `restore to revision from ${restoreRevision.createdAt}`,
+        }),
+      })
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}))
+        throw new Error((body as any)?.error?.message ?? "Restore failed")
+      }
+      setRestoreRevision(null)
+      setRestoreReason("")
+      await queryClient.invalidateQueries({ queryKey: adminQueryKey(`/v1/admin/files/${encodeURIComponent(selectedPath)}`) })
+      await queryClient.invalidateQueries({ queryKey: adminQueryKey(`/v1/admin/revisions?physicalPath=${encodeURIComponent(selectedPath)}`) })
+    } catch (err) {
+      setRestoreError(err instanceof Error ? err.message : "Restore failed")
+    } finally {
+      setRestoring(false)
     }
   }
 
@@ -461,6 +493,7 @@ export function FilesView({ secret }: { secret: string }) {
                       revision={revision}
                       selected={selectedRevision?.id === revision.id}
                       onClick={() => setSelectedRevision(revision)}
+                      onRestore={() => { setRestoreRevision(revision); setRestoreReason(""); setRestoreError(null) }}
                     />
                   ))}
                 </Stack>
@@ -470,6 +503,35 @@ export function FilesView({ secret }: { secret: string }) {
         </Stack>
       )}
       </Box>
+      <Modal
+        opened={restoreRevision !== null}
+        onClose={() => { setRestoreRevision(null); setRestoreReason(""); setRestoreError(null) }}
+        title="Restore revision?"
+        size="sm"
+        centered
+      >
+        {restoreRevision && (
+          <Stack gap="sm">
+            <Text size="sm">
+              Restore <Code>{selectedPath}</Code> to the version from{" "}
+              <strong>{formatDate(restoreRevision.createdAt)}</strong>
+              {restoreRevision.actor ? ` (${restoreRevision.actor})` : ""}?
+            </Text>
+            <Text size="xs" c="dimmed">Current content will be saved as a new revision before overwriting.</Text>
+            <TextInput
+              label="Reason (optional)"
+              placeholder={`restore to revision from ${restoreRevision.createdAt}`}
+              value={restoreReason}
+              onChange={(e) => setRestoreReason(e.currentTarget.value)}
+            />
+            {restoreError ? <Text size="xs" c="red">{restoreError}</Text> : null}
+            <Group justify="flex-end" gap="xs">
+              <Button variant="subtle" color="gray" onClick={() => { setRestoreRevision(null); setRestoreReason(""); setRestoreError(null) }}>Cancel</Button>
+              <Button color="blue" loading={restoring} onClick={handleRestoreConfirm}>Restore this version</Button>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
     </Box>
   )
 }
@@ -952,26 +1014,39 @@ function RevisionRow({
   revision,
   selected,
   onClick,
+  onRestore,
 }: {
   revision: AdminRevision
   selected: boolean
   onClick: () => void
+  onRestore: () => void
 }) {
   return (
-    <UnstyledButton
-      onClick={onClick}
+    <Box
       w="100%"
       p="sm"
       style={{
         borderRadius: 6,
         border: selected ? "1px solid var(--mantine-color-blue-3)" : "1px solid transparent",
         background: selected ? "var(--mantine-color-blue-0)" : "transparent",
+        cursor: "pointer",
       }}
+      onClick={onClick}
     >
       <Stack gap={4}>
         <Group justify="space-between" gap="xs" wrap="nowrap">
           <Text size="xs" fw={700} tt="uppercase" c={selected ? "blue.8" : "gray.7"}>{revision.operation}</Text>
-          <Text size="xs" c="dimmed">{relativeTime(revision.createdAt)}</Text>
+          <Group gap={4} wrap="nowrap">
+            <Text size="xs" c="dimmed">{relativeTime(revision.createdAt)}</Text>
+            <Button
+              size="compact-xs"
+              variant="subtle"
+              color="blue"
+              onClick={(e) => { e.stopPropagation(); onRestore() }}
+            >
+              Restore ↩
+            </Button>
+          </Group>
         </Group>
         {revision.reason ? (
           <Text size="xs" c="gray.7" lineClamp={2}>{revision.reason}</Text>
@@ -980,7 +1055,7 @@ function RevisionRow({
           <Badge size="xs" variant="light" color="gray" style={{ textTransform: "none" }}>{revision.actor}</Badge>
         ) : null}
       </Stack>
-    </UnstyledButton>
+    </Box>
   )
 }
 
