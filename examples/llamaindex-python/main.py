@@ -21,7 +21,7 @@ def require_env(name: str) -> str:
 
 
 def pick_agentic_tools(tools):
-    return [tool for tool in tools if tool.metadata.name in {"memory_memorize", "memory_search"}]
+    return [tool for tool in tools if tool.metadata.name in {"memory_remember", "memory_context"}]
 
 
 async def check_service(memex_url: str, api_key: str, user_id: str) -> None:
@@ -56,7 +56,7 @@ async def main() -> None:
 
     memex = MemexAI(url=memex_url, api_key=api_key)
     memory = memex.for_user(user_id, actor="llamaindex-python")
-    tools = pick_agentic_tools(get_llamaindex_tools(memory))
+    tools = pick_agentic_tools(get_llamaindex_tools(memory, mode="subagent"))
 
     llm = GoogleGenAI(model=model, api_key=gemini_api_key)
     agent = FunctionAgent(
@@ -65,8 +65,8 @@ async def main() -> None:
         llm=llm,
         tools=tools,
         system_prompt=(
-            "You are a concise terminal assistant. Use memory_memorize for durable user preferences "
-            "and memory_search before answering questions that may depend on previous turns."
+            "You are a concise terminal assistant. Use memory_remember for durable user preferences "
+            "and memory_context before answering questions that may depend on previous turns."
         ),
     )
 
@@ -75,9 +75,12 @@ async def main() -> None:
         remember_response = await agent.run(user_msg=REMEMBER_FACT)
         print(str(remember_response))
 
-        # A production chat loop often runs memorize after each turn so durable facts are captured
+        # A production chat loop often runs remember after each turn so durable facts are captured
         # even when the model answered directly. MemexAI can no-op or merge when the fact is duplicate.
-        await memory.memorize(REMEMBER_FACT)
+        await memory.remember({
+            "text": f"Post-response durable fact: {REMEMBER_FACT}",
+            "maxWrites": 2,
+        })
 
         print("\nTurn 2: recall")
         recall_response = await agent.run(user_msg=RECALL_QUESTION)

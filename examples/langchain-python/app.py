@@ -15,7 +15,7 @@ from memexai.adapters.langchain import get_langchain_tools
 
 DEFAULT_REMEMBER = "Remember that I prefer 2BHK apartments near metro stations."
 DEFAULT_RECALL = "What apartment type and location do I prefer?"
-AGENTIC_TOOL_NAMES = {"memory_memorize", "memory_search"}
+SUBAGENT_TOOL_NAMES = {"memory_remember", "memory_context"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,17 +78,16 @@ async def main() -> None:
         # Today this identifies the agent/user memory namespace in MemexAI; term may change later.
         memory = memex.for_user(args.user_id, actor="langchain-python-example")
         ensure_memexai_adapter_compat()
-        all_tools = get_langchain_tools(memory)
-        tools = [tool for tool in all_tools if tool.name in AGENTIC_TOOL_NAMES]
-        if {tool.name for tool in tools} != AGENTIC_TOOL_NAMES:
-            raise RuntimeError("Expected memory_memorize and memory_search tools from the MemexAI LangChain adapter.")
+        tools = get_langchain_tools(memory, mode="subagent")
+        if {tool.name for tool in tools} != SUBAGENT_TOOL_NAMES:
+            raise RuntimeError("Expected memory_remember and memory_context tools from the MemexAI LangChain adapter.")
 
         system_prompt = await memory.get_system_prompt(
             "\n".join(
                 [
                     "You are a concise terminal demo agent with durable user memory.",
-                    "When the user asks you to remember a stable preference, call memory_memorize exactly once.",
-                    "When the user asks what you remember, call memory_search before answering.",
+                    "When the user asks you to remember a stable preference, call memory_remember exactly once.",
+                    "When the user asks what you remember, call memory_context before answering.",
                     "Answer in one short sentence after any memory tool calls.",
                 ]
             )
@@ -103,6 +102,7 @@ async def main() -> None:
         print("\nTurn 1 - remember")
         remember_answer = await run_turn(agent, args.remember)
         print(f"Assistant: {remember_answer}")
+        await remember_extracted_turn(memory, args.remember, remember_answer)
 
         print("\nTurn 2 - recall")
         recall_answer = await run_turn(agent, args.recall)
@@ -113,11 +113,18 @@ async def main() -> None:
         print(f"- API files: {files}")
         print(f"- Admin UI: {args.memex_url}/admin")
 
-        # Some production apps run memory_memorize after each user turn instead of asking
-        # the agent to do it inline. If you do that, dedupe stable facts first so repeated
-        # conversations do not create unnecessary memory revisions.
+        # Some production apps run memory_remember after each user turn instead of asking
+        # the agent to do it inline. If you do that, pass compact durable text and dedupe
+        # stable facts first so repeated conversations do not create unnecessary revisions.
     finally:
         await memex.close()
+
+
+async def remember_extracted_turn(memory: Any, user_text: str, assistant_text: str) -> None:
+    if "Remember" not in user_text:
+        return
+    compact = f"User durable preference from completed turn: {user_text}\nAssistant confirmation: {assistant_text}"
+    await memory.remember({"text": compact, "maxWrites": 2})
 
 
 def ensure_memexai_adapter_compat() -> None:

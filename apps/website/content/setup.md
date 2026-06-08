@@ -56,12 +56,29 @@ Inspect the target app before changing it:
    - LangChain Python: package `langchain`
 4. Find the agent entrypoint:
    - Look for `generateText`, `streamText`, `openai.chat.completions.create`, `client.messages.create`, agent route handlers, or scripts that call the model.
+5. Find the natural extraction boundary:
+   - Hot path: inline tool loop or current turn when the user expects immediate durability.
+   - Background path: post-response job, callback, graph node, task-output hook, or session-save hook when latency matters.
+   - Native memory abstractions: Google ADK should use a MemexAI memory-service adapter instead of raw tools by default.
 
 Adapter priority:
 
 1. Use a first-party MemexAI adapter when one matches the detected SDK.
-2. If no adapter exists, keep the app's existing language/model SDK and wire MemexAI through that SDK's custom tool/function resolver API.
-3. Use direct HTTP calls only as the last reserve: manual debugging, validation scripts, or apps with no usable tool-calling abstraction.
+2. If the framework has a native memory abstraction, plug MemexAI into that abstraction when available.
+3. If no adapter exists, keep the app's existing language/model SDK and wire MemexAI through that SDK's custom tool/function resolver API.
+4. Use direct HTTP calls only as the last reserve: manual debugging, validation scripts, or apps with no usable tool-calling abstraction.
+
+Extraction routing:
+
+| SDK/framework | Recommended integration | Extraction boundary |
+|---|---|---|
+| Vercel AI SDK | `createVercelAITools(memory)` | `result.steps` or stream step events |
+| OpenAI SDK | `createOpenAITools(memory)` | manual tool-call loop |
+| Anthropic SDK | `createAnthropicTools(memory)` | Messages tool-use loop |
+| LangChain / LangGraph | LangChain tools | callback, runnable wrapper, or graph node |
+| LlamaIndex | LlamaIndex tools | post-response workflow step |
+| CrewAI | CrewAI tools | task-output extraction |
+| Google ADK | `MemexAdkMemoryService` | ADK session memory lifecycle |
 
 The HTTP tool contract section below is the low-level wire contract that custom resolvers call behind the scenes.
 
@@ -161,6 +178,27 @@ After the service is healthy, inspect the target app to understand what kind of 
    - What the agent should memorize and what it should skip
    - Domain-specific schema and formatting guidelines
 
+When the product has tool-calling agents that might encounter repeated errors or domain constraints, add a routing entry for systemic insights:
+
+```markdown
+## Memory file structure
+| File | What goes here |
+|------|----------------|
+| user/preferences.md | User preferences and stated facts |
+| shared/tool-quirks.md | Reusable operational insights: SQL dialect limits, API constraints, known unsupported patterns |
+```
+
+If the developer wants agents to write to `shared/`, enable shared writable mode on the service:
+
+```yaml
+# compose.yml — memexai service environment
+MEMEX_SHARED_WRITE_MODE: rw
+```
+
+With this on, agents can call `memory_remember` with a compact tool failure or operational insight and the system can route it to `shared/tool-quirks.md` based on the routing table above.
+
+> Shared writable mode is off by default. Only enable it in trusted deployments where agents are not user-controlled.
+
 3. Show the draft to the developer. Ask them to confirm or adjust the proposed schema before writing it.
 
 4. Once confirmed, write it to shared memory:
@@ -194,6 +232,8 @@ TLDR:
 3. The agent gets two recommended tools: `memory_remember` and `memory_context`.
 4. The app must include `memory.getSystemPrompt(...)` on every model call so stored memory affects later answers.
 5. The admin UI shows the files, revisions, access logs, and tool activity behind the behavior.
+6. For systemic insights — tool failures, API limitations, domain constraints worth sharing across users — route them to `shared/` by adding a routing table in `shared/index.md` and enabling `MEMEX_SHARED_WRITE_MODE=rw`.
+7. Extraction can run on the hot path or in the background. Use the hot path when current-turn correctness needs it; use background jobs for latency-sensitive learning, batching, dedupe, or review.
 
 Under the hood:
 
@@ -433,3 +473,5 @@ Before finishing, report:
 - The exact command used to run the memory validation.
 - Whether a domain-specific `shared/index.md` was written and confirmed with the developer.
 - Whether the durable memory was recalled successfully.
+- Which extraction boundary was used or recommended.
+- Whether any post-tool, post-turn, task-output, or session-save extraction path was validated.

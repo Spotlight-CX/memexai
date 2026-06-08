@@ -70,7 +70,7 @@ The example checks the existing `memexai.adapters.crewai.get_crewai_tools()` ada
 
 CrewAI documents async tool support in standard crews. In local smoke testing with CrewAI 1.14.6, the async adapter worked for the remember turn, but the terminal flow hit an `Event loop is closed` error when the script immediately performed post-turn MemexAI verification with the same async HTTP client. The CLI therefore uses small synchronous CrewAI tool wrappers around the same MemexAI service methods, with short-lived clients per tool call.
 
-The extra post-turn `memory.memorize(...)` call is deliberate. It makes a terminal smoke test deterministic even if the LLM replies before selecting a tool. In a production chat loop, post-turn saves should dedupe against prior turn text or inspect MemexAI write results, because repeated runs can append equivalent facts.
+The extra post-turn `memory.remember(...)` call is deliberate. It makes a terminal smoke test deterministic even if the LLM replies before selecting a tool. In a production chat loop, post-turn saves should dedupe against prior turn text or inspect MemexAI write results, because repeated runs can append equivalent facts.
 
 ## Smoke Checks
 

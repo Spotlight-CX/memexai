@@ -72,4 +72,4 @@ This example exposes only the memory subagent tools from the LlamaIndex adapter:
 
 The full adapter also supports raw file tools, but the memory subagent pair is enough for the remember/recall flow and keeps file bookkeeping inside MemexAI.
 
-The app also performs an explicit post-turn `memory.memorize(...)` after the remember turn. That pattern is useful in production chat loops because durable facts can be captured even if the LLM answers without choosing the memorize tool. MemexAI may reduce duplicates by no-oping or merging when the same fact has already been stored.
+The app also performs an explicit post-turn `memory.remember(...)` after the remember turn. That pattern is useful in production chat loops because durable facts can be captured even if the LLM answers without choosing the memory tool. MemexAI may reduce duplicates by no-oping or merging when the same fact has already been stored.

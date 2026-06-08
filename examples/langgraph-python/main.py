@@ -80,8 +80,8 @@ def pick_memex_tools(memory: Any) -> list[Any]:
     if not hasattr(langchain_tools, "StructuredTool"):
         langchain_tools.StructuredTool = StructuredTool
 
-    tools = get_langchain_tools(memory)
-    wanted = {"memory_memorize", "memory_search"}
+    tools = get_langchain_tools(memory, mode="subagent")
+    wanted = {"memory_remember", "memory_context"}
     return [tool for tool in tools if tool.name in wanted]
 
 
@@ -90,8 +90,8 @@ async def build_agent(memory: Any, settings: Settings):
         "\n".join(
             [
                 "You are a concise assistant with durable MemexAI memory.",
-                "When the user asks you to remember a stable preference, call memory_memorize before replying.",
-                "When the user asks what you know from memory, call memory_search before replying.",
+                "When the user asks you to remember a stable preference, call memory_remember before replying.",
+                "When the user asks what you know from memory, call memory_context before replying.",
                 "Keep final answers short and do not mention implementation details.",
             ]
         )
@@ -121,9 +121,18 @@ async def run_turn(memory: Any, settings: Settings, prompt: str) -> str:
 
 
 async def verify_expected_memory(memory: Any) -> bool:
-    result = await memory.search("2BHK apartments near metro stations")
+    result = await memory.find("2BHK apartments near metro stations")
     rendered = str(result).lower()
     return "2bhk" in rendered and "metro" in rendered
+
+
+async def extraction_node(memory: Any, user_text: str, assistant_text: str) -> None:
+    compact = (
+        "LangGraph post-turn durable fact candidate:\n"
+        f"user: {user_text}\n"
+        f"assistant: {assistant_text}"
+    )
+    await memory.remember({"text": compact, "maxWrites": 2})
 
 
 async def main() -> None:
@@ -137,10 +146,11 @@ async def main() -> None:
         print("\nTurn 1: remember")
         remember_answer = await run_turn(memory, settings, REMEMBER_FACT)
         print(f"Assistant: {remember_answer}")
+        await extraction_node(memory, REMEMBER_FACT, remember_answer)
 
-        # Some production apps also run a post-turn memorize pass over accepted user
-        # messages. If you add that, search first or rely on consolidation so retries
-        # do not create noisy duplicate memories.
+        # In a larger graph, extraction_node would be a dedicated node after accepted
+        # assistant turns or app tool results. Keep it app-owned so you can filter
+        # transient failures, secrets, and duplicate facts before calling MemexAI.
         if not await verify_expected_memory(memory):
             raise RuntimeError("The remember turn finished, but MemexAI search did not find the expected preference.")
 
