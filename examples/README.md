@@ -9,7 +9,7 @@ Each example shows where MemexAI fits in a framework's normal agent loop. MemexA
 | OpenAI SDK | No | `createOpenAITools(memory)` plus manual tool execution | `openai-sdk-service/src/hot-path.ts` | `openai-sdk-service/src/background-path.ts` |
 | Anthropic SDK service | No | `createAnthropicTools(memory)` and `handleAnthropicToolCall(...)` | `anthropic-service/src/hot-path.ts` | `anthropic-service/src/background-path.ts` |
 | Anthropic SDK direct | No | `@memexai/core` Anthropic adapter | `anthropic/src/hot-path.ts` | `anthropic/src/background-path.ts` |
-| LangChain Python | Tool abstraction | `get_langchain_tools(memory, mode="subagent")` | `langchain-python/hot_path.py` | `langchain-python/background_path.py` |
+| LangChain Python | Tool abstraction | `get_langchain_tools(memory, mode="subagent")` or `mode="raw"` | `langchain-python/hot_path_subagent.py` and `langchain-python/hot_path_raw.py` | `langchain-python/background_path.py` |
 | LangGraph Python | Graph/node abstraction | LangChain adapter plus graph-owned extraction node | `langgraph-python/hot_path.py` | `langgraph-python/background_path.py` |
 | LlamaIndex Python | Tool abstraction | `get_llamaindex_tools(memory, mode="subagent")` | `llamaindex-python/hot_path.py` | `llamaindex-python/background_path.py` |
 | CrewAI Python | Task/tool abstraction | `get_crewai_tools(memory, mode="subagent")` | `crewai-python/hot_path.py` | `crewai-python/background_path.py` |

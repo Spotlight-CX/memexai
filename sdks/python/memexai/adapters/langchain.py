@@ -7,7 +7,10 @@ def get_langchain_tools(user: Any, mode: str = "subagent") -> List[Any]:
     try:
         from langchain.tools import StructuredTool
     except ImportError:
-        raise ImportError("langchain is not installed. Please install it to use this adapter.")
+        try:
+            from langchain_core.tools import StructuredTool
+        except ImportError:
+            raise ImportError("langchain is not installed. Please install it to use this adapter.")
 
     return [
         StructuredTool.from_function(

@@ -1,13 +1,65 @@
-# MemexAI LangChain Python Example
+# MemexAI + LangChain Python
 
-Terminal example for using LangChain Python with the containerized MemexAI service.
+This example shows three ways to fit MemexAI into a real LangChain agent created with `create_agent(...)`.
 
-The CLI runs two turns against Gemini:
+LangChain/LangGraph users usually think about memory in two layers:
 
-1. Remember: the agent stores a durable preference through `memory_remember`.
-2. Recall: a second turn asks the agent to retrieve that preference through `memory_context`.
+- `checkpointer` / thread state: short-term conversation memory for one thread.
+- `store` / LangMem tools: long-term memory managed through tools or background workflows.
 
-This example uses service mode only. Start MemexAI with Docker Compose; the Python app talks to the HTTP API at `MEMEX_URL`.
+MemexAI maps to the long-term memory layer, but with a different backing model: service-backed markdown files, revisions, access logs, admin inspection, and `user/` / `shared/` scopes.
+
+## Three Paths
+
+| Path | Agent sees | Best for |
+|---|---|---|
+| Hot subagent | `memory_remember`, `memory_context` | Default durable memory without file decisions |
+| Hot raw | Schema-safe raw subset: `memory_write`, `memory_read`, `memory_find` | Agents that should own file layout and exact paths |
+| Background | App tools only; app calls `memory.remember(...)` after the turn | Latency, dedupe, review, and tool-result learning |
+
+### Hot Path: Subagent
+
+Run:
+
+```bash
+python hot_path_subagent.py
+```
+
+The LangChain main agent gets MemexAI's in-house memory subagent as tools. The main agent decides *when* to remember or retrieve, while MemexAI decides what is durable and where it belongs.
+
+This is the closest MemexAI equivalent to a LangMem-style `create_manage_memory_tool` plus search tool, except MemexAI routes into inspectable files with revisions and access logs.
+
+### Hot Path: Raw Tools
+
+Run:
+
+```bash
+python hot_path_raw.py
+```
+
+The LangChain main agent gets a schema-safe subset of raw file/search tools and directly manages paths such as `user/preferences.md`.
+
+Use this when the app has a known memory schema and you want the model to operate on explicit files. It is more powerful, but it gives the main agent more responsibility.
+
+### Background Path
+
+Run:
+
+```bash
+python background_path.py
+```
+
+The LangChain agent only sees an app tool (`run_sql`). After the response, application code inspects the tool result, extracts a compact durable insight, and calls `memory.remember(...)`.
+
+Use this when learning can happen after the response, or when you want batching, dedupe, review, cheaper extraction, or stricter filtering of raw tool outputs.
+
+## LangMem Comparison
+
+- LangMem `create_manage_memory_tool` is conceptually closest to MemexAI `memory_remember`.
+- LangMem `create_search_memory_tool` is conceptually closest to MemexAI `memory_context` or `memory_find`.
+- LangMem tools operate over a LangGraph `BaseStore`.
+- MemexAI operates over a service-backed memory namespace with human-readable files, revisions, access logs, and admin UI.
+- A LangGraph `BaseStore` adapter could be added later, but this example intentionally uses first-party MemexAI tools instead.
 
 ## Setup
 
@@ -60,35 +112,13 @@ The requirements install the local `sdks/python` package in editable mode so the
 ## Run
 
 ```bash
+python hot_path_subagent.py
+python hot_path_raw.py
+python background_path.py
 python app.py
 ```
 
-You can override the demo text:
-
-```bash
-python app.py \
-  --remember "Remember that I prefer 2BHK apartments near metro stations." \
-  --recall "What apartment type and location do I prefer?"
-```
-
-Expected output looks like:
-
-```text
-MemexAI service: http://localhost:8080
-User namespace: langchain_python_demo_user
-
-Turn 1 - remember
-Assistant: I will remember that you prefer 2BHK apartments near metro stations.
-
-Turn 2 - recall
-Assistant: You prefer 2BHK apartments near metro stations.
-
-MemexAI inspection
-- API files: ...
-- Admin UI: http://localhost:8080/admin
-```
-
-Exact wording varies by model, but the recall should include `2BHK` and `metro`.
+`app.py` remains a compact remember/recall smoke test. The path-specific files are the recommended learning examples.
 
 ## Inspect Memory
 
@@ -115,11 +145,11 @@ http://localhost:8080/admin
 
 Use the admin secret from Compose, default `dev-admin-secret`.
 
-## Rationale
+## Shared Systemic Insights
 
-- `MEMEX_URL` defaults to the docs service URL, `http://localhost:8080`.
-- `MEMEX_API_KEY` defaults to the Docker development key, `dev-agent-key`.
-- `MEMEX_USER_ID` is stable by default so repeated runs show persistent memory.
-- `GEMINI_API_KEY` is required because both the example agent and service-backed `memory_remember` need an LLM.
-- The LangChain adapter exposes all MemexAI tools; this example passes only `memory_remember` and `memory_context` to keep the agent on the recommended memory subagent path.
-- The first turn asks the agent to store a fact. In a production chat app, you may instead run `memory_remember` after a user turn or completed exchange. That post-turn pattern is convenient, but it should be gated to avoid feeding the same fact repeatedly and creating duplicate memory churn.
+The background path is a natural place to learn operational facts such as SQL dialect quirks or API limitations. To route those into shared memory for trusted agents:
+
+1. Add a routing entry in `shared/index.md`, such as `shared/tool-quirks.md`.
+2. Enable `MEMEX_SHARED_WRITE_MODE=rw` on the service.
+
+Keep user-private facts in `user/`. Shared writable mode is off by default.
