@@ -109,7 +109,7 @@ export function QuickTestView({ apiKey, secret, userId, onUserIdChange }: QuickT
           : { query: capturedInput }
 
       const result = await runMutation.mutateAsync({
-        toolName: mode === "store" ? "memory_remember" : "memory_find",
+        toolName: mode === "store" ? "memory_remember" : "memory_context",
         userId: capturedUserId,
         args,
       })
