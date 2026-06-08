@@ -65,7 +65,7 @@ Pass `dryRun: true` to preview what would be written without committing:
 
 Before writing, `memory_remember` pre-fetches two index files if they exist: **`user/index.md`** (the user's file catalog) and **`shared/index.md`** (global guidance and conventions). The agent also receives the full list of visible files and has a small read budget (3 reads) to fetch any additional files it deems relevant before writing.
 
-This means you can place a routing table anywhere in `shared/` — for example `shared/user-memory.md` — and the agent will discover it from the file list and read it within its budget. The file is not pre-fetched by default; it relies on the agent choosing to read it.
+This means you can place a routing table in any `shared/` file — for example `shared/conventions.md` — but for the agent to reliably read it, **cite it in `shared/index.md`**. Because `shared/index.md` is always pre-fetched, a reference like `- shared/conventions.md — file routing rules` tells the agent the file exists and is worth reading before writing.
 
 ```markdown
 ## Memory File Structure
@@ -87,44 +87,41 @@ Assembles a context block — a formatted, character-budgeted digest of the most
 
 ### How it works
 
-`memory_context` runs a two-phase retrieval:
+`memory_context` is an agentic ReAct loop. It spins up a model call with three tools — `memory_list`, `memory_find`, and `memory_read` — and lets the model decide which files to fetch before assembling the final context block.
 
 ```
-Query
+memory_context("apartment requirements and family")
   │
-  ▼
-Phase 1: Seed ranking
-  ├── BM25 full-text search (Postgres tsvector, always)
-  └── pgvector cosine search (when hybrid mode is configured)
-        └── Reciprocal Rank Fusion (RRF) → ranked seed files
-                    reason: "query_match"
+  ▼  LLM step 1
+  ├── memory_read("user/index.md")           ← catalog of all user files
   │
-  ▼
-Phase 2: Forward-link expansion
-  ├── Scan seed file content for [[user/...]] and [[shared/...]] links
-  ├── Fetch each linked file from Postgres
-  └── Add to candidates with score = parent_score × 0.35
-                    reason: "linked", linkedFrom: "user/preferences.md"
+  ▼  LLM step 2
+  ├── memory_find("apartment preferences family")
+  │     BM25 + optional pgvector hybrid      ← see memory_find for details
+  │     → [user/preferences.md, user/family.md, user/visits.md]
   │
-  ▼
-Phase 3: Budget fill
-  ├── Rank all candidates (query_match first, then linked, then recency)
-  ├── Fill up to maxChars from highest-ranked
-  └── Track omitted paths
+  ▼  LLM step 3
+  ├── memory_read("user/preferences.md")
+  ├── memory_read("user/family.md")
   │
-  ▼
-Context block (XML-wrapped, ready for system prompt injection)
+  ▼  LLM final step
+  └── text response  →  context block returned to caller
 ```
 
-When no query is provided, Phase 1 falls back to recency ordering — most-recently-updated files first.
+The system prompt instructs the model to:
+1. Start with `user/index.md` as a catalog of all available files
+2. Use `memory_find` to rank candidates by relevance (see [`memory_find`](#memory_find) for how search works)
+3. Use `memory_read` to pull full content for files worth including
+4. Fall back to `memory_list` only when the index doesn't give enough signal
+5. For broad queries (full profile, summary), read every file referenced in the index
 
-### Forward-link expansion
+The loop is capped at 12 steps. The model's final text response becomes the returned `context` field.
 
-`memory_remember` is prompted to add `## See also` sections with `[[user/related.md]]` wiki-style links when writing related files. For example, a write to `user/health.md` (dust allergy) might link to `user/preferences.md` (ventilation requirement is a preference). When `memory_context` retrieves `user/health.md` as a seed, it follows that link and pulls `user/preferences.md` into the context too — even if the query didn't mention preferences.
+### Why agentic instead of deterministic?
 
-This matters because user facts are semantically connected in ways BM25 can't capture. A query about "can I have a pet?" should retrieve `user/family.md` (pet name, breed), which in turn links to `user/preferences.md` (pet-friendly building requirement). Without link expansion, the second file would only surface if the query happened to match its text.
+The model can reason about which files matter in ways pure ranking cannot. A query about "apartment requirements" might need `user/health.md` (dust allergy → ventilation) even if neither word appears in the query. The model reads `user/index.md`, sees a health file exists, and decides whether to include it.
 
-Link expansion depth defaults to 1 (one hop). Set `relatedDepth: 0` to disable it, or `relatedDepth: 2` to expand two hops.
+`memory_remember` is also prompted to write `## See also` sections with `[[user/related.md]]` wikilinks when creating related files. The retrieval agent uses these as signals — seeing `[[user/preferences.md]]` in a health file is a hint that preferences are relevant to the same query.
 
 ### Example
 
@@ -134,10 +131,8 @@ Link expansion depth defaults to 1 (one hop). Set `relatedDepth: 0` to disable i
 
 ```json
 {
-  "content": "<memexai_memory>\n## user/preferences.md\n(updated 2025-06-08)\n\n# Preferences\n- 2BHK in Indiranagar or Koramangala\n- Budget: 1.2 crore\n- Floor 4+\n\n## user/family.md\n(updated 2025-06-08)\n\n# Family\n- Wife: Meera (dust allergy)\n- Pet: Max (golden retriever)\n</memexai_memory>",
-  "filesIncluded": ["user/preferences.md", "user/family.md"],
-  "filesOmitted": [],
-  "truncated": false
+  "context": "## user/preferences.md\n(updated 2025-06-08)\n\n# Preferences\n- 2BHK in Indiranagar or Koramangala\n- Budget: 1.2 crore\n- Floor 4+\n\n## user/family.md\n(updated 2025-06-08)\n\n# Family\n- Wife: Meera (dust allergy)\n- Pet: Max (golden retriever)",
+  "filesRead": ["user/index.md", "user/preferences.md", "user/family.md"]
 }
 ```
 
@@ -145,10 +140,8 @@ Link expansion depth defaults to 1 (one hop). Set `relatedDepth: 0` to disable i
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `query` | string | — | Topic to rank files by. Enables hybrid search and link expansion. |
-| `maxChars` | number | 24 000 | Character budget for the returned context block. |
-| `includeRelated` | boolean | true when query is set | Follow `[[...]]` links from matched files. |
-| `relatedDepth` | number | 1 | How many hops to follow. Range: 0–2. |
+| `query` | string | — | What to retrieve. Passed to the model as the retrieval goal. |
+| `maxChars` | number | 24 000 | Character budget hint passed to the model. |
 
 ---
 
@@ -266,9 +259,9 @@ RRF scores:
   user/visits.md  = 0        + 1/(60+3) = 0.0159
 ```
 
-### Why `memory_find` does not expand links
+### Why `memory_find` does not follow links
 
-`memory_find` is a pure search primitive — it returns what Postgres ranked, nothing more. Link expansion (following `[[...]]` references) is deliberate reasoning, not text matching. It lives in `memory_context`, which can inspect content and decide whether a linked file adds relevant context for a given query. Keeping them separate lets you use `memory_find` results to drive your own retrieval logic without paying the cost of link expansion.
+`memory_find` is a pure search primitive — it returns what Postgres ranked, nothing more. Following `[[...]]` wikilinks embedded in file content is deliberate reasoning: it requires reading a file, parsing its links, and deciding whether those targets are relevant. That reasoning happens in `memory_context`, where the LLM can make that judgment call. Keeping them separate means you can use `memory_find` results to drive your own retrieval logic without an LLM in the loop.
 
 ### Example
 
