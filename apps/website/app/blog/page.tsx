@@ -41,7 +41,7 @@ const posts = [
 
 export default function BlogPage() {
   return (
-    <main className="site-shell">
+    <main>
       <section className="page-hero">
         <div className="section">
           <div className="eyebrow">

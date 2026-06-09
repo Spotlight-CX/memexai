@@ -1,16 +1,16 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { ArrowRight, BookOpen, CheckCircle2, Cloud, Database, FileClock, Network, Search, XCircle } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle2, Database, FileClock, Network, Search, Wrench, XCircle } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'MemexAI vs Mem0, Zep, Supermemory, Maximem, and Vector Memory',
+  title: 'MemexAI vs Mem0, Zep, DIY, and Vector Memory',
   description:
-    'Compare MemexAI with Mem0, Zep, Supermemory, Maximem, and vector-store memory for AI products that need inspectable memory infrastructure.',
+    'Compare MemexAI with Mem0, Zep, DIY Postgres memory, and vector-store memory for AI products that need inspectable memory infrastructure.',
   alternates: {
     canonical: '/compare',
   },
   openGraph: {
-    title: 'MemexAI vs Mem0, Zep, Supermemory, Maximem, and Vector Memory',
+    title: 'MemexAI vs Mem0, Zep, DIY, and Vector Memory',
     description:
       'A practical comparison for AI products choosing between inspectable memory files, vector retrieval, and graph memory.',
     url: 'https://memexai.space/compare',
@@ -18,12 +18,12 @@ export const metadata: Metadata = {
 };
 
 const rows = [
-  ['Primary abstraction', 'Scoped memory files', 'Extracted and retrieved memories', 'Temporal knowledge graph', 'Embedded text chunks'],
-  ['Default storage', 'Postgres tables', 'Managed or self-hosted memory stack', 'Graph-oriented memory service', 'Vector index plus source store'],
-  ['Human editing', 'Open and edit the record directly', 'Usually mediated by API or extraction flow', 'Usually mediated by graph/API flow', 'Edit source text, then re-index'],
-  ['Audit/debug surface', 'Revisions track every write; access logs track every read. Any past file state is reconstructable.', 'Depends on deployment and product tier', 'Graph provenance and service logs', 'Usually custom app logging'],
-  ['Best fit', 'Memory as product data and behavior context', 'Personalized recall from conversations', 'Entity/relation-heavy temporal memory', 'Semantic search over archives'],
-  ['Common failure mode', 'Needs memory hygiene and concise files', 'Opaque or over-eager extraction', 'Operational complexity and graph drift', 'Retrieves similar text, not maintained truth'],
+  ['Primary abstraction', 'Scoped memory files', 'Extracted and retrieved memories', 'Temporal knowledge graph', 'App-managed Postgres tables + custom code', 'Embedded text chunks'],
+  ['Default storage', 'Postgres (MemexAI-managed)', 'Managed or self-hosted memory stack', 'Graph-oriented memory service', 'Your Postgres schema', 'Vector index plus source store'],
+  ['Human editing', 'Open and edit the record directly', 'Usually mediated by API or extraction flow', 'Usually mediated by graph/API flow', 'Write SQL or build an admin UI yourself', 'Edit source text, then re-index'],
+  ['Audit/debug surface', 'Revisions track every write; access logs track every read. Any past file state is reconstructable.', 'Depends on deployment and product tier', 'Graph provenance and service logs', 'Whatever you build and maintain', 'Usually custom app logging'],
+  ['Best fit', 'Memory as product data and behavior context', 'Personalized recall from conversations', 'Entity/relation-heavy temporal memory', 'Full schema control matters more than DX', 'Semantic search over archives'],
+  ['Common failure mode', 'Needs memory hygiene and concise files', 'Opaque or over-eager extraction', 'Operational complexity and graph drift', 'Re-inventing extraction, revisions, scoping', 'Retrieves similar text, not maintained truth'],
 ];
 
 const researchLinks = [
@@ -55,14 +55,14 @@ const fitCards = [
 
 export default function ComparePage() {
   return (
-    <main className="site-shell">
+    <main>
       <section className="page-hero">
         <div className="section">
           <div className="eyebrow">
             <Database size={15} aria-hidden />
             AI memory comparison
           </div>
-          <h1>MemexAI vs Mem0, Zep, Supermemory, Maximem, and vector-store memory.</h1>
+          <h1>MemexAI vs Mem0, Zep, DIY Postgres, and vector-store memory.</h1>
           <p className="section-lede">
             Most memory tools lead with benchmarked retrieval quality, latency, or graph/vector machinery. MemexAI is
             narrower: owned Postgres memory that agents can use, admins can inspect, and teams can improve over time.
@@ -83,9 +83,9 @@ export default function ComparePage() {
         <div className="section-kicker">Short version</div>
         <h2>If memory changes behavior, memory has to be legible.</h2>
         <p className="section-lede">
-          Mem0, Zep, Supermemory, Maximem, and vector databases can be strong retrieval systems. MemexAI is different:
-          it gives the agent scoped memory files in Postgres, then records revisions and reads so your team can operate
-          memory like product data and behavioral context.
+          Mem0, Zep, and vector databases can be strong retrieval systems. DIY Postgres memory gives you full schema
+          control. MemexAI is different: it gives the agent scoped memory files in Postgres, then records revisions and
+          reads so your team can operate memory like product data and behavioral context.
         </p>
 
         <div className="compare-table" role="table" aria-label="AI memory comparison table">
@@ -94,6 +94,7 @@ export default function ComparePage() {
             <div role="columnheader" data-col="memex">MemexAI</div>
             <div role="columnheader">Mem0</div>
             <div role="columnheader">Zep</div>
+            <div role="columnheader">DIY Postgres</div>
             <div role="columnheader">Vector DB</div>
           </div>
           {rows.map((row) => (
@@ -213,16 +214,19 @@ export default function ComparePage() {
             <h3>MemexAI vs Zep</h3>
             <p>For teams comparing graph-oriented memory against a self-hosted user memory workspace.</p>
           </Link>
-          <Link className="feature link-card" href="/compare/maximem">
-            <Cloud size={24} aria-hidden />
-            <h3>MemexAI vs Maximem</h3>
-            <p>For teams comparing managed graph/vector memory against Postgres-native memory records.</p>
-          </Link>
           <Link className="feature link-card" href="/compare/vector-database">
             <Database size={24} aria-hidden />
             <h3>MemexAI vs Vector DB</h3>
             <p>For teams deciding whether they need semantic transcript retrieval or durable user memory.</p>
           </Link>
+          <div className="feature">
+            <Wrench size={24} aria-hidden />
+            <h3>MemexAI vs DIY Postgres</h3>
+            <p>
+              For teams who built their own memory layer: MemexAI handles scoping, revisions, access logs, path
+              validation, extraction, and background cleanup so you don&apos;t have to.
+            </p>
+          </div>
         </div>
       </section>
     </main>

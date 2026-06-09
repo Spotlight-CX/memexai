@@ -1,9 +1,11 @@
 ---
 title: OpenAI SDK
-description: Use MemexAI memory tools with the OpenAI SDK in TypeScript.
+description: Use MemexAI memory tools with the OpenAI SDK in TypeScript and Python.
 ---
 
-The OpenAI adapter is available in `@memexai/sdk` for the service mode. It returns a `definitions` array for the API call and an `execute` method for handling tool call results.
+import { DocTabs, DocTab } from '@/components/doc-tabs'
+
+The OpenAI adapter returns a `definitions` array for the API call and an `execute` method for handling tool call results.
 
 ## Before you start
 
@@ -13,13 +15,13 @@ The OpenAI adapter is available in `@memexai/sdk` for the service mode. It retur
 - Read [Memory tools](/docs/concepts/memory-tools) to choose memory subagent or raw file tools.
 - Read [Memory scopes](/docs/concepts/scopes) before writing paths like `user/profile.md`.
 
-## Install
+## Setup
 
+<DocTabs items={['TypeScript', 'Python']} groupId="memex-lang" persist>
+<DocTab value="TypeScript">
 ```bash
 npm install @memexai/sdk openai
 ```
-
-## Usage
 
 ```ts
 import OpenAI from 'openai'
@@ -69,8 +71,90 @@ while (true) {
   }
 }
 ```
+</DocTab>
+<DocTab value="Python">
+```bash
+pip install memexai openai httpx
+```
 
-## API reference
+```python
+import asyncio
+import json
+import os
+import httpx
+from openai import AsyncOpenAI
+from memexai import MemexAI
+
+async def get_openai_tools(memex_url: str, api_key: str) -> list[dict]:
+    """Fetch tool definitions from the MemexAI service and convert to OpenAI format."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{memex_url}/v1/tools",
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        resp.raise_for_status()
+        tools = resp.json()["tools"]
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": t["inputSchema"],
+            },
+        }
+        for t in tools
+    ]
+
+async def main() -> None:
+    memex_url = os.environ.get("MEMEX_URL", "http://localhost:8080")
+    api_key = os.environ["MEMEX_API_KEY"]
+
+    openai_client = AsyncOpenAI()
+    memex = MemexAI(url=memex_url, api_key=api_key)
+    user = memex.for_user("user_123", actor="assistant")
+
+    system = await user.get_system_prompt("You are a helpful assistant with durable user memory.")
+    openai_tools = await get_openai_tools(memex_url, api_key)
+
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": "Remember that I prefer concise answers."},
+    ]
+
+    while True:
+        response = await openai_client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=messages,
+            tools=openai_tools,
+            tool_choice="auto",
+        )
+
+        choice = response.choices[0]
+        messages.append(choice.message.model_dump(exclude_none=True))
+
+        if choice.finish_reason == "stop":
+            print(choice.message.content)
+            break
+
+        if choice.finish_reason == "tool_calls" and choice.message.tool_calls:
+            for tool_call in choice.message.tool_calls:
+                args = json.loads(tool_call.function.arguments)
+                result = await user.execute_tool(tool_call.function.name, args, tool_call_id=tool_call.id)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(result),
+                })
+
+    await memex.close()
+
+asyncio.run(main())
+```
+</DocTab>
+</DocTabs>
+
+## API reference (TypeScript)
 
 ### `createOpenAITools(memory)`
 
@@ -82,3 +166,9 @@ Returns `{ definitions, execute }`.
 The `arguments` field can be either a JSON string (as the OpenAI API returns it) or a pre-parsed object — `normalizeArguments` handles both cases automatically.
 
 The adapter only supplies tools. Use `memory.getSystemPrompt(...)` or `memory.getPromptBlock()` so the stored memory can influence the next response.
+
+## Examples
+
+Working examples with hot path and background path patterns:
+
+- [OpenAI SDK TypeScript (hot + background)](https://github.com/Spotlight-CX/memexai/tree/main/examples/openai-sdk-service)

@@ -8,11 +8,11 @@ const footerGroups = [
     title: 'Resources',
     links: [
       { label: 'Docs', href: '/docs' },
+      { label: 'Use Cases', href: '/use-cases' },
       { label: 'Blog', href: '/blog' },
       { label: 'Admin Console', href: '/admin-console' },
       { label: 'Dreaming', href: '/dreaming' },
       { label: 'Roadmap', href: '/roadmap' },
-      { label: 'Docker quickstart', href: '/docs/quickstart/docker-service' },
     ],
   },
   {
@@ -21,7 +21,6 @@ const footerGroups = [
       { label: 'AI memory tools', href: '/compare' },
       { label: 'Mem0 alternative', href: '/compare/mem0' },
       { label: 'Zep alternative', href: '/compare/zep' },
-      { label: 'Maximem alternative', href: '/compare/maximem' },
       { label: 'Vector DB alternative', href: '/compare/vector-database' },
     ],
   },

@@ -1,0 +1,169 @@
+---
+title: Google ADK
+description: Use MemexAI as a BaseMemoryService for Google Agent Development Kit (ADK) agents in Python.
+---
+
+Google ADK has a first-class memory abstraction — `BaseMemoryService` — that ADK agents use through the built-in `load_memory` tool. MemexAI implements this interface so ADK agents get durable, inspectable, cross-session memory backed by Postgres.
+
+## Before you start
+
+- Run the [containerized service](/docs/quickstart/docker-service) or another MemexAI service endpoint.
+- Read [How MemexAI works](/docs/concepts/how-it-works) for the tool-call-to-Postgres flow.
+- Read [Memory tools](/docs/concepts/memory-tools) to understand the subagent vs raw file tool tradeoff.
+- Read [Memory scopes](/docs/concepts/scopes) before writing paths like `user/profile.md`.
+
+## Install
+
+```bash
+pip install memexai "google-adk>=1.18.0"
+```
+
+Set your Gemini key and MemexAI service URL:
+
+```bash
+export GEMINI_API_KEY=your-key
+export MEMEX_URL=http://localhost:8080
+export MEMEX_API_KEY=dev-agent-key
+```
+
+## How the integration works
+
+ADK has three memory lifecycle hooks:
+
+| Hook | What MemexAI does |
+| --- | --- |
+| `add_session_to_memory(session)` | Extracts ADK session events and calls `memory_remember` |
+| `search_memory(app_name, user_id, query)` | Calls `memory_context` and maps results to ADK `MemoryEntry` values |
+| `load_memory` tool | ADK's built-in tool that calls `search_memory` before each agent answer |
+
+This maps MemexAI onto the normal ADK lifecycle: agent runs a session, your code calls `add_session_to_memory` after the turn, and the next agent call uses `load_memory` to retrieve what was kept.
+
+## Usage
+
+```python
+import asyncio
+import os
+from google.adk.agents import Agent
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.adk.tools import load_memory
+from google.genai.types import Content, Part
+from memexai import MemexAI
+from memexai.adapters.google_adk import MemexAdkMemoryService
+
+APP_NAME = "my_app"
+
+memex = MemexAI(url=os.environ["MEMEX_URL"], api_key=os.environ["MEMEX_API_KEY"])
+memory_service = MemexAdkMemoryService(
+    memex,
+    actor="my-adk-agent",
+    max_writes=3,     # memory writes per add_session_to_memory call
+    max_chars=4000,   # total character budget per extraction
+)
+
+# Turn 1 — remember something
+async def remember_turn(user_id: str) -> None:
+    session_service = InMemorySessionService()
+    await session_service.create_session(app_name=APP_NAME, user_id=user_id, session_id="s1")
+
+    agent = Agent(
+        model="gemini-2.5-flash",
+        name="assistant",
+        instruction="You are a concise assistant. Acknowledge user preferences in one sentence.",
+    )
+    runner = Runner(
+        agent=agent,
+        app_name=APP_NAME,
+        session_service=session_service,
+        memory_service=memory_service,
+    )
+
+    message = Content(role="user", parts=[Part(text="Remember I prefer 2BHK apartments near metro stations.")])
+    async for event in runner.run_async(user_id=user_id, session_id="s1", new_message=message):
+        if event.is_final_response() and event.content:
+            print("Agent:", event.content.parts[0].text)
+
+    # Persist the session to MemexAI after the turn
+    session = await session_service.get_session(app_name=APP_NAME, user_id=user_id, session_id="s1")
+    await memory_service.add_session_to_memory(session)
+
+# Turn 2 — recall using load_memory
+async def recall_turn(user_id: str) -> None:
+    session_service = InMemorySessionService()
+    await session_service.create_session(app_name=APP_NAME, user_id=user_id, session_id="s2")
+
+    recall_agent = Agent(
+        model="gemini-2.5-flash",
+        name="recall_assistant",
+        instruction="Answer from durable memory. Use load_memory before answering.",
+        tools=[load_memory],  # ADK's built-in memory tool calls search_memory on MemexAdkMemoryService
+    )
+    runner = Runner(
+        agent=recall_agent,
+        app_name=APP_NAME,
+        session_service=session_service,
+        memory_service=memory_service,
+    )
+
+    message = Content(role="user", parts=[Part(text="What apartment type and location do I prefer?")])
+    async for event in runner.run_async(user_id=user_id, session_id="s2", new_message=message):
+        if event.is_final_response() and event.content:
+            print("Agent:", event.content.parts[0].text)
+
+async def main() -> None:
+    user_id = "user_123"
+    await remember_turn(user_id)
+    await recall_turn(user_id)
+    await memex.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+## `MemexAdkMemoryService` reference
+
+```python
+from memexai.adapters.google_adk import MemexAdkMemoryService
+
+service = MemexAdkMemoryService(
+    memex,             # MemexAI client instance
+    actor="my-agent",  # written to revision and access logs
+    max_writes=3,      # max memory_remember calls per add_session_to_memory
+    max_chars=4000,    # total character budget across all extractions
+)
+```
+
+| Parameter | Default | Purpose |
+| --- | --- | --- |
+| `actor` | `"google-adk"` | Appears in revisions and access logs |
+| `max_writes` | `3` | Caps extraction calls per ADK session |
+| `max_chars` | `4000` | Limits total characters extracted per session |
+
+### `add_session_to_memory(session)`
+
+Extracts ADK session events and calls `memory_remember` for each extracted insight. Call this after the runner finishes a turn to persist what the agent learned.
+
+### `search_memory(app_name, user_id, query)`
+
+Called automatically by ADK's `load_memory` tool. Calls `memory_context` internally and wraps results as `MemoryEntry` objects that ADK can inject into the agent context.
+
+## Run the example
+
+The full working example with hot path and background path variations is in the repo:
+
+```bash
+git clone https://github.com/Spotlight-CX/memexai
+cd memexai/examples/google-adk-python
+pip install -r requirements.txt
+python src/hot_path_subagent.py
+```
+
+[View example on GitHub →](https://github.com/Spotlight-CX/memexai/tree/main/examples/google-adk-python)
+
+## Extraction patterns
+
+`add_session_to_memory` extracts from ADK session events after the turn. For most use cases this is the right timing — the session is complete before MemexAI decides what to keep.
+
+For time-sensitive recall (the current turn depends on memory from earlier in the same session), call `search_memory` directly with `memory_service.search_memory(app_name, user_id, query)` mid-turn.
+
+See [Memory Tools — Extraction patterns](/docs/concepts/memory-tools#extraction-patterns) for the general hot vs background tradeoff.

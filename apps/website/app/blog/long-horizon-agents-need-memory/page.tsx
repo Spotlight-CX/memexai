@@ -26,7 +26,7 @@ const sources = [
 
 export default function LongHorizonAgentsMemoryPage() {
   return (
-    <main className="site-shell">
+    <main>
       <article>
         <section className="page-hero">
           <div className="section">

@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function ZepComparePage() {
   return (
-    <main className="site-shell">
+    <main>
       <section className="page-hero">
         <div className="section">
           <div className="eyebrow">

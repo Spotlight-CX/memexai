@@ -1,5 +1,5 @@
 {
   "title": "Adapters",
   "defaultOpen": true,
-  "pages": ["vercel-ai", "anthropic", "langchain", "openai", "llamaindex", "crewai"]
+  "pages": ["vercel-ai", "anthropic", "langchain", "openai", "llamaindex", "crewai", "adk"]
 }

@@ -103,7 +103,7 @@ const memexLoop = [
 
 export default function DreamingMemoryBlogPage() {
   return (
-    <main className="site-shell">
+    <main>
       <article>
         <section className="page-hero">
           <div className="section">

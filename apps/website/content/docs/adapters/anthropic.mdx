@@ -80,3 +80,12 @@ Returns an array of `AnthropicTool` objects ready to pass to `anthropic.messages
 Executes a single tool use block and returns the result. Pass the `tool_use` block's `id` as `toolUseId` to link revisions and access logs to the specific call.
 
 The adapter only supplies tools. Use `memory.getSystemPrompt(...)` or `memory.getPromptBlock()` so the stored memory can influence the next response.
+
+## Examples
+
+Working examples with hot path and background path patterns:
+
+- [Service mode (hot + background)](https://github.com/Spotlight-CX/memexai/tree/main/examples/anthropic-service) — `@memexai/sdk` + Anthropic SDK
+- [Direct Postgres mode (hot + background)](https://github.com/Spotlight-CX/memexai/tree/main/examples/anthropic) — `@memexai/core` + Anthropic SDK
+
+The Anthropic SDK adapter is TypeScript-only. For Python, use the [LangChain adapter](/docs/adapters/langchain) or the [Google ADK adapter](/docs/adapters/adk) which have first-party Python support.

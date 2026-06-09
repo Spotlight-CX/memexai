@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function VectorDatabaseComparePage() {
   return (
-    <main className="site-shell">
+    <main>
       <section className="page-hero">
         <div className="section">
           <div className="eyebrow">
