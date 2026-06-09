@@ -95,9 +95,8 @@ async def test_context_returns_memory_block_and_budget_metadata():
     })
 
     result = await execute_memory_context(db, {"maxChars": 200}, CTX)
-    assert result["content"].startswith("<memexai_memory>")
-    assert "user/profile.md" in result["filesIncluded"]
-    assert result["truncated"] is False
+    assert result["context"].startswith("<memexai_memory>")
+    assert "user/profile.md" in result["filesRead"]
 
 
 @pytest.mark.asyncio
@@ -111,12 +110,7 @@ async def test_context_query_expands_one_hop_links():
 
     result = await execute_memory_context(db, {"query": "quiet", "maxChars": 10000}, CTX)
 
-    assert result["filesIncluded"] == ["user/profile.md", "user/preferences.md", "shared/index.md"]
-    assert result["filesIncludedMeta"] == [
-        {"path": "user/profile.md", "reason": "query_match", "depth": 0},
-        {"path": "user/preferences.md", "reason": "linked", "depth": 1, "linkedFrom": "user/profile.md"},
-        {"path": "shared/index.md", "reason": "linked", "depth": 1, "linkedFrom": "user/profile.md"},
-    ]
+    assert result["filesRead"] == ["user/profile.md", "user/preferences.md", "shared/index.md"]
 
 
 @pytest.mark.asyncio
@@ -127,7 +121,7 @@ async def test_context_does_not_expand_without_query_by_default():
 
     result = await execute_memory_context(db, {"maxChars": 10000}, CTX)
 
-    assert result["filesIncluded"] == ["user/profile.md"]
+    assert result["filesRead"] == ["user/profile.md"]
     assert not any("physical_path = ANY($1)" in call[1] for call in db.calls if call[0] == "query")
 
 
@@ -144,7 +138,7 @@ async def test_context_respects_depth_zero_and_circular_links():
         "relatedDepth": 0,
         "maxChars": 10000,
     }, CTX)
-    assert disabled["filesIncluded"] == ["user/a.md"]
+    assert disabled["filesRead"] == ["user/a.md"]
 
     circular_db = FakeDb({
         "users/user_123/a.md": "# A\n[[user/b.md]]",
@@ -158,7 +152,7 @@ async def test_context_respects_depth_zero_and_circular_links():
         "relatedDepth": 2,
         "maxChars": 10000,
     }, CTX)
-    assert circular["filesIncluded"] == ["user/a.md", "user/b.md", "user/c.md"]
+    assert circular["filesRead"] == ["user/a.md", "user/b.md", "user/c.md"]
 
 
 @pytest.mark.asyncio

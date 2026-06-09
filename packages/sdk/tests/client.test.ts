@@ -232,6 +232,27 @@ describe("MemexAI SDK — file operations", () => {
     })
   })
 
+  test("executes retrieveContext through the service", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({
+      context: "<memexai_memory>",
+      filesRead: ["user/profile.md"],
+      usage: { totalTokens: 42 },
+    }))
+    const memory = createClient(fetchMock).forUser({ userId: "user_123", actor: "assistant" })
+
+    const result = await memory.retrieveContext({ query: "profile", toolCallId: "call_context" })
+
+    expect(result.context).toBe("<memexai_memory>")
+    expect(result.filesRead).toEqual(["user/profile.md"])
+    expect(result.usage?.totalTokens).toBe(42)
+    const [url, request] = fetchMock.mock.calls[0]
+    expect(url).toBe("http://memex.local/v1/tools/memory_context/execute")
+    expect(JSON.parse(request.body as string)).toEqual({
+      context: { userId: "user_123", actor: "assistant", toolCallId: "call_context" },
+      arguments: { query: "profile" },
+    })
+  })
+
   test("does not expose legacy helper aliases", () => {
     const fetchMock = vi.fn(async () => jsonResponse({ ok: true }))
     const memory = createClient(fetchMock).forUser({ userId: "user_123" })

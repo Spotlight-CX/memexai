@@ -131,18 +131,7 @@ export type RetrieveContextInput = {
 }
 
 export type RetrieveContextResult = {
-  content: string
-  filesIncluded: string[]
-  filesOmitted: string[]
-  filesIncludedMeta: {
-    path: string
-    reason: "query_match" | "recency" | "linked"
-    matchReason?: "lexical" | "semantic" | "hybrid"
-    bm25Rank?: number
-    vectorRank?: number
-    linkedFrom?: string
-    depth: number
-  }[]
-  truncated: boolean
+  context: string
+  filesRead: string[]
+  usage?: { inputTokens?: number | null; outputTokens?: number | null; totalTokens?: number | null }
 }
-
