@@ -13,6 +13,20 @@ def test_error_codes_and_pii_redaction():
     assert redact_pii("mail me at user@example.com") == "mail me at [REDACTED_EMAIL]"
 
 
+def test_memex_get_tools_uses_canonical_names():
+    memex = Memex(FakeDb())
+
+    assert [tool["name"] for tool in memex.get_tools()] == [
+        "memory_remember",
+        "memory_context",
+        "memory_list",
+        "memory_read",
+        "memory_write",
+        "memory_patch",
+        "memory_find",
+    ]
+
+
 @pytest.mark.asyncio
 async def test_memex_user_helpers_delegate_and_hooks_run(monkeypatch):
     calls = []
@@ -67,9 +81,43 @@ async def test_memex_execute_tool_preserves_tool_call_id(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_memex_user_memory_primitives_delegate_to_canonical_tools(monkeypatch):
+    calls = []
+
+    async def fake_execute_tool(db, tool_name, args, ctx, model):
+        calls.append((tool_name, args, ctx))
+        return {"tool": tool_name, "args": args}
+
+    monkeypatch.setattr(memex_module, "execute_tool", fake_execute_tool)
+
+    user = Memex(FakeDb(), model="model").for_user("user_123", actor="pytest")
+
+    assert await user.find("quiet", limit=2) == {
+        "tool": "memory_find",
+        "args": {"query": "quiet", "limit": 2},
+    }
+    assert await user.remember("Email user@example.com", dryRun=True) == {
+        "tool": "memory_remember",
+        "args": {"text": "Email user@example.com", "dryRun": True},
+    }
+    assert await user.retrieve_context("profile") == {
+        "tool": "memory_context",
+        "args": {"query": "profile"},
+    }
+    assert [call[0] for call in calls] == ["memory_find", "memory_remember", "memory_context"]
+    assert not hasattr(user, "search")
+    assert not hasattr(user, "memorize")
+
+
+@pytest.mark.asyncio
 async def test_pii_pre_hook_filters_memory_arguments():
     result = await pii_pre_hook("memory_write", {
         "path": "user/profile.md",
         "content": "Email user@example.com",
     }, {"user_id": "user_123"})
     assert result["content"] == "Email [REDACTED_EMAIL]"
+
+    remember_result = await pii_pre_hook("memory_remember", {
+        "text": "Email user@example.com",
+    }, {"user_id": "user_123"})
+    assert remember_result["text"] == "Email [REDACTED_EMAIL]"
