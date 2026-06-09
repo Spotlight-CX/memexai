@@ -397,7 +397,7 @@ export default function HomePage() {
           <div className="path-panel">
             <Boxes size={24} aria-hidden />
             <h3>Agentic tools</h3>
-            <p>Give the model the prompt block plus `memory_memorize` and `memory_search`; MemexAI handles the file bookkeeping.</p>
+            <p>Give the model the prompt block plus `memory_remember` and `memory_context`; MemexAI handles the file bookkeeping.</p>
             <pre>{`const system = await memory.getSystemPrompt(...)\nconst tools = memory.createAgenticToolset()`}</pre>
           </div>
           <div className="path-panel">

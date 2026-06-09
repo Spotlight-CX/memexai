@@ -25,11 +25,11 @@ const memory = memex.forUser({
   actor: "assistant",
 })
 
-const result = await memory.search("What does this user prefer?")
-console.log(result.answer ?? result.results)
+const result = await memory.find("What does this user prefer?")
+console.log(result.results)
 ```
 
-When the service has no model configured, `memory.search()` still works through Postgres full-text search, or hybrid pgvector search when embeddings are configured. `memory.memorize()` requires a service-side model and returns `MODEL_NOT_CONFIGURED` when none is available.
+When the service has no model configured, `memory.find()` still works through Postgres full-text search, or hybrid pgvector search when embeddings are configured. `memory.remember()` requires a service-side model and returns `MODEL_NOT_CONFIGURED` when none is available.
 
 ## Memory Subagent Toolset
 
