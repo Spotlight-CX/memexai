@@ -95,7 +95,21 @@ Path translation happens in `packages/core/src/paths.ts`. Agents never see physi
 
 The four agent tools are `memory_list`, `memory_read`, `memory_write`, `memory_patch`. Two agentic tools (`memory_remember`, `memory_context`) wrap these with LLM-assisted resolution. All definitions are in `packages/core/src/tool-definitions.ts`.
 
-`getPromptBlock()` / `buildPromptBlock()` assembles an XML block injected into the model's system prompt, including tool definitions and any existing `shared/index.md`, `shared/AGENTS.md`, and `user/index.md` content.
+`getPromptBlock()` / `buildPromptBlock()` assembles an XML block injected into the model's system prompt, including tool definitions, all `shared/*` files (loaded via a pattern query), and all `user/{userId}/*` files for the current user.
+
+### Cognitive architecture (two-level triad)
+
+MemexAI uses a cognitive architecture triad. `shared/` holds schemas and rules; `user/` holds per-user instances:
+
+| Scope | File | Purpose |
+|---|---|---|
+| `shared/` | `shared/procedural.md` | How agents must behave — tool rules, write policy |
+| `shared/` | `shared/semantic.md` | Schema for facts to store in `user/profile.md` |
+| `shared/` | `shared/episodic.md` | Schema for events to append to `user/log.md` |
+| `user/` | `user/profile.md` | Stable facts about this user (semantic instances) |
+| `user/` | `user/log.md` | Time-ordered event log for this user (episodic, append-only) |
+
+See `SETUP.md` for the full bootstrap flow and file templates.
 
 ### Database schema
 
@@ -221,11 +235,15 @@ memex-admin -d $DATABASE_URL memory diff users/alice/notes.md --rev-a 1 --rev-b 
 
 ### Bootstrapping shared memory (onboarding)
 
-The CLI is the executor; the agent is the reasoner. The agent reads the codebase, decides on memory shape, then:
+The CLI is the executor; the agent is the reasoner. The agent reads the codebase, decides on memory shape, then writes the three cognitive-architecture files:
 
 ```bash
-memex-admin -d $DATABASE_URL files write shared/index.md \
-  --content "# Memory System\n..." --reason "bootstrap"
+memex-admin -d $DATABASE_URL files write shared/procedural.md \
+  --content "# Agent Behavior Rules..." --reason "bootstrap"
+memex-admin -d $DATABASE_URL files write shared/semantic.md \
+  --content "# Semantic Memory Schema..." --reason "bootstrap"
+memex-admin -d $DATABASE_URL files write shared/episodic.md \
+  --content "# Episodic Memory Schema..." --reason "bootstrap"
 memex-admin -d $DATABASE_URL setup complete --note "<product description>"
 ```
 

@@ -1,0 +1,84 @@
+---
+title: Cognitive Architecture
+description: How MemexAI structures memory into procedural, semantic, and episodic types — and why the two-level shared/user layout gives agents a clear mental model.
+---
+
+MemexAI ships with a default memory shape based on how cognition researchers classify long-term memory. This isn't terminology for terminology's sake — each type has a different retrieval pattern, a different lifespan, and a different reason to exist.
+
+## The three types
+
+**Procedural memory** is how-to knowledge. It doesn't change per user — it's the rules the agent follows in every session. Store it in `shared/procedural.md`. The agent reads it as part of every prompt block and doesn't need to retrieve it: it's always there.
+
+**Semantic memory** is fact-based knowledge about a specific person or subject. For an agent, this means stable user facts: preferences, constraints, goals. Store the schema (what to collect and how) in `shared/semantic.md`. The actual per-user facts live in `user/profile.md`.
+
+**Episodic memory** is event-based: what happened, when, and why. For agents, this is the interaction log — rejected options, decisions made, context shifts. Store the schema in `shared/episodic.md`. Per-user events are appended to `user/log.md`.
+
+## The two-level layout
+
+The key distinction: `shared/` holds the **schema and rules**, `user/` holds the **instances**.
+
+```
+shared/procedural.md   ← always injected, operator rules (how to behave)
+shared/semantic.md     ← schema: what facts to collect about a user
+shared/episodic.md     ← schema: what events are worth logging
+
+user/profile.md        ← the actual facts about this user
+user/log.md            ← the actual events for this user (append-only)
+```
+
+When you update `shared/semantic.md` to add a new required field, every agent session for every user will start asking for that field. When you read `user/profile.md`, you see exactly what the agent knows about that user — no embeddings, no opaque store.
+
+## Why this matters for agents
+
+Without a clear mental model, agents dump everything into a single context blob or create an arbitrary file-per-topic layout that gets inconsistent over time. The triad gives agents an explicit answer to three questions:
+
+1. **Am I behaving correctly?** Read `shared/procedural.md`.
+2. **What should I remember about this user?** Read `shared/semantic.md`, write to `user/profile.md`.
+3. **Should I log this event?** Read `shared/episodic.md`, append to `user/log.md`.
+
+## HITL signal
+
+Whenever a Human-in-the-Loop (HITL) clarifying question is answered by the user, that answer is almost always worth capturing in memory:
+
+- If the answer resolves a stable fact ("my budget is 80L") → `user/profile.md`
+- If the answer is a decision or event ("I rejected that property because...") → `user/log.md`
+
+Don't miss these moments. They're the highest-signal inputs your agent will receive.
+
+## Example: real-estate assistant
+
+```
+shared/procedural.md
+  Never suggest properties outside the user's stated budget.
+  Always call memory_context before making a recommendation.
+
+shared/semantic.md
+  Store: budget range, location preferences, BHK requirement,
+         floor preference, must-have amenities.
+  File: user/profile.md
+  Format: - Budget: 80L [2026-01]
+
+shared/episodic.md
+  Log: properties viewed+rejected (with reason), offers made,
+       visits scheduled, key user corrections.
+  File: user/log.md
+  Format: - [2026-01] Rejected Prestige Meridian: too far from school
+
+user/profile.md (per user)
+  - Budget: 80L [2026-01]
+  - Location: Koramangala, Indiranagar [2026-01]
+  - BHK: 2 or 3 [2026-01]
+
+user/log.md (per user, append-only)
+  - [2026-01] Viewed Prestige Meridian — rejected: too far from school
+  - [2026-02] Shortlisted Sobha Dream Acres
+```
+
+The rejection reason in `user/log.md` is the most valuable part — it prevents the agent from re-suggesting properties the user has already ruled out.
+
+## Related
+
+- [Shared memory as behavior guide](/docs/concepts/shared-memory)
+- [Memory scopes](/docs/concepts/scopes)
+- [Design principles](/docs/concepts/design-principles)
+- [Setup guide](/setup.md)

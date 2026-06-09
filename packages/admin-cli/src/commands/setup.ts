@@ -11,11 +11,22 @@ Subcommands:
 
 The agent-driven bootstrap flow:
   1. Agent reads codebase, decides memory shape
-  2. Agent writes shared files:
-       memex-admin files write shared/index.md --content "..." --reason "bootstrap"
-  3. Agent marks setup complete:
+  2. Agent writes the three cognitive-architecture files to shared/:
+       memex-admin files write shared/procedural.md --content "..." --reason "bootstrap"
+       memex-admin files write shared/semantic.md   --content "..." --reason "bootstrap"
+       memex-admin files write shared/episodic.md   --content "..." --reason "bootstrap"
+  3. Optionally, write a domain-specific example file:
+       memex-admin files write shared/domain.md --content "..." --reason "bootstrap"
+  4. Agent marks setup complete:
        memex-admin setup complete --note "real-estate assistant"
-  4. Agent writes MEMEX.md to the project repo (CLI does NOT generate this)
+  5. Agent writes MEMEX.md to the project repo (CLI does NOT generate this)
+
+Cognitive architecture (two-level):
+  shared/procedural.md  →  rules: how the agent must behave
+  shared/semantic.md    →  schema: what facts to store in user/profile.md
+  shared/episodic.md    →  schema: what events to append to user/log.md
+  user/profile.md       →  semantic instances: stable facts per user
+  user/log.md           →  episodic log: time-ordered events per user (append-only)
 
 Options:
   --note <text>   Optional note stored with the completion record

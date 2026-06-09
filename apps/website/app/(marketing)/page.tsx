@@ -64,7 +64,7 @@ export default function HomePage() {
       <section className="mx-section">
         <Reveal>
           <span className="mx-kicker">The problem</span>
-          <h2>Two ways agent memory fails in production</h2>
+          <h2>Three ways agent memory fails in production</h2>
         </Reveal>
 
         <Reveal stagger className="mx-problem-grid">
@@ -102,6 +102,24 @@ export default function HomePage() {
             </p>
             <div className="mx-problem-blur" aria-label="Opaque memory representation">
               ??? ??? ???
+            </div>
+          </div>
+
+          <div className="mx-problem-card">
+            <div className="mx-problem-icon">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
+                <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M10 6v4l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </div>
+            <h3>Agents can&apos;t distinguish rules from facts from history</h3>
+            <p>
+              Everything ends up in a single context blob. The agent doesn&apos;t know
+              what must always apply, what&apos;s true about this user, and what
+              happened in the past. Memory without structure is just noise.
+            </p>
+            <div className="mx-problem-chat">
+              &ldquo;Why did it suggest that property again? I already rejected it.&rdquo;
             </div>
           </div>
         </Reveal>

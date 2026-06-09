@@ -95,7 +95,7 @@ Path translation happens in `packages/core/src/paths.ts`. Agents never see physi
 
 The four agent tools are `memory_list`, `memory_read`, `memory_write`, `memory_patch`. Two agentic tools (`memory_remember`, `memory_context`) wrap these with LLM-assisted resolution. All definitions are in `packages/core/src/tool-definitions.ts`.
 
-`getPromptBlock()` / `buildPromptBlock()` assembles an XML block injected into the model's system prompt, including tool definitions and any existing `shared/index.md`, `shared/claude.md`, and `user/index.md` content.
+`getPromptBlock()` / `buildPromptBlock()` assembles an XML block injected into the model's system prompt, including tool definitions, all `shared/*` files (loaded via `WHERE physical_path LIKE 'shared/%'`), and all `user/{userId}/*` files for the current user.
 
 ### Database schema
 
