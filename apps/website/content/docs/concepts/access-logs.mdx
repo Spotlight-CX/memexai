@@ -12,7 +12,7 @@ Every tool call that touches memory creates a row in `mx_access_log`. Unlike rev
 | `id` | Unique log ID |
 | `file_id` | Foreign key to `mx_file`, nullable |
 | `physical_path` | Full path at access time |
-| `operation` | `list`, `read`, `write`, `patch`, `search`, or `smart_read` |
+| `operation` | `list`, `read`, `write`, `patch`, or `find` |
 | `actor` | Who performed the access |
 | `user_id` | The user whose memory was accessed |
 | `tool_call_id` | The LLM tool call ID |
