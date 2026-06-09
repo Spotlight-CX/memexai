@@ -67,6 +67,10 @@ The boundary is not advisory — it is enforced at the route and path validation
 | **Memory link** | `[[user/file.md]]` syntax in file content. Creates forward graph edges used by `memory_context` traversal. |
 | **Scope** | The namespace prefix that determines write access and visibility: `user/` or `shared/`. |
 | **Dreaming** | Background consolidation. Merges duplicates, resolves contradictions, and keeps memory clean between sessions. See [Dreaming](/docs/operations/dreaming). |
+| **Procedural memory** | How-to rules that apply in every session. Stored in `shared/procedural.md`. Always injected into the prompt block. |
+| **Semantic memory** | Stable, deduplicated facts about a user. Schema in `shared/semantic.md`; per-user instances in `user/profile.md`. |
+| **Episodic memory** | Time-ordered events and decisions. Schema in `shared/episodic.md`; per-user log in `user/log.md` (append-only). |
+| **Cognitive triad** | The three-type memory architecture (procedural + semantic + episodic) that MemexAI uses as its default structure. See [Cognitive Architecture](/docs/concepts/cognitive-architecture). |
 
 ## Related
 

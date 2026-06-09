@@ -96,6 +96,21 @@ See [Background Dreaming](/docs/operations/dreaming) for skip behavior, no-op ru
 
 Every step after tool execution is shared by the containerized service, MCP, and in-process runtimes.
 
+## Memory shape
+
+MemexAI uses a cognitive architecture triad to structure memory at two levels. `shared/` holds schemas and rules; `user/` holds per-user instances.
+
+```
+shared/procedural.md   ← always injected: operator rules, tool policy
+shared/semantic.md     ← schema: what facts to collect in user/profile.md
+shared/episodic.md     ← schema: what events to append to user/log.md
+
+user/profile.md        ← semantic instances: stable facts per user
+user/log.md            ← episodic log: time-ordered events per user (append-only)
+```
+
+Every `shared/*` file and every `user/{userId}/*` file is injected into the prompt block automatically — no explicit path configuration needed. See [Cognitive Architecture](/docs/concepts/cognitive-architecture) for templates and examples.
+
 ## Search and storage flow
 
 MemexAI stores the current memory record in `mx_file`, full write snapshots in `mx_revision`, and every read/write event in `mx_access_log`.

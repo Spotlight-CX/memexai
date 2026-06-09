@@ -34,8 +34,11 @@ Expected output if not yet bootstrapped:
   "setupCompletedAt": null,
   "setupNote": null,
   "nextSteps": [
-    "Write shared/index.md to define agent memory scope",
-    "Run: memex-admin files write shared/index.md --content '...' --reason 'bootstrap'"
+    "Write shared/procedural.md — agent behavior rules, tool policy, what not to memorize",
+    "Write shared/semantic.md — schema for user facts (written to user/profile.md)",
+    "Write shared/episodic.md — schema for user events (appended to user/log.md)",
+    "Optionally write shared/domain.md — product-specific examples for each memory type",
+    "Run: memex-admin files write shared/procedural.md --content '...' --reason 'bootstrap'"
   ]
 }
 ```
@@ -46,27 +49,85 @@ Expected output if not yet bootstrapped:
 
 The agent (not the CLI) reads the codebase to determine what memory categories the product needs. The CLI does not call any LLM — it just executes writes.
 
-A minimal `shared/index.md` tells the agent what kinds of things to store:
+MemexAI uses a **cognitive architecture triad** to structure memory at two levels:
+
+| Scope | File | Purpose |
+|---|---|---|
+| `shared/procedural.md` | How agents must behave — tool rules, write policy, what not to store |
+| `shared/semantic.md` | Schema for user facts — what fields to write to `user/profile.md` |
+| `shared/episodic.md` | Schema for user events — what to append to `user/log.md` |
+| `user/profile.md` | The actual deduplicated facts about this user (semantic instances) |
+| `user/log.md` | Time-ordered event log for this user (episodic instances, append-only) |
+
+**Key principle:** `shared/` holds the *schema and rules* for each memory type. `user/` holds the *actual per-user data*. Agents read the shared schema to know *what* to store and *how*, then write to the user namespace.
+
+**HITL signal:** Whenever a Human-in-the-Loop clarifying question is answered by the user, that answer is a prime candidate for memory. Resolved clarifications should almost always be captured — as a fact in `user/profile.md` (semantic) or as a logged decision in `user/log.md` (episodic).
+
+### Template: shared/procedural.md
 
 ```markdown
-# Memory System
+# Agent Behavior Rules (Procedural Memory)
 
-You are an assistant with persistent memory. Store durable facts learned from conversations.
+## Memory write policy
+- Use `memory_remember` to capture durable facts from user statements.
+- Use `memory_patch` for small updates; prefer it over full rewrites.
+- Never write one-off lookups (prices, hours, schedules) or raw conversation text.
+- Never write personal health, financial, or legal inferences without confirmation.
 
-## What to remember per user
-- Stated preferences and requirements
-- Key decisions or commitments made
-- Context that would be lost without it
+## Tool selection guide
+- Call `memory_context` before any personalized recommendation.
+- Call `memory_patch` for field updates; `memory_write` only when creating or fully replacing a file.
+- Call `memory_remember` whenever the user states a preference, constraint, or decision.
+
+## HITL signal
+Whenever a clarifying question is answered, capture it in user/profile.md (stable fact) or user/log.md (decision/event).
+
+## What NOT to memorize
+- Transient statements ("I'm tired today")
+- Questions the user is exploring, not deciding
+- Anything the user asks to keep private
+```
+
+### Template: shared/semantic.md
+
+```markdown
+# Semantic Memory Schema
+
+Semantic memory holds stable, deduplicated facts about the user.
+
+## What belongs in `user/profile.md`
+- Stated preferences (soft, refinable — patch when updated)
+- Hard constraints (non-negotiable blockers)
+- Active goals with a time horizon
+
+Format: `- Fact description [YYYY-MM]`
+When patching, update the timestamp and remove the old line.
 
 ## What NOT to store
-- Conversation history (already in chat context)
-- Temporary state or exploratory questions
-- Anything the user explicitly said to forget
+- One-off lookups, raw conversation text, transient questions
+- Anything the user explicitly asked to forget
+```
 
-## Paths
-- user/index.md — index of all user memory files
-- user/log.md — chronological log of memory writes (append only)
-- shared/user-memory.md — this schema guide (read-only)
+### Template: shared/episodic.md
+
+```markdown
+# Episodic Memory Schema
+
+Episodic memory holds time-ordered events worth carrying forward.
+
+## What belongs in `user/log.md`
+- Options viewed and rejected (include the reason)
+- Decisions made (booking, accepting, rejecting an offer)
+- Goal milestones
+- User corrections ("I changed my mind about X")
+
+Format: `- [YYYY-MM] Event — reason if applicable`
+
+## Append-only
+Never patch or edit user/log.md. Only append new lines.
+
+## HITL signal
+Log the resolved context when a clarifying question represents a meaningful decision.
 ```
 
 ---
@@ -74,23 +135,25 @@ You are an assistant with persistent memory. Store durable facts learned from co
 ## Step 3 — Write shared memory files
 
 ```bash
-# Write the index/schema guide
-npx @memexai/admin -d $DATABASE_URL files write shared/index.md \
-  --content "# Memory System
-..." \
-  --reason "initial bootstrap"
+# Write the three cognitive-architecture files
+npx @memexai/admin -d $DATABASE_URL files write shared/procedural.md \
+  --content "# Agent Behavior Rules..." --reason "bootstrap"
 
-# Optionally write a user memory schema guide
-npx @memexai/admin -d $DATABASE_URL files write shared/user-memory.md \
-  --content "# User Memory Schema
-..." \
-  --reason "initial bootstrap"
+npx @memexai/admin -d $DATABASE_URL files write shared/semantic.md \
+  --content "# Semantic Memory Schema..." --reason "bootstrap"
+
+npx @memexai/admin -d $DATABASE_URL files write shared/episodic.md \
+  --content "# Episodic Memory Schema..." --reason "bootstrap"
+
+# Optionally write a domain-specific example file
+npx @memexai/admin -d $DATABASE_URL files write shared/domain.md \
+  --content "# Domain Memory Guidance..." --reason "bootstrap"
 ```
 
-Or pipe from a file:
+Or pipe from files:
 ```bash
-npx @memexai/admin -d $DATABASE_URL files write shared/index.md \
-  --content-file ./shared-index.md --reason "bootstrap"
+npx @memexai/admin -d $DATABASE_URL files write shared/procedural.md \
+  --content-file ./shared-procedural.md --reason "bootstrap"
 ```
 
 ---
@@ -126,17 +189,28 @@ Example `MEMEX.md`:
 ```markdown
 # MemexAI Memory Setup
 
-Memory shape: real-estate assistant — set up 2025-06-04
+Memory shape: real-estate assistant — set up 2026-06-09
 
-## Shared files
-- `shared/index.md` — system context, guides what agents should memorize
-- `shared/user-memory.md` — schema for user-level categories
+## Cognitive architecture
+
+| Layer | File | What it holds |
+|---|---|---|
+| Procedural | `shared/procedural.md` | Agent behavior rules — tool policy, what not to store |
+| Semantic schema | `shared/semantic.md` | Schema for user facts written to `user/profile.md` |
+| Episodic schema | `shared/episodic.md` | Schema for events appended to `user/log.md` |
+| Semantic instances | `user/profile.md` | Per-user facts: budget, location, preferences |
+| Episodic log | `user/log.md` | Per-user events: viewed/rejected properties, decisions |
 
 ## What agents store per user
+
+**user/profile.md (semantic):**
 - Budget range and financing status
 - Location preferences (areas, commute anchors)
 - Property requirements (BHK, floor, amenities)
-- Visited properties and reactions
+
+**user/log.md (episodic, append-only):**
+- Properties viewed and rejected (with reason)
+- Key decisions: shortlisted, visited, made offer
 
 ## Admin CLI quick reference
 

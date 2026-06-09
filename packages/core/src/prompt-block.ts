@@ -17,18 +17,26 @@ function writableMemoryPrompt(permissions: MemoryPermissions): string {
 }
 
 export async function buildPromptBlock(db: Db, ctx: ToolContext, permissions: MemoryPermissions = resolveMemoryPermissions()): Promise<string> {
-  const [sharedResult, userIndex] = await Promise.all([
+  const [sharedResult, userResult] = await Promise.all([
     db.query<{ physical_path: string; content_text: string }>(
       "SELECT physical_path, content_text FROM mx_file WHERE physical_path LIKE 'shared/%' AND physical_path NOT LIKE 'shared/.%' ORDER BY physical_path ASC",
     ),
-    readOptionalFile(db, `users/${ctx.userId}/index.md`),
+    db.query<{ physical_path: string; content_text: string }>(
+      "SELECT physical_path, content_text FROM mx_file WHERE physical_path LIKE $1 AND physical_path NOT LIKE $2 ORDER BY physical_path ASC",
+      [`users/${ctx.userId}/%`, `users/${ctx.userId}/.%`],
+    ),
   ])
 
   const docs = [
     ...sharedResult.rows.map(
       (row) => `<shared_file path="${row.physical_path}">\n${row.content_text}\n</shared_file>`,
     ),
-    userIndex ? `<user_index path="user/index.md">\n${userIndex}\n</user_index>` : null,
+    ...userResult.rows.map(
+      (row) => {
+        const virtualPath = row.physical_path.replace(`users/${ctx.userId}/`, "user/")
+        return `<user_file path="${virtualPath}">\n${row.content_text}\n</user_file>`
+      },
+    ),
   ].filter(Boolean)
 
   return [

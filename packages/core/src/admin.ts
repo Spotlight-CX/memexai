@@ -844,8 +844,11 @@ export async function getAdminSetupStatus(db: Db) {
   const bootstrapped = sharedFiles.length > 0 && config["setup_completed"] === "true"
   const nextSteps: string[] = []
   if (sharedFiles.length === 0) {
-    nextSteps.push("Write shared/index.md to define agent memory scope")
-    nextSteps.push("Run: memex-admin files write shared/index.md --content '...' --reason 'bootstrap'")
+    nextSteps.push("Write shared/procedural.md — agent behavior rules, tool policy, what not to memorize")
+    nextSteps.push("Write shared/semantic.md — schema for user facts (written to user/profile.md)")
+    nextSteps.push("Write shared/episodic.md — schema for user events (appended to user/log.md)")
+    nextSteps.push("Optionally write shared/domain.md — product-specific examples for each memory type")
+    nextSteps.push("Run: memex-admin files write shared/procedural.md --content '...' --reason 'bootstrap'")
   }
   if (sharedFiles.length > 0 && config["setup_completed"] !== "true") {
     nextSteps.push("Run: memex-admin setup complete --note '<your product description>'")

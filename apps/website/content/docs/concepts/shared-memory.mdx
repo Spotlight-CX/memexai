@@ -41,11 +41,28 @@ Because shared writes go through the same tool path as user writes, every update
 
 Every prompt block built by `getSystemPrompt()` or `getPromptBlock()` automatically includes:
 
-- `shared/index.md` — if it exists, it is injected verbatim into the system prompt
-- Any files referenced from `shared/index.md` can be fetched by the agent via `memory_read`
-- `user/index.md` — the current user's memory catalog, also injected automatically
+- **All `shared/*` files** — every file under `shared/` (except dot-files) is injected verbatim, ordered alphabetically
+- **All `user/{userId}/*` files** — every file in the current user's namespace is injected as well
 
-This means anything you write to `shared/index.md` or `shared/claude.md` becomes part of every agent session, for every user, without any extra integration code. It is the closest MemexAI has to a "global instruction" that survives model updates and session boundaries.
+This means anything you write to `shared/` is immediately part of every agent session, for every user, without any extra integration code.
+
+## Organizing shared/ with the cognitive triad
+
+Shared memory works best when split into three purpose-specific files. Each serves a different retrieval need and a different update cadence:
+
+```
+shared/procedural.md   ← always injected: agent behavior rules, tool policy
+shared/semantic.md     ← schema: what facts to collect and store in user/profile.md
+shared/episodic.md     ← schema: what events to append to user/log.md
+```
+
+**Procedural files** change rarely and are written by the operator. They contain global rules that must hold in every session: tool selection policy, what never to store, HITL capture guidance.
+
+**Semantic schema files** define the shape of `user/profile.md` — which fields to collect, how to format them, how to handle corrections. When you add a new field to `shared/semantic.md`, agents start collecting it across all future sessions.
+
+**Episodic schema files** define what belongs in `user/log.md` — which events are worth logging, the format, and the append-only constraint. The most important content is usually the rejection reason: it prevents re-suggesting options the user has already ruled out.
+
+See [Cognitive Architecture](/docs/concepts/cognitive-architecture) for the full pattern and example templates.
 
 ```ts
 // shared/index.md is injected here automatically

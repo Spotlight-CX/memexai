@@ -2,13 +2,6 @@ import type { Db } from "./db"
 import type { ToolContext } from "./paths"
 import { getAgenticToolDefinitions, getRawToolDefinitions, resolveMemoryPermissions, type MemoryPermissions } from "@memexai/core"
 
-async function readOptionalFile(db: Db, physicalPath: string): Promise<string | null> {
-  const { rows } = await db.query<{ content_text: string }>(
-    "SELECT content_text FROM mx_file WHERE physical_path = $1",
-    [physicalPath],
-  )
-  return rows[0]?.content_text ?? null
-}
 
 function writableMemoryPrompt(permissions: MemoryPermissions): string {
   return permissions.writableMounts.includes("shared")
@@ -17,18 +10,26 @@ function writableMemoryPrompt(permissions: MemoryPermissions): string {
 }
 
 export async function buildPromptBlock(db: Db, ctx: ToolContext, permissions: MemoryPermissions = resolveMemoryPermissions()): Promise<string> {
-  const [sharedResult, userIndex] = await Promise.all([
+  const [sharedResult, userResult] = await Promise.all([
     db.query<{ physical_path: string; content_text: string }>(
       "SELECT physical_path, content_text FROM mx_file WHERE physical_path LIKE 'shared/%' AND physical_path NOT LIKE 'shared/.%' ORDER BY physical_path ASC",
     ),
-    readOptionalFile(db, `users/${ctx.userId}/index.md`),
+    db.query<{ physical_path: string; content_text: string }>(
+      "SELECT physical_path, content_text FROM mx_file WHERE physical_path LIKE $1 AND physical_path NOT LIKE $2 ORDER BY physical_path ASC",
+      [`users/${ctx.userId}/%`, `users/${ctx.userId}/.%`],
+    ),
   ])
 
   const docs = [
     ...sharedResult.rows.map(
       (row) => `<shared_file path="${row.physical_path}">\n${row.content_text}\n</shared_file>`,
     ),
-    userIndex ? `<user_index path="user/index.md">\n${userIndex}\n</user_index>` : null,
+    ...userResult.rows.map(
+      (row) => {
+        const virtualPath = row.physical_path.replace(`users/${ctx.userId}/`, "user/")
+        return `<user_file path="${virtualPath}">\n${row.content_text}\n</user_file>`
+      },
+    ),
   ].filter(Boolean)
 
   return [
