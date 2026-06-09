@@ -331,7 +331,7 @@ async def resolve_visible_linked_paths(db: DbPool, paths: List[str], ctx: Reques
             files.append(file)
     return files
 
-async def fetch_smart_read_seeds(db: DbPool, query_str: Optional[str], ctx: RequestContext) -> List[Dict[str, Any]]:
+async def fetch_context_seeds(db: DbPool, query_str: Optional[str], ctx: RequestContext) -> List[Dict[str, Any]]:
     values = [f"users/{ctx.user_id}/%"]
     if query_str:
         values.insert(0, query_str)
@@ -383,7 +383,7 @@ async def retrieve_memory_context(db: DbPool, ctx: RequestContext, options: Dict
     related_depth = options.get("relatedDepth", 1)
     linked_score_multiplier = options.get("linkedScoreMultiplier", 0.35)
 
-    seeds = await fetch_smart_read_seeds(db, query_str, ctx)
+    seeds = await fetch_context_seeds(db, query_str, ctx)
     candidates_by_path = {}
     visited = set()
     for seed in seeds:
@@ -456,7 +456,7 @@ async def retrieve_memory_context(db: DbPool, ctx: RequestContext, options: Dict
         "filesIncludedMeta": files_included_meta,
     }
 
-async def execute_memory_smart_read(db: DbPool, args: Dict[str, Any], ctx: RequestContext) -> Dict[str, Any]:
+async def execute_memory_context(db: DbPool, args: Dict[str, Any], ctx: RequestContext) -> Dict[str, Any]:
     max_chars = positive_int_arg(args, "maxChars", 24000, 200000)
     query_str = args.get("query")
     if query_str is not None and (not isinstance(query_str, str) or not query_str):
@@ -477,7 +477,7 @@ async def execute_memory_smart_read(db: DbPool, args: Dict[str, Any], ctx: Reque
         updated_iso = datetime_to_iso(file["updatedAt"])
         sections.append(f"## {file['path']}\n(updated {updated_iso})\n\n{file['content']}")
 
-    note = f"---\nNote: {len(context['omitted'])} file(s) omitted (budget limit). Use memory_search to find specific content." if context["omitted"] else None
+    note = f"---\nNote: {len(context['omitted'])} file(s) omitted (budget limit). Use memory_find to find specific content." if context["omitted"] else None
 
     content_parts = ["<memexai_memory>"] + sections
     if note:
@@ -486,7 +486,7 @@ async def execute_memory_smart_read(db: DbPool, args: Dict[str, Any], ctx: Reque
 
     content = "\n\n".join(content_parts)
 
-    await log_access(db, None, "*", "smart_read", ctx)
+    await log_access(db, None, "*", "context", ctx)
 
     return {
         "content": content,
@@ -496,7 +496,7 @@ async def execute_memory_smart_read(db: DbPool, args: Dict[str, Any], ctx: Reque
         "truncated": len(context["omitted"]) > 0,
     }
 
-async def execute_memory_search_bm25(db: DbPool, input_args: Dict[str, Any], ctx: RequestContext) -> Dict[str, Any]:
+async def execute_memory_find(db: DbPool, input_args: Dict[str, Any], ctx: RequestContext) -> Dict[str, Any]:
     query_str = input_args.get("query")
     if not isinstance(query_str, str) or not query_str:
         raise MemexError("INVALID_ARGS", "query is required")
@@ -532,7 +532,7 @@ async def execute_memory_search_bm25(db: DbPool, input_args: Dict[str, Any], ctx
     rows = await db.query(sql, *values)
 
     log_path = prefix_to_physical(prefix, ctx) if prefix else "*"
-    await log_access(db, None, log_path or "*", "search", ctx)
+    await log_access(db, None, log_path or "*", "find", ctx)
 
     results = []
     for row in rows:
@@ -552,12 +552,7 @@ async def execute_memory_search_bm25(db: DbPool, input_args: Dict[str, Any], ctx
         "truncated": False,
     }
 
-async def execute_memory_search(db: DbPool, args: Dict[str, Any], ctx: RequestContext, model: Optional[Any] = None) -> Dict[str, Any]:
-    if model:
-        return await execute_agentic_memory_search(db, args, ctx, model)
-    return await execute_memory_search_bm25(db, args, ctx)
-
-async def execute_agentic_memory_search(db: DbPool, args: Dict[str, Any], ctx: RequestContext, model: Any) -> Dict[str, Any]:
+async def execute_agentic_memory_context(db: DbPool, args: Dict[str, Any], ctx: RequestContext, model: Any) -> Dict[str, Any]:
     # In python, the model parameter can be a callable that takes (system, prompt, tools)
     # and returns a text answer plus list of sources.
     # If the model is a callable, we call it.
@@ -567,7 +562,7 @@ async def execute_agentic_memory_search(db: DbPool, args: Dict[str, Any], ctx: R
     max_reads = positive_int_arg(args, "maxReads", 5, 50)
     max_chars = positive_int_arg(args, "maxChars", 8000, 200000)
 
-    candidates = await execute_memory_search_bm25(db, args, ctx)
+    candidates = await execute_memory_find(db, args, ctx)
     list_res = await execute_memory_list(db, {"prefix": args.get("prefix")}, ctx)
 
     # Let's perform reads for indices
@@ -586,7 +581,7 @@ async def execute_agentic_memory_search(db: DbPool, args: Dict[str, Any], ctx: R
             "Answer the user's query using only MemexAI memory.",
             "Use virtual paths only, such as user/profile.md or shared/index.md.",
             "Never use physical paths such as users/{userId}/...",
-            "Do not write, patch, memorize, or mutate memory.",
+            "Do not write, patch, remember, or mutate memory.",
             "Cite relevant memory paths in your answer.",
             f"Stay under {max_chars} characters.",
         ])
@@ -611,18 +606,18 @@ async def execute_agentic_memory_search(db: DbPool, args: Dict[str, Any], ctx: R
         async def read_fn(path: str):
             nonlocal reads_count
             if reads_count >= max_reads:
-                raise MemexError("MAX_READS_EXCEEDED", "memory_search read budget exceeded")
+                raise MemexError("MAX_READS_EXCEEDED", "memory_context read budget exceeded")
             reads_count += 1
             res = await execute_memory_read(db, {"path": path}, ctx)
             sources.add(path)
             return res
 
-        async def smart_read_fn(read_args: dict):
+        async def context_fn(read_args: dict):
             nonlocal reads_count
             if reads_count >= max_reads:
-                raise MemexError("MAX_READS_EXCEEDED", "memory_search read budget exceeded")
+                raise MemexError("MAX_READS_EXCEEDED", "memory_context read budget exceeded")
             reads_count += 1
-            res = await execute_memory_smart_read(db, read_args, ctx)
+            res = await execute_memory_context(db, read_args, ctx)
             for path in res.get("filesIncluded", []):
                 sources.add(path)
             return res
@@ -633,7 +628,7 @@ async def execute_agentic_memory_search(db: DbPool, args: Dict[str, Any], ctx: R
             prompt=prompt,
             tools={
                 "memory_read": read_fn,
-                "memory_smart_read": smart_read_fn,
+                "memory_context": context_fn,
             }
         )
 
@@ -643,11 +638,11 @@ async def execute_agentic_memory_search(db: DbPool, args: Dict[str, Any], ctx: R
             "sources": list(sources),
         }
     else:
-        raise MemexError("MODEL_NOT_CONFIGURED", "Model configuration must be a callable for agentic memory search")
+        raise MemexError("MODEL_NOT_CONFIGURED", "Model configuration must be a callable for memory_context")
 
-async def execute_memory_memorize(db: DbPool, args: Dict[str, Any], ctx: RequestContext, model: Optional[Any] = None) -> Dict[str, Any]:
+async def execute_memory_remember(db: DbPool, args: Dict[str, Any], ctx: RequestContext, model: Optional[Any] = None) -> Dict[str, Any]:
     if not model:
-        raise MemexError("MODEL_NOT_CONFIGURED", "memory_memorize requires a configured model")
+        raise MemexError("MODEL_NOT_CONFIGURED", "memory_remember requires a configured model")
 
     text = args.get("text")
     if not text:
@@ -669,7 +664,7 @@ async def execute_memory_memorize(db: DbPool, args: Dict[str, Any], ctx: Request
 
     def ensure_write_budget():
         if len(writes) >= max_writes:
-            raise MemexError("MAX_WRITES_EXCEEDED", "memory_memorize write budget exceeded")
+            raise MemexError("MAX_WRITES_EXCEEDED", "memory_remember write budget exceeded")
 
     if callable(model):
         system_prompt = "\n".join([
@@ -740,7 +735,7 @@ async def execute_memory_memorize(db: DbPool, args: Dict[str, Any], ctx: Request
             "writes": writes,
         }
     else:
-        raise MemexError("MODEL_NOT_CONFIGURED", "Model configuration must be a callable for memory_memorize")
+        raise MemexError("MODEL_NOT_CONFIGURED", "Model configuration must be a callable for memory_remember")
 
 async def execute_tool(db: DbPool, tool_name: str, args: Dict[str, Any], ctx: RequestContext, model: Optional[Any] = None) -> Dict[str, Any]:
     if tool_name == "memory_list":
@@ -751,11 +746,11 @@ async def execute_tool(db: DbPool, tool_name: str, args: Dict[str, Any], ctx: Re
         return await execute_memory_write(db, args, ctx)
     elif tool_name == "memory_patch":
         return await execute_memory_patch(db, args, ctx)
-    elif tool_name == "memory_smart_read":
-        return await execute_memory_smart_read(db, args, ctx)
-    elif tool_name == "memory_search":
-        return await execute_memory_search(db, args, ctx, model)
-    elif tool_name == "memory_memorize":
-        return await execute_memory_memorize(db, args, ctx, model)
+    elif tool_name == "memory_context":
+        return await execute_memory_context(db, args, ctx)
+    elif tool_name == "memory_find":
+        return await execute_memory_find(db, args, ctx)
+    elif tool_name == "memory_remember":
+        return await execute_memory_remember(db, args, ctx, model)
     else:
         raise MemexError("UNKNOWN_TOOL", f"Unknown tool: {tool_name}")

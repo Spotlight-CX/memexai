@@ -36,7 +36,7 @@ async def build_prompt_block(db: DbPool, ctx: RequestContext) -> str:
         "<memexai_memory>",
         "You have access to MemexAI memory. Use it to make later responses reflect durable memory from prior turns and sessions.",
         "Tools alone do not make memory useful: retrieve relevant memory before answering when stored context could change the response.",
-        "Prefer the agentic memory tools: memory_memorize to remember durable facts, and memory_search to retrieve memory.",
+        "Prefer the agentic memory tools: memory_remember to remember durable facts, and memory_context to retrieve memory.",
         "MemexAI handles file bookkeeping for agentic tools. Use virtual paths only if raw tools are explicitly provided.",
         "Writable user memory lives under user/**. Shared memory lives under shared/** and is read-only.",
         "Never use physical paths such as users/{userId}/... .",
@@ -125,14 +125,14 @@ class MemexUser:
 
     async def search(self, query: str, **kwargs) -> Dict[str, Any]:
         args = {"query": query, **kwargs}
-        return await self.memex.execute_tool("memory_search", args, self.ctx)
+        return await self.memex.execute_tool("memory_find", args, self.ctx)
 
     async def find(self, query: str, **kwargs) -> Dict[str, Any]:
         return await self.search(query, **kwargs)
 
     async def memorize(self, text: str, **kwargs) -> Dict[str, Any]:
         args = {"text": text, **kwargs}
-        return await self.memex.execute_tool("memory_memorize", args, self.ctx)
+        return await self.memex.execute_tool("memory_remember", args, self.ctx)
 
     async def remember(self, text: str, **kwargs) -> Dict[str, Any]:
         return await self.memorize(text, **kwargs)
@@ -144,7 +144,7 @@ class MemexUser:
             args = {**query, **kwargs}
         else:
             args = {"query": query, **kwargs}
-        return await self.memex.execute_tool("memory_smart_read", args, self.ctx)
+        return await self.memex.execute_tool("memory_context", args, self.ctx)
 
     async def execute_tool(self, tool_name: str, args: Dict[str, Any], tool_call_id: Optional[str] = None) -> Dict[str, Any]:
         ctx = self.ctx

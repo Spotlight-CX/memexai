@@ -37,8 +37,8 @@ async def pii_pre_hook(tool_name: str, args: Any, ctx_dict: Dict[str, Any]) -> A
                 new_args["replacement"] = redact_pii(args["replacement"])
         return new_args
 
-    # Check for memory_memorize
-    if tool_name == "memory_memorize" and "text" in args:
+    # Check for memory_remember
+    if tool_name == "memory_remember" and "text" in args:
         new_args = dict(args)
         new_args["text"] = redact_pii(args["text"])
         return new_args
