@@ -123,19 +123,13 @@ class MemexUser:
         args = {"path": path, "operation": operation, **kwargs}
         return await self.memex.execute_tool("memory_patch", args, self.ctx)
 
-    async def search(self, query: str, **kwargs) -> Dict[str, Any]:
+    async def find(self, query: str, **kwargs) -> Dict[str, Any]:
         args = {"query": query, **kwargs}
         return await self.memex.execute_tool("memory_find", args, self.ctx)
 
-    async def find(self, query: str, **kwargs) -> Dict[str, Any]:
-        return await self.search(query, **kwargs)
-
-    async def memorize(self, text: str, **kwargs) -> Dict[str, Any]:
+    async def remember(self, text: str, **kwargs) -> Dict[str, Any]:
         args = {"text": text, **kwargs}
         return await self.memex.execute_tool("memory_remember", args, self.ctx)
-
-    async def remember(self, text: str, **kwargs) -> Dict[str, Any]:
-        return await self.memorize(text, **kwargs)
 
     async def retrieve_context(self, query: Optional[Union[str, Dict[str, Any]]] = None, **kwargs) -> Dict[str, Any]:
         if query is None:

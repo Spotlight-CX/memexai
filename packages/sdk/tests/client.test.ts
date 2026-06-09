@@ -194,7 +194,7 @@ describe("MemexAI SDK — file operations", () => {
     })
   })
 
-  test("executes search through the service", async () => {
+  test("executes find through the service", async () => {
     const fetchMock = vi.fn(async () => jsonResponse({
       query: "neighborhood",
       results: [{ path: "user/profile.md", snippet: "quiet neighborhood", rank: 0.4, updatedAt: "2026-01-01T00:00:00.000Z" }],
@@ -230,6 +230,14 @@ describe("MemexAI SDK — file operations", () => {
       context: { userId: "user_123", actor: "assistant", toolCallId: "call_mem" },
       arguments: { text: "remember quiet neighborhoods" },
     })
+  })
+
+  test("does not expose legacy helper aliases", () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ ok: true }))
+    const memory = createClient(fetchMock).forUser({ userId: "user_123" })
+
+    expect("search" in memory).toBe(false)
+    expect("memorize" in memory).toBe(false)
   })
 })
 
