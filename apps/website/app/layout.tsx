@@ -23,6 +23,9 @@ export const metadata: Metadata = {
     default: 'MemexAI - Inspectable memory infrastructure for AI agents',
     template: '%s | MemexAI',
   },
+  icons: {
+    icon: '/logo.svg',
+  },
   description:
     'Inspectable memory infrastructure for multi-tenant AI agents: scoped Postgres files, revisions, access logs, admin operations, and background dreaming.',
   keywords: [

@@ -2657,20 +2657,6 @@ body {
   text-decoration: none;
 }
 
-.nav-logo-mark {
-  display: inline-flex;
-  width: 28px;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(8, 127, 91, 0.2);
-  border-radius: 6px;
-  color: #101614;
-  background: #d8f6e7;
-  font-size: 11px;
-  font-weight: 850;
-  flex-shrink: 0;
-}
 
 .footer-logo {
   display: inline-flex;
@@ -2684,19 +2670,7 @@ body {
   text-decoration: none;
 }
 
-.footer-logo-mark {
-  display: inline-flex;
-  width: 38px;
-  height: 38px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(7, 18, 14, 0.12);
-  border-radius: 8px;
-  color: #d8f6e7;
-  background: #07120e;
-  font-size: 13px;
-  font-weight: 850;
-}
+
 
 .site-footer-brand p {
   margin: 0;
