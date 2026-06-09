@@ -64,7 +64,7 @@ The boundary is not advisory — it is enforced at the route and path validation
 | **Virtual path** | The path agents see: `user/profile.md`, `shared/index.md`. |
 | **Physical path** | How paths are stored in Postgres: `users/{userId}/profile.md`. Agents never see these. |
 | **Hub file** | A memory file that many others link to or reference. Useful as a stable context anchor. |
-| **Memory link** | `[[user/file.md]]` syntax in file content. Creates forward graph edges used by smart_read traversal. |
+| **Memory link** | `[[user/file.md]]` syntax in file content. Creates forward graph edges used by `memory_context` traversal. |
 | **Scope** | The namespace prefix that determines write access and visibility: `user/` or `shared/`. |
 | **Dreaming** | Background consolidation. Merges duplicates, resolves contradictions, and keeps memory clean between sessions. See [Dreaming](/docs/operations/dreaming). |
 

@@ -68,7 +68,7 @@ If you roll your own agent memory, here is what you would eventually need to bui
 | Agent forges a path to another user's data | No prevention unless you validate every write yourself | Path validation layer — `PHYSICAL_PATH_FORBIDDEN` blocks physical paths |
 | Bad write corrupts context, no rollback | Overwritten and gone | `mx_revision` snapshots the full content on every write |
 | "What does the agent currently know?" | Open the file | Admin UI + access logs + full revision history |
-| Loading too much memory degrades output quality | Full file dumped into the prompt | Context budget in prompt block assembly; smart_read respects a character limit |
+| Loading too much memory degrades output quality | Full file dumped into the prompt | Context budget in prompt block assembly; `memory_context` respects a character limit |
 | Share policy/canon globally while keeping user data private | Two separate stores or manual conditional logic | `shared/` (read-only by default) + `user/` isolation, enforced at the path layer |
 | Write-on-every-call grows storage unbounded | Manual cleanup scripts | Dreaming: background compaction that merges duplicates and removes stale content |
 | Debug why an agent gave a wrong answer | Logs if you remembered to add them | Access logs correlated to `tool_call_id`, linked to specific LLM responses |
