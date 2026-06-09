@@ -26,14 +26,8 @@ class FakeUser:
     async def patch_file(self, path, operation, **kwargs):
         return {"path": path, "operation": operation, "changed": True, "noOp": False}
 
-    async def search(self, query, **kwargs):
-        return {"query": query, "results": [], "truncated": False}
-
     async def find(self, query, **kwargs):
         return {"query": query, "results": [], "truncated": False}
-
-    async def memorize(self, text, **kwargs):
-        return {"text": text, "dryRun": False, "writes": []}
 
     async def remember(self, text, **kwargs):
         return {"text": text, "dryRun": False, "writes": []}

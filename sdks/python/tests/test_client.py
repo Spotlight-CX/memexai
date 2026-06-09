@@ -166,21 +166,17 @@ async def test_memory_helpers_map_to_expected_tools():
 
     assert await memory.list_files(prefix="user/") == {"ok": True}
     assert await memory.find("quiet", limit=2) == {"ok": True}
-    assert await memory.search("quiet", limit=2) == {"ok": True}
     assert await memory.remember({"text": "remember this", "dryRun": True}, tool_call_id="call_2") == {"ok": True}
-    assert await memory.memorize({"text": "remember this too", "dryRun": True}, tool_call_id="call_3") == {"ok": True}
+    assert await memory.retrieve_context("quiet profile", tool_call_id="call_3") == {"ok": True}
+    assert not hasattr(memory, "search")
+    assert not hasattr(memory, "memorize")
 
     assert calls[0][0].endswith("/v1/tools/memory_list/execute")
     assert calls[0][1]["arguments"] == {"prefix": "user/"}
     assert calls[1][0].endswith("/v1/tools/memory_find/execute")
     assert calls[1][1]["arguments"] == {"query": "quiet", "limit": 2}
-    assert calls[2][0].endswith("/v1/tools/memory_find/execute")
+    assert calls[2][0].endswith("/v1/tools/memory_remember/execute")
     assert calls[2][1] == {
-        "context": {"userId": "user_123", "actor": "pytest"},
-        "arguments": {"query": "quiet", "limit": 2},
-    }
-    assert calls[3][0].endswith("/v1/tools/memory_remember/execute")
-    assert calls[3][1] == {
         "context": {
             "userId": "user_123",
             "actor": "pytest",
@@ -191,15 +187,14 @@ async def test_memory_helpers_map_to_expected_tools():
             "dryRun": True,
         },
     }
-    assert calls[4][0].endswith("/v1/tools/memory_remember/execute")
-    assert calls[4][1] == {
+    assert calls[3][0].endswith("/v1/tools/memory_context/execute")
+    assert calls[3][1] == {
         "context": {
             "userId": "user_123",
             "actor": "pytest",
             "toolCallId": "call_3",
         },
         "arguments": {
-            "text": "remember this too",
-            "dryRun": True,
+            "query": "quiet profile",
         },
     }
