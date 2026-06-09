@@ -61,16 +61,16 @@ raw_tool_definitions = [
         }
     },
     {
-        "name": "memory_smart_read",
-        "description": "Read all memory files formatted into a single markdown block, ranked by update time or query relevance, within a character limit. In service hybrid mode, query ranking can use BM25 plus pgvector semantic candidates. With a query, deterministic linked recall includes visible one-hop [[user/...]] or [[shared/...]] links if budget remains.",
+        "name": "memory_find",
+        "description": "Search memory for relevant files by keyword or semantic query. Returns ranked file metadata and snippets.",
         "inputSchema": {
             "type": "object",
+            "required": ["query"],
             "additionalProperties": False,
             "properties": {
-                "maxChars": {"type": "number", "description": "Maximum characters to return. Default: 24000."},
-                "query": {"type": "string", "description": "Optional query to rank files by relevance. Uses hybrid ranking in service hybrid mode."},
-                "includeRelated": {"type": "boolean", "description": "Include visible linked memory files. Defaults to true when query is provided."},
-                "relatedDepth": {"type": "number", "description": "Maximum link expansion depth. 0 disables linked retrieval. Default: 1, max: 2."},
+                "query": {"type": "string", "description": "Question or topic to search memory for."},
+                "limit": {"type": "number", "description": "Maximum search candidates. Default: 10."},
+                "prefix": {"type": "string", "description": "Optional virtual path prefix, e.g. user/ or shared/."},
             },
         },
     },
@@ -78,7 +78,7 @@ raw_tool_definitions = [
 
 agentic_tool_definitions = [
     {
-        "name": "memory_memorize",
+        "name": "memory_remember",
         "description": "Feed raw text and let MemexAI autonomously decide what to remember and where to store it.",
         "inputSchema": {
             "type": "object",
@@ -92,18 +92,16 @@ agentic_tool_definitions = [
         },
     },
     {
-        "name": "memory_search",
-        "description": "Search memory for a question. Uses BM25 by default and optional pgvector hybrid search in service hybrid mode.",
+        "name": "memory_context",
+        "description": "Retrieve an answer-ready memory context block for a query or broad recall goal.",
         "inputSchema": {
             "type": "object",
-            "required": ["query"],
             "additionalProperties": False,
             "properties": {
-                "query": {"type": "string", "description": "Question or topic to search memory for."},
-                "maxChars": {"type": "number", "description": "Maximum characters to return. Default: 8000."},
-                "limit": {"type": "number", "description": "Maximum search candidates. Default: 10."},
-                "maxReads": {"type": "number", "description": "Maximum files the agentic resolver may inspect. Default: 5."},
-                "prefix": {"type": "string", "description": "Optional virtual path prefix, e.g. user/ or shared/."},
+                "maxChars": {"type": "number", "description": "Maximum characters to return. Default: 24000."},
+                "query": {"type": "string", "description": "Optional query to rank files by relevance."},
+                "includeRelated": {"type": "boolean", "description": "Include visible linked memory files. Defaults to true when query is provided."},
+                "relatedDepth": {"type": "number", "description": "Maximum link expansion depth. 0 disables linked retrieval. Default: 1, max: 2."},
             },
         },
     },

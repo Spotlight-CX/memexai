@@ -2,19 +2,32 @@ import pytest
 
 from memexai._tools import (
     append_lines_after_heading,
+    execute_memory_context,
     execute_memory_list,
     execute_memory_patch,
     execute_memory_read,
-    execute_memory_smart_read,
     execute_memory_write,
+    execute_tool,
     replace_exact_text,
 )
 from memexai.errors import MemexError
+from memexai.tool_definitions import agentic_tool_definitions, raw_tool_definitions
 from memexai.types import RequestContext
 from conftest import FakeDb
 
 
 CTX = RequestContext(userId="user_123", actor="pytest")
+
+
+def test_python_direct_tool_lists_use_canonical_names():
+    assert [tool["name"] for tool in agentic_tool_definitions] == ["memory_remember", "memory_context"]
+    assert [tool["name"] for tool in raw_tool_definitions] == [
+        "memory_list",
+        "memory_read",
+        "memory_write",
+        "memory_patch",
+        "memory_find",
+    ]
 
 
 def test_patch_helpers_append_and_replace():
@@ -75,20 +88,20 @@ async def test_rejects_shared_write_and_missing_read():
 
 
 @pytest.mark.asyncio
-async def test_smart_read_returns_memory_block_and_budget_metadata():
+async def test_context_returns_memory_block_and_budget_metadata():
     db = FakeDb({
         "users/user_123/profile.md": "# Profile\n- Quiet",
         "shared/index.md": "# Shared",
     })
 
-    result = await execute_memory_smart_read(db, {"maxChars": 200}, CTX)
+    result = await execute_memory_context(db, {"maxChars": 200}, CTX)
     assert result["content"].startswith("<memexai_memory>")
     assert "user/profile.md" in result["filesIncluded"]
     assert result["truncated"] is False
 
 
 @pytest.mark.asyncio
-async def test_smart_read_query_expands_one_hop_links():
+async def test_context_query_expands_one_hop_links():
     db = FakeDb({
         "users/user_123/profile.md": "# Profile\n[[user/preferences.md]]\n[[shared/index.md]]",
         "users/user_123/preferences.md": "# Preferences\n- Quiet",
@@ -96,7 +109,7 @@ async def test_smart_read_query_expands_one_hop_links():
     })
     db.files["users/user_123/profile.md"]["rank"] = 0.8
 
-    result = await execute_memory_smart_read(db, {"query": "quiet", "maxChars": 10000}, CTX)
+    result = await execute_memory_context(db, {"query": "quiet", "maxChars": 10000}, CTX)
 
     assert result["filesIncluded"] == ["user/profile.md", "user/preferences.md", "shared/index.md"]
     assert result["filesIncludedMeta"] == [
@@ -107,26 +120,26 @@ async def test_smart_read_query_expands_one_hop_links():
 
 
 @pytest.mark.asyncio
-async def test_smart_read_does_not_expand_without_query_by_default():
+async def test_context_does_not_expand_without_query_by_default():
     db = FakeDb({
         "users/user_123/profile.md": "# Profile\n[[user/preferences.md]]",
     })
 
-    result = await execute_memory_smart_read(db, {"maxChars": 10000}, CTX)
+    result = await execute_memory_context(db, {"maxChars": 10000}, CTX)
 
     assert result["filesIncluded"] == ["user/profile.md"]
     assert not any("physical_path = ANY($1)" in call[1] for call in db.calls if call[0] == "query")
 
 
 @pytest.mark.asyncio
-async def test_smart_read_respects_depth_zero_and_circular_links():
+async def test_context_respects_depth_zero_and_circular_links():
     disabled_db = FakeDb({
         "users/user_123/a.md": "# A\n[[user/b.md]]",
         "users/user_123/b.md": "# B",
     })
     disabled_db.files["users/user_123/a.md"]["rank"] = 1
 
-    disabled = await execute_memory_smart_read(disabled_db, {
+    disabled = await execute_memory_context(disabled_db, {
         "query": "alpha",
         "relatedDepth": 0,
         "maxChars": 10000,
@@ -140,7 +153,7 @@ async def test_smart_read_respects_depth_zero_and_circular_links():
     })
     circular_db.files["users/user_123/a.md"]["rank"] = 1
 
-    circular = await execute_memory_smart_read(circular_db, {
+    circular = await execute_memory_context(circular_db, {
         "query": "alpha",
         "relatedDepth": 2,
         "maxChars": 10000,
@@ -153,9 +166,19 @@ async def test_rejects_numeric_arguments_outside_core_bounds():
     db = FakeDb()
 
     with pytest.raises(MemexError) as exc:
-        await execute_memory_smart_read(db, {"maxChars": 0}, CTX)
+        await execute_memory_context(db, {"maxChars": 0}, CTX)
     assert exc.value.code == "INVALID_ARGS"
 
     with pytest.raises(MemexError) as depth_exc:
-        await execute_memory_smart_read(db, {"relatedDepth": 3}, CTX)
+        await execute_memory_context(db, {"relatedDepth": 3}, CTX)
     assert depth_exc.value.code == "INVALID_ARGS"
+
+
+@pytest.mark.asyncio
+async def test_old_tool_names_are_rejected():
+    db = FakeDb()
+
+    for name in ["memory_memorize", "memory_search", "memory_smart_read"]:
+        with pytest.raises(MemexError) as exc:
+            await execute_tool(db, name, {}, CTX)
+        assert exc.value.code == "UNKNOWN_TOOL"
