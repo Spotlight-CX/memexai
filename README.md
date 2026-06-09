@@ -157,7 +157,7 @@ from memexai import MemexAI
 
 memex = MemexAI(url="http://localhost:8080", api_key="dev-agent-key")
 memory = memex.for_user("user_123", actor="assistant")
-result = await memory.search("What does this user prefer?")
+result = await memory.find("What does this user prefer?")
 await memex.close()
 ```
 
@@ -315,7 +315,7 @@ memex = MemexAI(url="http://localhost:8080", api_key="dev-agent-key")
 memory = memex.for_user("user_123", actor="assistant")
 
 await memory.write_file("user/profile.md", "# Profile\n\n- Prefers quiet neighborhoods.", reason="captured preference")
-result = await memory.search("quiet neighborhoods")
+result = await memory.find("quiet neighborhoods")
 
 await memex.close()
 ```

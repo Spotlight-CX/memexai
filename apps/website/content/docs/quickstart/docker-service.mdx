@@ -166,8 +166,8 @@ memex = MemexAI(
 
 memory = memex.for_user("user_123", actor="assistant")
 
-result = await memory.search("What does this user prefer?")
-print(result.get("answer") or result["results"])
+result = await memory.find("What does this user prefer?")
+print(result["results"])
 
 await memex.close()
 ```

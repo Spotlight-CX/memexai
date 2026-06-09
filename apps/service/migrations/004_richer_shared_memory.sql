@@ -14,7 +14,7 @@ SET content_text = '# Memory System
 
 ## Quick rules
 
-- Prefer `memory_memorize` and `memory_search` over raw file tools.
+- Prefer `memory_remember` and `memory_context` over raw file tools.
 - Use `memory_list` before assuming what files exist under `user/`.
 - Read `user/index.md` on first turn; infer structure if it doesn''t exist.',
     updated_at = now()

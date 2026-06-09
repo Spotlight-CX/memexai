@@ -71,7 +71,7 @@ Scope:
 
 Validation:
 - `bun test packages/core/tests/search.test.ts`
-- SDK fallback tests for `memory.search()`.
+- SDK fallback tests for `memory.find()`.
 
 Commit:
 - Included in commit for Task 4.
@@ -115,7 +115,7 @@ Commit:
 Status: `committed`
 
 Scope:
-- Add `user.memorize(text, opts)`.
+- Add `user.remember(text, opts)`.
 - Require configured model.
 - Give inner model write/patch tools only.
 - Support `maxWrites` and `dryRun`.

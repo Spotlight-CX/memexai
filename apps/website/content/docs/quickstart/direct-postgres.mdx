@@ -65,7 +65,7 @@ await memory.write_file(
     reason="captured preference",
 )
 
-result = await memory.search("quiet neighborhoods")
+result = await memory.find("quiet neighborhoods")
 
 await memex.close()
 ```

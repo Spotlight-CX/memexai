@@ -27,8 +27,8 @@ const memory = memex.forUser({
   actor: 'assistant',
 })
 
-const result = await memory.search('What does this user prefer?')
-console.log(result.answer ?? result.results)
+const result = await memory.find('What does this user prefer?')
+console.log(result.results)
 ```
 
 ## Advanced: direct Postgres core runtime

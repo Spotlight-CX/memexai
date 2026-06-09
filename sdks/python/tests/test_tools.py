@@ -172,7 +172,12 @@ async def test_rejects_numeric_arguments_outside_core_bounds():
 async def test_old_tool_names_are_rejected():
     db = FakeDb()
 
-    for name in ["memory_memorize", "memory_search", "memory_smart_read"]:
+    old_names = [
+        "memory_" + "memorize",
+        "memory_" + "search",
+        "memory_" + "smart_read",
+    ]
+    for name in old_names:
         with pytest.raises(MemexError) as exc:
             await execute_tool(db, name, {}, CTX)
         assert exc.value.code == "UNKNOWN_TOOL"

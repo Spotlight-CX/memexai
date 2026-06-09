@@ -83,7 +83,7 @@ memex = await create_memex({
 await memex.migrate()
 
 memory = memex.for_user("user_123", actor="assistant")
-result = await memory.search("quiet neighborhoods")
+result = await memory.find("quiet neighborhoods")
 
 await memex.close()
 ```
