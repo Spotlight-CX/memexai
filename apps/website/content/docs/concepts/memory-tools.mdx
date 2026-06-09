@@ -3,7 +3,7 @@ title: Memory Tools
 description: Two-layer tool architecture — memory subagent for most agents, raw file tools for direct control.
 ---
 
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+import { DocTabs, DocTab } from '@/components/doc-tabs'
 
 MemexAI exposes two layers of tooling. The **memory subagent** (`memory_remember` + `memory_context`) is the right default for assistants and copilots — the model stores and retrieves memory without managing paths. The **raw file tools** give you direct file-level control when your application needs deterministic writes or has a file plan.
 
@@ -46,8 +46,8 @@ Every write produces a **revision snapshot** and an **access log row**, linking 
 
 Use `memory_remember` after a completed user turn or at natural breakpoints in a conversation — not on every message. Calling it too frequently creates noise and near-duplicate memory. A good pattern:
 
-<Tabs items={['TypeScript', 'Python']}>
-<Tab value="TypeScript">
+<DocTabs items={['TypeScript', 'Python']} groupId="memex-lang" persist>
+<DocTab value="TypeScript">
 ```ts
 // Most common: user message after a completed turn
 await memory.remember({ text: userMessage })
@@ -58,8 +58,8 @@ await memory.remember({ text: 'run_sql failed: ILIKE is not supported in this SQ
 // Assistant observation or stated fact
 await memory.remember({ text: assistantResponse })
 ```
-</Tab>
-<Tab value="Python">
+</DocTab>
+<DocTab value="Python">
 ```python
 # Most common: user message after a completed turn
 await memory.remember(user_message)
@@ -70,8 +70,8 @@ await memory.remember("run_sql failed: ILIKE is not supported in this SQL dialec
 # Assistant observation or stated fact
 await memory.remember(assistant_response)
 ```
-</Tab>
-</Tabs>
+</DocTab>
+</DocTabs>
 
 Pass `dryRun: true` to preview what would be written without committing:
 
@@ -352,16 +352,16 @@ RRF scores:
 
 Start with the subagent. Add raw file tools only when your use case requires direct file control.
 
-<Tabs items={['TypeScript', 'Python']}>
-<Tab value="TypeScript">
+<DocTabs items={['TypeScript', 'Python']} groupId="memex-lang" persist>
+<DocTab value="TypeScript">
 ```ts
 // Typical assistant setup
 const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
 const tools = memory.createMemorySubagentToolset()
 // → exposes memory_remember and memory_context to the model
 ```
-</Tab>
-<Tab value="Python">
+</DocTab>
+<DocTab value="Python">
 ```python
 # Typical assistant setup
 system = await memory.get_system_prompt("You are a helpful assistant with durable user memory.")
@@ -371,8 +371,8 @@ system = await memory.get_system_prompt("You are a helpful assistant with durabl
 await memory.remember("User prefers 2BHK in Indiranagar")
 context = await memory.retrieve_context("apartment requirements")
 ```
-</Tab>
-</Tabs>
+</DocTab>
+</DocTabs>
 
 ---
 

@@ -3,7 +3,7 @@ title: Python SDK
 description: Connect Python apps to the recommended MemexAI service.
 ---
 
-The Python SDK connects to the recommended containerized MemexAI service by default. Direct Postgres mode is still available for advanced deployments where your Python app intentionally owns database credentials.
+import { DocTabs, DocTab } from '@/components/doc-tabs'
 
 ## Install
 
@@ -13,13 +13,11 @@ From the repository root:
 python3 -m pip install -e "sdks/python[test]"
 ```
 
-From `sdks/python`:
+## Usage
 
-```bash
-python3 -m pip install -e ".[test]"
-```
-
-## Service usage
+<DocTabs items={['Service (HTTP)', 'Direct Postgres']} groupId="memex-deploy" persist>
+<DocTab value="Service (HTTP)">
+`MemexAI` connects to the containerized MemexAI service over HTTP. Recommended for most apps.
 
 ```python
 from memexai import MemexAI
@@ -41,6 +39,26 @@ print(result["content"])
 
 await memex.close()
 ```
+</DocTab>
+<DocTab value="Direct Postgres">
+`create_memex` connects directly to Postgres — no HTTP layer. Use when your app intentionally owns the database connection.
+
+```python
+from memexai import create_memex
+
+memex = await create_memex({
+    "databaseUrl": "postgresql://memexai:memexai@localhost:5433/memexai",
+})
+
+await memex.migrate()
+
+memory = memex.for_user("user_123", actor="assistant")
+result = await memory.find("quiet neighborhoods")
+
+await memex.close()
+```
+</DocTab>
+</DocTabs>
 
 ## Helpers
 
@@ -66,22 +84,3 @@ await memory.remember("Remember that the user prefers quiet neighborhoods.")
 | LangChain | [LangChain adapter](/docs/adapters/langchain) |
 | LlamaIndex | [LlamaIndex adapter](/docs/adapters/llamaindex) |
 | CrewAI | [CrewAI adapter](/docs/adapters/crewai) |
-
-## Advanced: direct Postgres
-
-Use `create_memex` only when your Python app should connect directly to Postgres.
-
-```python
-from memexai import create_memex
-
-memex = await create_memex({
-    "databaseUrl": "postgresql://memexai:memexai@localhost:5433/memexai",
-})
-
-await memex.migrate()
-
-memory = memex.for_user("user_123", actor="assistant")
-result = await memory.find("quiet neighborhoods")
-
-await memex.close()
-```

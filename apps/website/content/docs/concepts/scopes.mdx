@@ -3,7 +3,7 @@ title: Memory Scopes
 description: How virtual paths isolate user memory and shared memory.
 ---
 
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+import { DocTabs, DocTab } from '@/components/doc-tabs'
 
 MemexAI uses a two-level path namespace. Every path an agent sees is a virtual path. The system translates it to a physical path in the database before SQL runs.
 
@@ -27,8 +27,8 @@ The agent never sees the physical path.
 
 **`userId` is a partition key, not necessarily a person.** Most deployments pass a human user ID, but it can be a background agent ID, a tenant ID, a workspace ID, or any stable application identity. The system enforces isolation by that key regardless of what it represents.
 
-<Tabs items={['TypeScript', 'Python']}>
-<Tab value="TypeScript">
+<DocTabs items={['TypeScript', 'Python']} groupId="memex-lang" persist>
+<DocTab value="TypeScript">
 ```ts
 // Human user
 memex.forUser({ userId: "user_alice_123", actor: "assistant" })
@@ -39,8 +39,8 @@ memex.forUser({ userId: "agent_research_bot_v2", actor: "agent" })
 // Tenant-scoped deployment
 memex.forUser({ userId: "tenant_acme_prod", actor: "assistant" })
 ```
-</Tab>
-<Tab value="Python">
+</DocTab>
+<DocTab value="Python">
 ```python
 # Human user
 memex.for_user("user_alice_123", actor="assistant")
@@ -51,8 +51,8 @@ memex.for_user("agent_research_bot_v2", actor="agent")
 # Tenant-scoped deployment
 memex.for_user("tenant_acme_prod", actor="assistant")
 ```
-</Tab>
-</Tabs>
+</DocTab>
+</DocTabs>
 
 ### Multi-agent patterns
 
@@ -60,8 +60,8 @@ memex.for_user("tenant_acme_prod", actor="assistant")
 
 Pass the agent's ID as `userId`. The agent gets a private `user/` namespace with no special setup:
 
-<Tabs items={['TypeScript', 'Python']}>
-<Tab value="TypeScript">
+<DocTabs items={['TypeScript', 'Python']} groupId="memex-lang" persist>
+<DocTab value="TypeScript">
 ```ts
 const agentMemex = memex.forUser({ userId: "agent_research_bot_v2", actor: "agent" })
 await agentMemex.execute("memory_write", {
@@ -70,8 +70,8 @@ await agentMemex.execute("memory_write", {
 })
 // Stored as: users/agent_research_bot_v2/scratchpad.md
 ```
-</Tab>
-<Tab value="Python">
+</DocTab>
+<DocTab value="Python">
 ```python
 agent_memory = memex.for_user("agent_research_bot_v2", actor="agent")
 await agent_memory.write_file(
@@ -81,8 +81,8 @@ await agent_memory.write_file(
 )
 # Stored as: users/agent_research_bot_v2/scratchpad.md
 ```
-</Tab>
-</Tabs>
+</DocTab>
+</DocTabs>
 
 **Pattern B — Shared memory for a trusted single-tenant team**
 

@@ -3,6 +3,8 @@ title: LangChain
 description: Use MemexAI memory tools with LangChain in TypeScript and Python.
 ---
 
+import { DocTabs, DocTab } from '@/components/doc-tabs'
+
 LangChain adapters are available for both the TypeScript and Python SDKs.
 
 ## Before you start
@@ -13,10 +15,10 @@ LangChain adapters are available for both the TypeScript and Python SDKs.
 - Read [Memory tools](/docs/concepts/memory-tools) to choose memory subagent or raw file tools.
 - Read [Memory scopes](/docs/concepts/scopes) before writing paths like `user/profile.md`.
 
-## TypeScript
+## Setup
 
-### Install
-
+<DocTabs items={['TypeScript', 'Python']} groupId="memex-lang" persist>
+<DocTab value="TypeScript">
 ```bash
 npm install @memexai/sdk langchain @langchain/core
 ```
@@ -27,7 +29,7 @@ For direct Postgres mode:
 npm install @memexai/core langchain @langchain/core
 ```
 
-### Service mode
+**Service mode:**
 
 ```ts
 import { MemexAI } from '@memexai/sdk'
@@ -55,7 +57,7 @@ const result = await executor.invoke({ input: 'Remember I prefer quiet neighborh
 console.log(result.output)
 ```
 
-### Direct Postgres mode
+**Direct Postgres mode:**
 
 ```ts
 import { createMemex } from '@memexai/core'
@@ -70,18 +72,11 @@ const system = await memory.getSystemPrompt('You are a helpful assistant with du
 ```
 
 Use `system` in the LangChain prompt template alongside the tools.
-
----
-
-## Python
-
-### Install
-
+</DocTab>
+<DocTab value="Python">
 ```bash
 pip install memexai langchain langchain-google-genai
 ```
-
-### Usage
 
 ```python
 from memexai import MemexAI
@@ -112,3 +107,5 @@ await memex.close()
 ```
 
 The Python adapter exposes all seven memory tools: `memory_list`, `memory_read`, `memory_write`, `memory_patch`, `memory_find`, `memory_remember`, and `memory_context`. For most assistants, start with `memory_remember` and `memory_context`; see [Memory tools](/docs/concepts/memory-tools) for the tradeoff.
+</DocTab>
+</DocTabs>

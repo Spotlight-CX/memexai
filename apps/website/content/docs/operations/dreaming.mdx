@@ -3,6 +3,8 @@ title: Background Dreaming
 description: Configure and operate background memory consolidation for long-horizon agent memory.
 ---
 
+import { DocTabs, DocTab } from '@/components/doc-tabs'
+
 Dreaming is optional background memory consolidation for service-mode deployments. Use it when your agents write durable memory during user sessions and you want MemexAI to clean that memory after the session has gone quiet.
 
 In practice, dreaming solves the first wave of memory health and compaction problems:
@@ -81,27 +83,65 @@ This keeps user memory free of "I looked and did nothing" clutter. Operators can
 
 You can pause dreaming globally or for a specific user.
 
-Global pause:
+### Global pause
+
+Environment variable (disables the scheduler at startup):
 
 ```bash
 MEMEX_DREAM_ENABLED=false
 ```
 
-Runtime global pause:
+Runtime toggle without restarting the service:
 
+<DocTabs items={['Admin UI', 'HTTP', 'CLI']} groupId="memex-interface" persist>
+<DocTab value="Admin UI">
+Open `/admin` → **Dreams** → toggle the **Dreaming enabled** switch to off. Takes effect on the next scheduler tick.
+</DocTab>
+<DocTab value="HTTP">
 ```http
 PUT /v1/admin/dream/config
+x-admin-secret: <MEMEX_ADMIN_SECRET>
+Content-Type: application/json
+
+{ "dream_enabled": false }
 ```
-
-Set `dream_enabled` to `false`.
-
-Per-user pause:
-
-```http
-PUT /v1/admin/dream/users/:userId/paused
+</DocTab>
+<DocTab value="CLI">
+```bash
+memex-admin dream config set --key dream_enabled --value false
 ```
+</DocTab>
+</DocTabs>
+
+### Per-user pause
 
 Use per-user pause when a user's memory needs manual review, when you are debugging a specific account, or when your product wants a user-level opt-out for background consolidation.
+
+<DocTabs items={['Admin UI', 'HTTP', 'CLI']} groupId="memex-interface" persist>
+<DocTab value="Admin UI">
+Open `/admin` → **Dreams** → find the user row → click **Pause**. The user is skipped on all future ticks until you click **Resume**.
+</DocTab>
+<DocTab value="HTTP">
+```http
+PUT /v1/admin/dream/users/:userId/paused
+x-admin-secret: <MEMEX_ADMIN_SECRET>
+Content-Type: application/json
+
+{ "paused": true }
+```
+
+Set `"paused": false` to resume.
+</DocTab>
+<DocTab value="CLI">
+```bash
+# Pause
+memex-admin dream pause {userId}
+
+# Resume
+memex-admin dream unpause {userId}
+```
+</DocTab>
+</DocTabs>
 
 ## Configuration
 

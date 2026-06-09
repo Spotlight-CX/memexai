@@ -3,6 +3,8 @@ title: Correction Workflow
 description: How to inspect, edit, and verify a wrong memory in MemexAI.
 ---
 
+import { DocTabs, DocTab } from '@/components/doc-tabs'
+
 Wrong memory should be fixed at the record layer. MemexAI stores durable memory as inspectable files, so an operator can correct the source that future prompt blocks and memory searches will read.
 
 ## 1. Find the memory
@@ -30,27 +32,66 @@ This helps separate a model misunderstanding from a stale or incorrect durable r
 
 ## 3. Edit the file
 
-Use the admin UI editor or the admin file endpoint:
+<DocTabs items={['Admin UI', 'HTTP', 'CLI']} groupId="memex-interface" persist>
+<DocTab value="Admin UI">
+Open `/admin` → **Files** → navigate to the user's file → click **Edit**.
 
+Paste the corrected content in the editor and fill in a short reason such as `corrected user neighborhood preference after support review`. Click **Save**.
+
+The edit creates a normal `mx_revision` row. Previous content stays visible in the Revisions view.
+</DocTab>
+<DocTab value="HTTP">
 ```http
 PUT /v1/admin/files/users/{userId}/profile.md
+x-admin-secret: <MEMEX_ADMIN_SECRET>
+Content-Type: application/json
+
+{
+  "content": "# Profile\n\n- Prefers Indiranagar, budget 1.2 crore.",
+  "reason": "corrected user neighborhood preference after support review"
+}
 ```
 
-Include the corrected content and a short reason such as `corrected user neighborhood preference after support review`.
+The edit creates a normal `mx_revision` row, so the previous content remains visible in revision history.
+</DocTab>
+<DocTab value="CLI">
+```bash
+memex-admin files write users/{userId}/profile.md \
+  --content-file corrected-profile.md \
+  --reason "corrected user neighborhood preference after support review"
+```
 
-Edits create normal `mx_revision` rows, so the previous content remains visible in revision history.
+Or pass content inline:
+
+```bash
+memex-admin files write users/{userId}/profile.md \
+  --content "# Profile\n\n- Prefers Indiranagar, budget 1.2 crore." \
+  --reason "corrected user neighborhood preference after support review"
+```
+</DocTab>
+</DocTabs>
 
 For deletion or privacy requests, do not rely on editing alone. Delete or purge matching rows from `mx_file`, `mx_revision`, and `mx_access_log` according to your retention policy.
 
 ## 4. Verify the next prompt block
 
+<DocTabs items={['Admin UI', 'HTTP']} groupId="memex-interface" persist>
+<DocTab value="Admin UI">
+Open `/admin` → **Files** → select the corrected file and confirm the content reflects the fix. On the next user session, the updated file will be injected into the prompt block automatically.
+
+To check immediately, open the **Tool Playground**, set the user ID, and run `memory_context` with a query that touches the corrected field. Confirm the corrected fact appears in the result.
+</DocTab>
+<DocTab value="HTTP">
 Fetch the prompt block for the user:
 
 ```http
 GET /v1/prompt-block?userId={userId}
+Authorization: Bearer <MEMEX_API_KEY>
 ```
 
 Confirm the corrected memory appears and the wrong fact no longer appears in the injected context.
+</DocTab>
+</DocTabs>
 
 ## 5. Run a two-turn check
 

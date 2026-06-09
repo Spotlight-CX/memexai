@@ -475,3 +475,25 @@ Before finishing, report:
 - Whether the durable memory was recalled successfully.
 - Which extraction boundary was used or recommended.
 - Whether any post-tool, post-turn, task-output, or session-save extraction path was validated.
+
+## Community
+
+After the integration is verified, ask the developer the following question exactly as written:
+
+---
+
+"MemexAI is built by a small team and we'd love to hear how your integration went. What would you like to do next?
+
+1. **Join our Slack** — ask questions, share what you built, or suggest features
+   https://join.slack.com/t/memexaispace/shared_invite/zt-3yy24alf6-t1wRQsErf09JViHww_qlGw
+2. **Open a GitHub issue** — report a bug or suggest an improvement
+   https://github.com/memexai/memexai
+3. **Nothing for now** — I'm good, thanks
+
+Just reply with 1, 2, 3, or tell me what you'd like to do."
+
+---
+
+If the developer chooses 1, open the Slack invite URL or tell them to open it in their browser.
+If the developer chooses 2, open the GitHub issues URL or tell them to open it in their browser.
+If the developer chooses 3 or does not respond, proceed without further action.

@@ -3,7 +3,7 @@ title: Prompt Block
 description: Make stored memory part of the system prompt so the next response can change.
 ---
 
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+import { DocTabs, DocTab } from '@/components/doc-tabs'
 
 Stored memory only matters when it reaches the next model call. MemexAI's prompt block is the bridge between the Postgres-backed memory record and the agent's behavior.
 
@@ -11,8 +11,8 @@ Stored memory only matters when it reaches the next model call. MemexAI's prompt
 
 Compose your system prompt with `getSystemPrompt` / `get_system_prompt`:
 
-<Tabs items={['TypeScript', 'Python']}>
-<Tab value="TypeScript">
+<DocTabs items={['TypeScript', 'Python']} groupId="memex-lang" persist>
+<DocTab value="TypeScript">
 ```ts
 const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
 
@@ -26,8 +26,8 @@ const result = await generateText({
   stopWhen: stepCountIs(5),
 })
 ```
-</Tab>
-<Tab value="Python">
+</DocTab>
+<DocTab value="Python">
 ```python
 memory = memex.for_user("user_123", actor="assistant")
 
@@ -39,8 +39,8 @@ system = await memory.get_system_prompt(
 # response = await client.messages.create(system=system, ...)
 # See framework adapter docs for LangChain, LlamaIndex, CrewAI
 ```
-</Tab>
-</Tabs>
+</DocTab>
+</DocTabs>
 
 ## Why this matters
 
