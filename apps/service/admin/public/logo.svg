@@ -1,5 +1,19 @@
-<svg viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
-  <polygon points="12 2 2 7 12 12 22 7 12 2" fill="rgba(16, 185, 129, 0.1)"/>
-  <polyline points="2 12 12 17 22 12"/>
-  <polyline points="2 17 12 22 22 17"/>
+<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Soft background fill for the 'M' shape -->
+  <polygon points="3 21 8 6 12 14 16 6 21 21" fill="rgba(16, 185, 129, 0.1)"/>
+  
+  <!-- Dashed graph connections for the "AI/Network" feel -->
+  <line x1="8" y1="6" x2="16" y2="6" stroke="#10b981" stroke-width="1" stroke-opacity="0.4" stroke-dasharray="2 2"/>
+  <line x1="3" y1="21" x2="12" y2="14" stroke="#10b981" stroke-width="1" stroke-opacity="0.4" stroke-dasharray="2 2"/>
+  <line x1="21" y1="21" x2="12" y2="14" stroke="#10b981" stroke-width="1" stroke-opacity="0.4" stroke-dasharray="2 2"/>
+  
+  <!-- Main solid lines forming the 'M' -->
+  <polyline points="3 21 8 6 12 14 16 6 21 21" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Graph Nodes -->
+  <circle cx="8" cy="6" r="2" fill="#030712" stroke="#10b981" stroke-width="2"/>
+  <circle cx="16" cy="6" r="2" fill="#030712" stroke="#10b981" stroke-width="2"/>
+  <circle cx="12" cy="14" r="2" fill="#030712" stroke="#10b981" stroke-width="2"/>
+  <circle cx="3" cy="21" r="2" fill="#030712" stroke="#10b981" stroke-width="2"/>
+  <circle cx="21" cy="21" r="2" fill="#030712" stroke="#10b981" stroke-width="2"/>
 </svg>
