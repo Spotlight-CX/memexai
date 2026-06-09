@@ -3,73 +3,34 @@ title: Shared Memory as Behavior Guide
 description: Use shared memory files as a knowledge base, operations manual, tool policies, and durable behavioral guidance that every agent reads automatically.
 ---
 
-MemexAI has two virtual memory scopes:
+## The core distinction
 
-- `user/` is private to a user and writable by the agent.
-- `shared/` is global, read-only for agents by default, and injected into every prompt block automatically.
+MemexAI has two virtual memory scopes with fundamentally different purposes:
 
-Shared memory is not just a place to store reusable facts. It is the primary lever for controlling how every agent in your product behaves — and for giving agents knowledge your team maintains, not knowledge extracted from user conversations.
+| Scope | Purpose | Writable by agents? |
+|---|---|---|
+| `shared/` | Global. Operator-authored schema, rules, docs, and knowledge. Every agent session reads it automatically. | Read-only by default (opt-in with `MEMEX_SHARED_WRITE_MODE=rw`) |
+| `user/` | Private per user. Facts, preferences, events, and corrections learned from individual sessions. | Always writable |
 
-Operators can enable collective shared memory with `MEMEX_SHARED_WRITE_MODE=rw`. In that mode, agent tools can write or patch `shared/**`, and the prompt block/tool descriptions tell agents that shared memory is writable. Use this for project canon, policies, product facts, team workflows, style guides, and learned procedures. Do not store private user facts, secrets, raw transcripts, or untrusted external content in `shared/**`.
+Think of `shared/` as the **CLAUDE.md of your agent**: the operator writes it, and the agent reads it on every call without any extra retrieval step. `shared/index.md` is always injected into the prompt block first — it acts as the table of contents for everything else in `shared/`.
 
-## Why collective shared memory resonates
+Think of `user/` as the **agent's private notebook for a specific user**: everything it learns, stores, and corrects about that person lives here, isolated from every other user.
 
-Most AI memory starts as personal memory: the agent learns a user's preferences, constraints, and corrections. That is useful, but team products also need a memory surface that compounds across collaborators.
+---
 
-Shared writable mode turns `shared/` into an opt-in collective memory surface. A trusted agent can translate a private user signal into a safe project-level update:
+## What shared/ can hold
 
-```txt
-user/profile.md
-  Writer A privately wants Mira to fear forgetting her brother.
+MemexAI is not opinionated about what you put in `shared/` — but good defaults guide you toward a structure that scales. `shared/` is the right home for anything the operator defines and every agent should know:
 
-shared/screenplay-canon.md
-  Mira's missing brother is an emotional anchor for Act I.
-```
+| Type | Example files | Purpose |
+|---|---|---|
+| **Memory schema** | `shared/semantic.md`, `shared/episodic.md` | Define what facts and events agents should collect per user. When you update this, it changes behavior for every future session without a code deploy. |
+| **Behavioral rules** | `shared/procedural.md`, `shared/AGENTS.md` | How to behave, what to store, what never to infer. The agent reads this before every decision. |
+| **Knowledge base** | `shared/knowledge/products.md`, `shared/knowledge/domain.md` | Facts your team maintains that agents should know — pricing, terminology, FAQs. Edit in the admin console, no deploy needed. |
+| **Operations manual** | `shared/ops/onboarding.md`, `shared/ops/support-playbook.md` | Step-by-step runbooks, escalation criteria, edge-case handling. |
+| **Collective memory** | `shared/tool-quirks.md`, `shared/decisions.md` | Cross-session insights that improve every user's experience once discovered. Requires `MEMEX_SHARED_WRITE_MODE=rw`. |
 
-Later, another collaborator can add project-wide canon:
-
-```txt
-shared/screenplay-canon.md
-  Leaf color encodes emotional category: blue = grief, silver = joy.
-```
-
-When Writer A returns, their agent benefits from the blue/silver leaf canon without reading Writer B's private profile. That is the core pattern: private memory stays scoped, while shared canon, policy, style, and workflow knowledge improve for everyone.
-
-Because shared writes go through the same tool path as user writes, every update still creates a revision and access log. You can inspect who changed the shared brain, why, and through which tool call.
-
-## The always-in-context guarantee
-
-Every prompt block built by `getSystemPrompt()` or `getPromptBlock()` automatically includes:
-
-- **All `shared/*` files** — every file under `shared/` (except dot-files) is injected verbatim, ordered alphabetically
-- **All `user/{userId}/*` files** — every file in the current user's namespace is injected as well
-
-This means anything you write to `shared/` is immediately part of every agent session, for every user, without any extra integration code.
-
-## Organizing shared/ with the cognitive triad
-
-Shared memory works best when split into three purpose-specific files. Each serves a different retrieval need and a different update cadence:
-
-```
-shared/procedural.md   ← always injected: agent behavior rules, tool policy
-shared/semantic.md     ← schema: what facts to collect and store in user/profile.md
-shared/episodic.md     ← schema: what events to append to user/log.md
-```
-
-**Procedural files** change rarely and are written by the operator. They contain global rules that must hold in every session: tool selection policy, what never to store, HITL capture guidance.
-
-**Semantic schema files** define the shape of `user/profile.md` — which fields to collect, how to format them, how to handle corrections. When you add a new field to `shared/semantic.md`, agents start collecting it across all future sessions.
-
-**Episodic schema files** define what belongs in `user/log.md` — which events are worth logging, the format, and the append-only constraint. The most important content is usually the rejection reason: it prevents re-suggesting options the user has already ruled out.
-
-See [Cognitive Architecture](/docs/concepts/cognitive-architecture) for the full pattern and example templates.
-
-```ts
-// shared/index.md is injected here automatically
-const system = await memory.getSystemPrompt('You are a helpful assistant.')
-```
-
-You do not need to pass shared file paths explicitly — the prompt block builder reads them from Postgres and injects them for you.
+Operators can enable collective shared memory with `MEMEX_SHARED_WRITE_MODE=rw`. In that mode, agent tools can write or patch `shared/**`, and the prompt block/tool descriptions tell agents that shared memory is writable. Use this for learned procedures, cross-user insights, and team knowledge that grows from real usage. Do not store private user facts, secrets, raw transcripts, or untrusted external content in `shared/**`.
 
 ---
 
@@ -121,6 +82,42 @@ user/ paths only. Shared files are never modified by background dreaming.
 ```
 
 Agents that have this in their prompt block will use these terms correctly and can explain them to users without hallucinating definitions.
+
+---
+
+## The always-in-context guarantee
+
+Every prompt block built by `getSystemPrompt()` or `getPromptBlock()` automatically includes:
+
+- **All `shared/*` files** — every file under `shared/` (except dot-files) is injected verbatim, ordered alphabetically
+- **All `user/{userId}/*` files** — every file in the current user's namespace is injected as well
+
+This means anything you write to `shared/` is immediately part of every agent session, for every user, without any extra integration code.
+
+## Organizing shared/ with the cognitive triad
+
+Shared memory works best when split into three purpose-specific files. Each serves a different retrieval need and a different update cadence:
+
+```
+shared/procedural.md   ← always injected: agent behavior rules, tool policy
+shared/semantic.md     ← schema: what facts to collect and store in user/profile.md
+shared/episodic.md     ← schema: what events to append to user/log.md
+```
+
+**Procedural files** change rarely and are written by the operator. They contain global rules that must hold in every session: tool selection policy, what never to store, HITL capture guidance.
+
+**Semantic schema files** define the shape of `user/profile.md` — which fields to collect, how to format them, how to handle corrections. When you add a new field to `shared/semantic.md`, agents start collecting it across all future sessions.
+
+**Episodic schema files** define what belongs in `user/log.md` — which events are worth logging, the format, and the append-only constraint. The most important content is usually the rejection reason: it prevents re-suggesting options the user has already ruled out.
+
+See [Cognitive Architecture](/docs/concepts/cognitive-architecture) for the full pattern and example templates.
+
+```ts
+// shared/index.md is injected here automatically
+const system = await memory.getSystemPrompt('You are a helpful assistant.')
+```
+
+You do not need to pass shared file paths explicitly — the prompt block builder reads them from Postgres and injects them for you.
 
 ---
 

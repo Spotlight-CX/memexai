@@ -33,6 +33,7 @@ COPY --from=build /app/apps/service/dist ./apps/service/dist
 COPY --from=build /app/apps/service/migrations ./apps/service/migrations
 COPY --from=build /app/apps/service/admin/dist ./apps/service/admin/dist
 COPY --from=build /app/apps/service/package.json ./apps/service/package.json
+COPY --from=build /app/docs ./docs
 COPY --from=build /app/packages/admin-cli/dist ./packages/admin-cli/dist
 COPY --from=build /app/packages/admin-cli/package.json ./packages/admin-cli/package.json
 RUN ln -s /app/packages/admin-cli/dist/cli.js /usr/local/bin/memex-admin \

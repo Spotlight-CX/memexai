@@ -3,6 +3,8 @@ title: Memory Tools
 description: Two-layer tool architecture — memory subagent for most agents, raw file tools for direct control.
 ---
 
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
 MemexAI exposes two layers of tooling. The **memory subagent** (`memory_remember` + `memory_context`) is the right default for assistants and copilots — the model stores and retrieves memory without managing paths. The **raw file tools** give you direct file-level control when your application needs deterministic writes or has a file plan.
 
 ```
@@ -26,6 +28,8 @@ MemexAI exposes two layers of tooling. The **memory subagent** (`memory_remember
               └─────────────────────┘
 ```
 
+`memory_find` is the search primitive in the raw layer — it returns ranked file metadata and snippets and is also what `memory_context` calls internally during retrieval.
+
 ---
 
 ## `memory_remember`
@@ -42,10 +46,9 @@ Every write produces a **revision snapshot** and an **access log row**, linking 
 
 Use `memory_remember` after a completed user turn or at natural breakpoints in a conversation — not on every message. Calling it too frequently creates noise and near-duplicate memory. A good pattern:
 
+<Tabs items={['TypeScript', 'Python']}>
+<Tab value="TypeScript">
 ```ts
-// Pass any text worth considering for durable memory:
-// user messages, assistant observations, or compact tool-result fragments.
-
 // Most common: user message after a completed turn
 await memory.remember({ text: userMessage })
 
@@ -55,6 +58,20 @@ await memory.remember({ text: 'run_sql failed: ILIKE is not supported in this SQ
 // Assistant observation or stated fact
 await memory.remember({ text: assistantResponse })
 ```
+</Tab>
+<Tab value="Python">
+```python
+# Most common: user message after a completed turn
+await memory.remember(user_message)
+
+# Tool result: pass the durable fragment, not a raw dump
+await memory.remember("run_sql failed: ILIKE is not supported in this SQL dialect")
+
+# Assistant observation or stated fact
+await memory.remember(assistant_response)
+```
+</Tab>
+</Tabs>
 
 Pass `dryRun: true` to preview what would be written without committing:
 
@@ -72,9 +89,9 @@ Pass `dryRun: true` to preview what would be written without committing:
 
 ### Write routing
 
-Before writing, `memory_remember` pre-fetches two index files if they exist: **`user/index.md`** (the user's file catalog) and **`shared/index.md`** (global guidance and conventions). The agent also receives the full list of visible files and has a small read budget (3 reads) to fetch any additional files it deems relevant before writing.
+`memory_remember` always pre-fetches two files before writing: **`user/index.md`** and **`shared/index.md`**. Everything else is on demand. This means: to reliably route a fact to the right file, put the routing table in `shared/index.md` — that file is guaranteed to be read before every write decision.
 
-This means you can place a routing table in any `shared/` file — for example `shared/conventions.md` — but for the agent to reliably read it, **cite it in `shared/index.md`**. Because `shared/index.md` is always pre-fetched, a reference like `- shared/conventions.md — file routing rules` tells the agent the file exists and is worth reading before writing.
+The agent also receives the full list of visible files and has a small read budget (3 reads) to fetch any additional files it deems relevant. You can place a routing table in any `shared/` file — for example `shared/conventions.md` — but for the agent to reliably read it, **cite it in `shared/index.md`**. A reference like `- shared/conventions.md — file routing rules` tells the agent the file exists and is worth reading before writing.
 
 ```markdown
 ## Memory File Structure
@@ -149,7 +166,7 @@ The model can reason about which files matter in ways pure ranking cannot. A que
 ### Example
 
 ```json
-{ "query": "apartment requirements and family", "maxChars": 8000 }
+{ "query": "apartment requirements and family" }
 ```
 
 ```json
@@ -335,12 +352,27 @@ RRF scores:
 
 Start with the subagent. Add raw file tools only when your use case requires direct file control.
 
+<Tabs items={['TypeScript', 'Python']}>
+<Tab value="TypeScript">
 ```ts
 // Typical assistant setup
 const system = await memory.getSystemPrompt('You are a helpful assistant with durable user memory.')
 const tools = memory.createMemorySubagentToolset()
 // → exposes memory_remember and memory_context to the model
 ```
+</Tab>
+<Tab value="Python">
+```python
+# Typical assistant setup
+system = await memory.get_system_prompt("You are a helpful assistant with durable user memory.")
+
+# Call memory_remember and memory_context via framework adapter
+# or directly:
+await memory.remember("User prefers 2BHK in Indiranagar")
+context = await memory.retrieve_context("apartment requirements")
+```
+</Tab>
+</Tabs>
 
 ---
 
@@ -432,6 +464,7 @@ When your framework provides tool call IDs (Vercel AI SDK, Anthropic SDK, LangCh
 
 - [Prompt block](/docs/concepts/prompt-block) — how memory is injected into the system prompt
 - [Memory scopes](/docs/concepts/scopes) — `user/` vs `shared/` namespace rules
+- [Cognitive architecture](/docs/concepts/cognitive-architecture) — how to structure `shared/` and `user/` files using the procedural/semantic/episodic triad
 - [Revision history](/docs/concepts/revisions) — time-travel and snapshot details
 - [Access logs](/docs/concepts/access-logs) — per-operation audit trail
 - [Architecture](/docs/architecture) — hybrid search, Postgres schema, and deployment modes

@@ -127,6 +127,34 @@ Use it to:
 
 Dreaming is optional. Start conservative, inspect dream-agent revisions, and widen only after quality and cost are clear.
 
+## CLI and agent access
+
+The service exposes docs at `/v1/docs` — no auth required. This makes documentation accessible to agents and CLI tools running inside or alongside your MemexAI deployment:
+
+```bash
+# List available doc files
+curl http://localhost:8080/v1/docs
+
+# Read a specific doc as markdown
+curl http://localhost:8080/v1/docs/concepts/cognitive-architecture.md
+
+# From inside the container
+docker exec memexai-memexai-1 wget -qO- http://localhost:8080/v1/docs
+```
+
+Docs are bundled from the `docs/` directory in the repo. Override the path with `MEMEX_DOCS_PATH=/your/docs/dir`.
+
+The MemexAI website also serves all concept docs as clean markdown for LLMs and agents:
+
+```bash
+# Full docs index
+curl https://memexai.space/llms.txt
+
+# Any concept page as raw markdown
+curl https://memexai.space/llms.mdx/docs/concepts/cognitive-architecture/content.md
+curl https://memexai.space/llms.mdx/docs/concepts/memory-tools/content.md
+```
+
 ## Admin API map
 
 The console is backed by the admin API:

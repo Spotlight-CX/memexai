@@ -32,6 +32,8 @@ From there:
 - **Operations:** revisions, access logs, time travel, observability, and hot/cold files make memory inspectable.
 - **Optimization:** teams can update memory schema over time, and dreaming can compact and clean user memory after activity goes quiet.
 
+Read [How MemexAI Works](/docs/concepts/how-it-works) for the full request-to-storage-to-recall loop. For definitions of key terms (virtual path, physical path, operator, dreaming), see [Design Principles — Vocabulary](/docs/concepts/design-principles#vocabulary).
+
 ## How the two paths work
 
 ### 1. Recommended: containerized service
@@ -48,7 +50,7 @@ Skip the MemexAI service container only when your JavaScript or Python app shoul
 
 Use this for embedded deployments, local experiments, or environments where sharing database credentials with the app is an intentional tradeoff.
 
-## Two integration paths
+## Two tool sets
 
 ### Memory subagent
 
@@ -60,7 +62,7 @@ const tools = memory.createMemorySubagentToolset()
 // memory_remember, memory_context
 ```
 
-Pass both `system` and `tools` into your model call. Tools store and retrieve memory; the prompt block is what makes stored memory available to the next answer.
+Pass both `system` and `tools` into your model call. Tools store and retrieve memory; the prompt block — the XML section MemexAI injects into your system prompt — is what puts stored memory into the model's context window on the next call (see [Prompt Block](/docs/concepts/prompt-block)).
 
 ### Raw file tools
 
@@ -91,6 +93,7 @@ User memory stores per-user facts, preferences, and project state. Shared memory
 <Cards>
   <Card title="How MemexAI works" href="/docs/concepts/how-it-works" description="Understand the loop from model tool call to memory files, prompt injection, revisions, and later recall." />
   <Card title="Memory tools" href="/docs/concepts/memory-tools" description="Choose between the memory subagent and the raw file-level tool set." />
+  <Card title="Cognitive architecture" href="/docs/concepts/cognitive-architecture" description="Structure memory using the procedural/semantic/episodic triad — and understand why the shared/user two-level layout works." />
   <Card title="Prompt block" href="/docs/concepts/prompt-block" description="Make stored memory part of the system prompt so the next response can change." />
   <Card title="Memory scopes" href="/docs/concepts/scopes" description="Understand user/private memory, shared/global memory, and opt-in shared writable mode." />
   <Card title="Shared memory as behavior guide" href="/docs/concepts/shared-memory" description="Use shared files as durable guidance, and optionally let trusted agents grow shared canon, policies, and workflows." />

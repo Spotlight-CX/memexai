@@ -35,9 +35,9 @@ Raw chat transcripts can still live in your app, warehouse, or audit system. Mem
 
 ## Prompt block
 
-Tools alone are not enough. If the model can write memory but never receives memory guidance on the next call, users still experience a forgetful agent. Use `memory.getSystemPrompt(basePrompt)` or add `await memory.getPromptBlock()` to your system prompt on every agent call.
+Writing to memory is not enough. On the next model call, stored files are not automatically in the context window — MemexAI has to inject them. `memory.getSystemPrompt(basePrompt)` builds a system prompt that includes tool instructions, all `shared/*` files, and all `user/*` files for the current user. Without it, the agent forgets across turns even though the data is in Postgres.
 
-The prompt block tells the model how to use MemexAI tools and includes shared memory files plus the user's `user/index.md` when present. It is the bridge between stored memory and changed behavior.
+Use `memory.getSystemPrompt(basePrompt)` or add `await memory.getPromptBlock()` to your system prompt on every agent call. See [Prompt Block](/docs/concepts/prompt-block) for details.
 
 ## Runtime paths
 
@@ -67,11 +67,14 @@ For example:
 
 After the adapter receives a tool call, MemexAI still runs the same validation, path translation, SQL, revisions, and access logging.
 
+Most agents should start with `memory_remember` and `memory_context` — see [Memory Tools](/docs/concepts/memory-tools) for when raw file tools are the better choice.
+
 ## Related concepts
 
 - [Memory tools](/docs/concepts/memory-tools)
 - [Prompt block](/docs/concepts/prompt-block)
 - [Memory scopes](/docs/concepts/scopes)
+- [Cognitive architecture](/docs/concepts/cognitive-architecture)
 - [Revision history](/docs/concepts/revisions)
 - [Access logs](/docs/concepts/access-logs)
 - [Architecture](/docs/architecture)

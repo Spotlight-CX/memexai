@@ -25,7 +25,7 @@ Shared memory is read-only for agents by default through the same mechanism. A w
 
 `memory_find` returns the same files for the same query on the same data and search mode, every time.
 
-Retrieval is BM25 full-text search for initial candidates, or BM25 plus pgvector RRF when service hybrid mode is active, followed by forward memory-link traversal within a character budget. Every file in the response carries a `reason` field — `query_match`, `linked`, or `recency` — explaining how it was found.
+Retrieval is BM25 full-text search for initial candidates, or BM25 plus pgvector RRF when service hybrid mode is active. `memory_find` is a pure search primitive — it returns ranked file metadata and snippets and does not follow memory links. Link traversal happens in `memory_context`, where a model call decides which linked files are relevant to the query.
 
 This makes retrieval testable. You can write an eval that seeds a known memory state and asserts exactly which files are returned and why.
 
@@ -33,7 +33,9 @@ This makes retrieval testable. You can write an eval that seeds a known memory s
 
 Memory links let one durable file point at another without copying the same facts everywhere.
 
-When an agent writes `user/profile.md` containing `[[user/preferences.md]]`, a later smart read that seeds `profile.md` can follow the link to include `preferences.md` in the same response. This keeps hub files and supporting notes connected while preserving an inspectable file model.
+Wikilinks are plain text — an agent writing `[[user/preferences.md]]` anywhere in a file's content creates a forward link that `memory_context` will follow during retrieval. There is no special syntax beyond the `[[path]]` convention. When `memory_context` reads a file that contains `[[user/preferences.md]]`, it uses that as a signal to fetch `preferences.md` as part of the same retrieval pass.
+
+`memory_remember` is also prompted to write `## See also` sections with `[[...]]` wikilinks when creating related files, so the link graph grows naturally as agents write memory.
 
 Bidirectional backlinks and hub scoring are planned next: notes that point back to a hub file will be able to surface as inbound context, and highly referenced files will be able to rank higher in search.
 

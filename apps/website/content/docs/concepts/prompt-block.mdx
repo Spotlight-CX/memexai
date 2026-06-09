@@ -3,12 +3,16 @@ title: Prompt Block
 description: Make stored memory part of the system prompt so the next response can change.
 ---
 
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+
 Stored memory only matters when it reaches the next model call. MemexAI's prompt block is the bridge between the Postgres-backed memory record and the agent's behavior.
 
 ## Use the helper
 
-For most TypeScript integrations, compose your system prompt with `getSystemPrompt`:
+Compose your system prompt with `getSystemPrompt` / `get_system_prompt`:
 
+<Tabs items={['TypeScript', 'Python']}>
+<Tab value="TypeScript">
 ```ts
 const memory = memex.forUser({ userId: 'user_123', actor: 'assistant' })
 
@@ -22,8 +26,27 @@ const result = await generateText({
   stopWhen: stepCountIs(5),
 })
 ```
+</Tab>
+<Tab value="Python">
+```python
+memory = memex.for_user("user_123", actor="assistant")
 
-This keeps the base product prompt and the MemexAI memory instructions together. The same underlying memory section is available through `memory.getPromptBlock()` if your framework needs manual message assembly.
+system = await memory.get_system_prompt(
+    "You are a helpful assistant with durable user memory."
+)
+
+# Pass system into your framework's model call, e.g.:
+# response = await client.messages.create(system=system, ...)
+# See framework adapter docs for LangChain, LlamaIndex, CrewAI
+```
+</Tab>
+</Tabs>
+
+## Why this matters
+
+The most common integration mistake is wiring tools without wiring the prompt block. The agent can write memory correctly, but on the next turn it has no memory in context — so the response is still generic. `system` and `tools` are a pair: tools store and retrieve; the prompt block is what puts stored files into the model's context window.
+
+If you forget the prompt block, memory appears to work (writes succeed, the admin UI shows files) but the agent still answers as if it knows nothing about the user.
 
 ## What it contains
 
@@ -33,8 +56,8 @@ The prompt block tells the model:
 - when to use `memory_remember` and `memory_context`
 - which virtual paths are writable or read-only
 - never to use physical database paths
-- shared memory files visible to all users
-- the current user's `user/index.md` when present
+- all `shared/*` files visible to every user
+- all `user/*` files for the current user (`user/index.md`, when present, acts as a catalog the model uses to navigate these files)
 
 ## Two-turn proof
 
@@ -46,10 +69,6 @@ Turn 2: What kind of neighborhood do I prefer?
 ```
 
 A successful integration stores the preference on turn one, includes the MemexAI prompt block on turn two, and answers with the quiet-neighborhood preference without the user repeating it. The admin UI should then show the memory file, revision, and later access log.
-
-## Common failure mode
-
-Passing tools without the prompt block can create a misleading demo: the agent may store memory, but the next response is still generic because the model was not instructed to retrieve and use it. Treat `tools` plus `system` as the pair that makes memory useful.
 
 ## Related concepts
 

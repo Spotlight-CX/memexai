@@ -7,6 +7,8 @@ MemexAI ships with a default memory shape based on how cognition researchers cla
 
 ## The three types
 
+`shared/` files are global and visible to every agent session. `user/` files are private to a specific user. See [Memory Scopes](/docs/concepts/scopes) for the full path model.
+
 **Procedural memory** is how-to knowledge. It doesn't change per user — it's the rules the agent follows in every session. Store it in `shared/procedural.md`. The agent reads it as part of every prompt block and doesn't need to retrieve it: it's always there.
 
 **Semantic memory** is fact-based knowledge about a specific person or subject. For an agent, this means stable user facts: preferences, constraints, goals. Store the schema (what to collect and how) in `shared/semantic.md`. The actual per-user facts live in `user/profile.md`.
@@ -81,4 +83,4 @@ The rejection reason in `user/log.md` is the most valuable part — it prevents 
 - [Shared memory as behavior guide](/docs/concepts/shared-memory)
 - [Memory scopes](/docs/concepts/scopes)
 - [Design principles](/docs/concepts/design-principles)
-- [Setup guide](/setup.md)
+- [Quickstart: Docker service](/docs/quickstart/docker-service)
