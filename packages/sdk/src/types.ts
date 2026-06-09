@@ -73,7 +73,6 @@ export type PatchFileResult = {
 
 export type FindMemoryInput = {
   query: string
-  maxChars?: number
   limit?: number
   prefix?: string
   toolCallId?: string

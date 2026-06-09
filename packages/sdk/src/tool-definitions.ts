@@ -68,7 +68,6 @@ export const rawToolDefinitions = [
       additionalProperties: false,
       properties: {
         query: { type: "string", description: "Question or topic to search memory for." },
-        maxChars: { type: "number", description: "Maximum characters to return. Default: 8000." },
         limit: { type: "number", description: "Maximum search candidates. Default: 10." },
         prefix: { type: "string", description: "Optional virtual path prefix, e.g. user/ or shared/." },
       },
