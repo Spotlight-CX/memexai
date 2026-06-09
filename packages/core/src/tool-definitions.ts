@@ -307,10 +307,8 @@ When a query is provided, deterministic linked recall is enabled by default: dir
 
 \`\`\`json
 {
-  "content": "<memexai_memory>\\n## user/profile.md\\n(updated ...)\\n\\n# Profile\\n- Prefers 2BHK\\n</memexai_memory>",
-  "filesIncluded": ["user/profile.md"],
-  "filesOmitted": [],
-  "truncated": false
+  "context": "<memexai_memory>\\n## user/profile.md\\n# Profile\\n- Prefers 2BHK\\n</memexai_memory>",
+  "filesRead": ["user/profile.md"]
 }
 \`\`\``,
     inputSchema: {

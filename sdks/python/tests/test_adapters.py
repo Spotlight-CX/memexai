@@ -33,10 +33,10 @@ class FakeUser:
         return {"text": text, "dryRun": False, "writes": []}
 
     async def retrieve_context(self, query=None, **kwargs):
-        return {"content": "<memexai_memory>", "filesIncluded": []}
+        return {"context": "<memexai_memory>", "filesRead": []}
 
     async def execute_tool(self, tool_name, args, ctx):
-        return {"content": "<memexai_memory>"}
+        return {"context": "<memexai_memory>", "filesRead": []}
 
 
 def test_langchain_adapter_builds_structured_tools(monkeypatch):

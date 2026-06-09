@@ -439,21 +439,9 @@ async def retrieve_memory_context(db: DbPool, ctx: RequestContext, options: Dict
                 continue
         omitted.append(file["path"])
 
-    files_included_meta = []
-    for file in included:
-        meta = {
-            "path": file["path"],
-            "reason": file["reason"],
-            "depth": file["depth"],
-        }
-        if file.get("linkedFrom"):
-            meta["linkedFrom"] = file["linkedFrom"]
-        files_included_meta.append(meta)
-
     return {
         "included": included,
         "omitted": omitted,
-        "filesIncludedMeta": files_included_meta,
     }
 
 async def execute_memory_context(db: DbPool, args: Dict[str, Any], ctx: RequestContext) -> Dict[str, Any]:
@@ -489,11 +477,8 @@ async def execute_memory_context(db: DbPool, args: Dict[str, Any], ctx: RequestC
     await log_access(db, None, "*", "context", ctx)
 
     return {
-        "content": content,
-        "filesIncluded": [file["path"] for file in context["included"]],
-        "filesOmitted": context["omitted"],
-        "filesIncludedMeta": context["filesIncludedMeta"],
-        "truncated": len(context["omitted"]) > 0,
+        "context": content,
+        "filesRead": [file["path"] for file in context["included"]],
     }
 
 async def execute_memory_find(db: DbPool, input_args: Dict[str, Any], ctx: RequestContext) -> Dict[str, Any]:
@@ -618,7 +603,7 @@ async def execute_agentic_memory_context(db: DbPool, args: Dict[str, Any], ctx: 
                 raise MemexError("MAX_READS_EXCEEDED", "memory_context read budget exceeded")
             reads_count += 1
             res = await execute_memory_context(db, read_args, ctx)
-            for path in res.get("filesIncluded", []):
+            for path in res.get("filesRead", []):
                 sources.add(path)
             return res
 
