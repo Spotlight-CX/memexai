@@ -66,7 +66,7 @@ Status: `committed`
 Scope:
 - Implement deterministic BM25 search.
 - Search current user and shared memory by default.
-- Support `prefix`, `limit`, and `maxChars`.
+- Support `prefix` and `limit`.
 - Return virtual paths, snippets, ranks, and updated timestamps.
 
 Validation:

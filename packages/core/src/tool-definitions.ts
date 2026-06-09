@@ -194,7 +194,6 @@ Uses BM25 keyword search by default; uses BM25 + pgvector + RRF hybrid ranking w
 | Field | Type | Required | Description |
 |---|---|---|---|
 | \`query\` | string | **yes** | Question or topic to search for |
-| \`maxChars\` | number | no | Max characters to return. Default: 8 000 |
 | \`limit\` | number | no | Max search candidates. Default: 10 |
 | \`prefix\` | string | no | Optional virtual path prefix, e.g. \`user/\` |
 
@@ -224,7 +223,6 @@ Uses BM25 keyword search by default; uses BM25 + pgvector + RRF hybrid ranking w
       additionalProperties: false,
       properties: {
         query: { type: "string", description: "Question or topic to search memory for." },
-        maxChars: { type: "number", description: "Maximum characters to return. Default: 8000." },
         limit: { type: "number", description: "Maximum search candidates. Default: 10." },
         prefix: { type: "string", description: "Optional virtual path prefix, e.g. user/ or shared/." },
       },

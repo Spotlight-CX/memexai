@@ -51,7 +51,7 @@ Admin and agent trust levels are structurally different routes, not advisory sep
 
 Naive multi-turn retrieval burns latency and tokens: one turn to list files, another to read them, another to follow links to related files. On every agent call, before the model can even start reasoning.
 
-`memory_find` resolves ranked seeds and forward memory links within a character budget in a single call. In hybrid service mode, query-seeded reads can use pgvector ranking via RRF before link traversal. If `user/profile.md` contains `[[user/preferences.md]]`, both files are returned in one response. Each file in the response carries a `reason` field — `query_match`, `linked`, or `recency` — so the agent knows how each file was found and can avoid redundant re-retrieval.
+`memory_context` gathers the right context in one call: it can use `memory_find` for ranked seeds, read relevant files, and follow forward memory links when those links matter. In hybrid service mode, `memory_find` can use pgvector ranking via RRF before the context agent decides what to read. If `user/profile.md` contains `[[user/preferences.md]]`, the context agent can include both files in its returned context.
 
 This means one tool call returns the right context. No planning loop needed for memory retrieval.
 

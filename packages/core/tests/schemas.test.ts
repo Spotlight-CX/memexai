@@ -130,7 +130,10 @@ describe("findArgsSchema", () => {
 
   test("rejects invalid numeric bounds", () => {
     expect(() => findArgsSchema.parse({ query: "x", limit: -1 })).toThrow()
-    expect(() => findArgsSchema.parse({ query: "x", maxChars: 0 })).toThrow()
+  })
+
+  test("omits unsupported maxChars", () => {
+    expect(findArgsSchema.parse({ query: "x", maxChars: 0 })).toEqual({ query: "x", limit: 10 })
   })
 })
 

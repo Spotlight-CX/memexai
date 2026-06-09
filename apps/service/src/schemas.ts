@@ -53,7 +53,6 @@ export const contextArgsSchema = z.object({
 
 export const findArgsSchema = z.object({
   query: z.string().min(1),
-  maxChars: z.number().int().positive().max(200_000).default(8_000).optional(),
   limit: z.number().int().positive().max(100).default(10).optional(),
   prefix: z.string().optional(),
 })
