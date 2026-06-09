@@ -5,7 +5,7 @@ import { BrandMark } from '@/components/brand-mark';
 export function baseOptions(): BaseLayoutProps {
   return {
     nav: {
-      title: <BrandMark size="nav" />,
+      title: <BrandMark size="nav" href={null} />,
     },
     githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,
     themeSwitch: { enabled: false },
