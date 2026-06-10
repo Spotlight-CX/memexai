@@ -728,6 +728,7 @@
   line-height: 1.75;
   color: #c8d6e5;
   overflow-x: auto;
+  white-space: pre;
 }
 
 .mx-code-body .comment {

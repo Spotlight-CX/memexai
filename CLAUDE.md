@@ -161,3 +161,11 @@ Key routing rules:
 - Ship/deploy/PR → invoke /ship or /land-and-deploy
 - Save progress → invoke /context-save
 - Resume context → invoke /context-restore
+
+## Design 
+
+Simplicity over complicated beauty, prefer consistent elements rather than custom defined components over the usage layer - it should mostly just use a design system and usages should just simply use its variant. 
+
+## Report generation
+
+when i ask you to analyse something or generate report/dashboard, prefer creating html files with least amount of tokens - ie. use tailwind cdn and use it to reduce the tokens.

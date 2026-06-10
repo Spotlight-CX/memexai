@@ -1,0 +1,152 @@
+import { type LucideIcon, BrainCircuit, HeadphonesIcon, Layers, Sparkles, Users, Wrench } from 'lucide-react'
+
+export type UseCase = {
+  slug: string
+  icon: LucideIcon
+  tag: string
+  title: string
+  summary: string
+  metaTitle: string
+  metaDescription: string
+  problem: string
+  solution: string
+  links: { label: string; href: string }[]
+  codeExample?: string
+}
+
+export const useCases: UseCase[] = [
+  {
+    slug: 'multi-tenant-saas',
+    icon: Users,
+    tag: 'Multi-tenant SaaS',
+    title: 'Per-user memory that your ops team can inspect and fix',
+    summary:
+      'Per-user memory scoped and isolated by design, with a correction surface your ops and support teams can actually use.',
+    metaTitle: 'Multi-tenant AI memory — MemexAI',
+    metaDescription:
+      'How SaaS products use MemexAI for per-user memory that is scoped, auditable, and correctable by your ops team without reverse-engineering a vector index.',
+    problem:
+      'When an agent behaves differently for two users, you need to understand why. Most memory tools give you a retrieval API, not a correction surface.',
+    solution:
+      "MemexAI scopes memory per tenant with physical path isolation. Every write creates a revision. Your support or ops team can open a user's memory files, fix wrong facts, and see exactly what the agent learned and when. Memory becomes a product data surface you operate, not a black box you deploy.",
+    links: [
+      { label: 'Scopes and isolation', href: '/docs/concepts/scopes' },
+      { label: 'Revisions', href: '/docs/concepts/revisions' },
+      { label: 'Admin console', href: '/docs/operations/admin-console' },
+    ],
+  },
+  {
+    slug: 'personal-ai-assistants',
+    icon: Sparkles,
+    tag: 'Personal AI assistants',
+    title: 'Memory that grows with the user and stays correctable',
+    summary:
+      'Memory that feels earned — inspectable files the user or your team can open, correct, and trust over time.',
+    metaTitle: 'Personal AI assistant memory — MemexAI',
+    metaDescription:
+      'How coaching apps, journaling assistants, and AI companions use MemexAI to build memory that users can see, correct, and trust — not a hidden profile they cannot change.',
+    problem:
+      'Personal AI apps — coaching bots, journaling assistants, AI companions — need memory that feels earned and trusted. When the AI remembers something wrong, users have no way to see what it learned or fix it. Trust erodes the moment the app says something that feels incorrect and unchangeable.',
+    solution:
+      'MemexAI stores everything the AI learns about a user in path-addressable files that any team member can open, inspect, and correct. Users can see exactly what the AI knows about them; your team can fix wrong facts directly. Revision history shows when each belief was written and why. Memory becomes a trust surface, not a hidden profile.',
+    links: [
+      { label: 'Memory tools', href: '/docs/concepts/memory-tools' },
+      { label: 'Revisions', href: '/docs/concepts/revisions' },
+      { label: 'Prompt block', href: '/docs/concepts/prompt-block' },
+    ],
+    codeExample: `import { createMemex } from '@memexai/core'
+import { generateText } from 'ai'
+import { openai } from '@ai-sdk/openai'
+
+const memex = createMemex(DATABASE_URL)
+
+// Inject everything the agent knows about this user
+const { block } = await memex.getPromptBlock({ userId: user.id })
+
+const { text } = await generateText({
+  model: openai('gpt-4o'),
+  system: \`You are a personal AI assistant.\\n\\n\${block}\`,
+  messages,
+  // Gives the agent memory_read, memory_write, memory_remember
+  tools: memex.tools({ userId: user.id }),
+})`,
+  },
+  {
+    slug: 'customer-support-ai',
+    icon: HeadphonesIcon,
+    tag: 'Customer support AI',
+    title: 'Memory that carries context across tickets and sessions',
+    summary: 'Carry context across every ticket so users never have to repeat themselves again.',
+    metaTitle: 'Customer support AI memory — MemexAI',
+    metaDescription:
+      'How customer support AI products use MemexAI to carry user context across sessions — and let support staff correct what the agent learned when something goes wrong.',
+    problem:
+      "Support agents ask users the same questions session after session. Memory that doesn't persist forces users to repeat themselves and agents to re-establish context from scratch.",
+    solution:
+      "MemexAI stores stable user facts — product tier, integration setup, known issues — in durable memory files. Each session inherits what the previous one learned. When a fact becomes wrong, support staff correct it directly. Memory stays in sync with the user's actual situation.",
+    links: [
+      { label: 'How it works', href: '/docs/concepts/how-it-works' },
+      { label: 'Access logs', href: '/docs/concepts/access-logs' },
+      { label: 'Docker quickstart', href: '/docs/quickstart/docker-service' },
+    ],
+  },
+  {
+    slug: 'long-horizon-agents',
+    icon: BrainCircuit,
+    tag: 'Long-horizon agents',
+    title: 'Task state that survives across context resets',
+    summary:
+      'Task checkpoints and learned constraints that survive context resets so agents continue rather than restart.',
+    metaTitle: 'Long-horizon agent memory — MemexAI',
+    metaDescription:
+      'How long-running AI agents use MemexAI to persist task state, completed sub-goals, and learned constraints across context window resets.',
+    problem:
+      'Complex tasks that span days or weeks lose intermediate state when context windows reset. Agents restart from scratch, repeat completed steps, and miss learned constraints.',
+    solution:
+      'Write task checkpoints, completed sub-goals, and learned constraints into memory files as the agent works. On resumption, the prompt block injects current task state before the first tool call. The agent continues from where it left off, with all hard-won context intact.',
+    links: [
+      { label: 'Cognitive architecture', href: '/docs/concepts/cognitive-architecture' },
+      { label: 'Design principles', href: '/docs/concepts/design-principles' },
+      { label: 'Background Dreaming', href: '/docs/operations/dreaming' },
+    ],
+  },
+  {
+    slug: 'multi-agent-pipelines',
+    icon: Layers,
+    tag: 'Multi-agent pipelines',
+    title: 'Shared behavioral context across agents in a product',
+    summary: 'One shared memory layer that all agents in your deployment read — update once, all agents reflect it.',
+    metaTitle: 'Multi-agent pipeline memory — MemexAI',
+    metaDescription:
+      'How multi-agent products use MemexAI shared memory to coordinate behavioral policies across agents without redeploying prompts.',
+    problem:
+      "When multiple agents handle different parts of a product, coordination policies live in prompts. Changing policy means updating every agent's system prompt and redeploying.",
+    solution:
+      "MemexAI's shared memory layer provides read-only guidance all agents in your deployment receive automatically. Tool rules, escalation criteria, API limits, and coordination conventions live in one place. Change a shared file and every agent's next call reflects the update — no deployment needed.",
+    links: [
+      { label: 'Shared memory', href: '/docs/concepts/shared-memory' },
+      { label: 'Trust model', href: '/docs/operations/trust-model' },
+      { label: 'Prompt block', href: '/docs/concepts/prompt-block' },
+    ],
+  },
+  {
+    slug: 'agent-infrastructure',
+    icon: Wrench,
+    tag: 'Agent infrastructure teams',
+    title: 'Memory you can debug without guessing what the agent learned',
+    summary:
+      'Access logs, revision history, and per-file inspection that separate write failures from retrieval failures.',
+    metaTitle: 'Debuggable agent memory infrastructure — MemexAI',
+    metaDescription:
+      'How agent infrastructure teams use MemexAI audit logs and revision history to debug memory failures without reverse-engineering a vector index.',
+    problem:
+      "Debugging personalization failures is hard when memory is a vector index. You can't tell if the agent failed to write, failed to retrieve, or retrieved and ignored.",
+    solution:
+      "MemexAI's audit surface separates the failure modes. Access logs show every read and write with tool call IDs. Revisions show every version of every file. You can reconstruct exactly what the agent knew at any point in time and trace wrong behavior back to its cause.",
+    links: [
+      { label: 'Access logs', href: '/docs/concepts/access-logs' },
+      { label: 'Revisions', href: '/docs/concepts/revisions' },
+      { label: 'Admin console', href: '/docs/operations/admin-console' },
+    ],
+  },
+]

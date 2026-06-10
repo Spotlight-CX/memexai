@@ -64,62 +64,50 @@ export default function HomePage() {
       <section className="mx-section">
         <Reveal>
           <span className="mx-kicker">The problem</span>
-          <h2>Three ways agent memory fails in production</h2>
+          <h2>Where agent memory breaks in production.</h2>
         </Reveal>
 
         <Reveal stagger className="mx-problem-grid">
           <div className="mx-problem-card">
-            <div className="mx-problem-icon">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-                <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M7 7l6 6M13 7l-6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </div>
-            <h3>Stateless agents lose users</h3>
+            <h3>Session 2 starts from scratch.</h3>
             <p>
-              Without persistent memory, your agent starts fresh every session.
-              Users repeat their preferences, re-explain their goals, and eventually
-              stop coming back. The AI feels like it has amnesia.
+              Your agent wrote what it learned last time. But nothing loaded
+              that context into the new session. The model isn&apos;t broken —
+              the memory injection layer is missing. Users re-explain themselves.
+              The product feels stateless because it is.
             </p>
-            <div className="mx-problem-chat">
-              &ldquo;I already told you I moved to London.&rdquo;
+            <div className="mx-problem-chat" style={{ fontFamily: 'var(--mx-mono)', fontStyle: 'normal', fontSize: 12, lineHeight: 1.7 }}>
+              session_start(&#123; userId: &quot;u_4821&quot; &#125;)<br />
+              context_files: []{'  '}// user/profile.md exists, never injected
             </div>
           </div>
 
           <div className="mx-problem-card">
-            <div className="mx-problem-icon">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-                <rect x="3" y="3" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M7 10h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </div>
-            <h3>Vector stores should not be the source of truth</h3>
+            <h3>Similarity retrieval serves the past, not the present.</h3>
             <p>
-              Dumping conversations into a vector database retrieves similar-looking
-              fragments — including outdated or conflicting ones. When the agent says
-              something wrong, you need an editable memory record, not just a nearest
-              neighbor.
+              Vector search returns what&apos;s similar, not what&apos;s current.
+              A detailed old entry outranks a brief recent update. You can&apos;t
+              fix one embedding — you&apos;d have to re-extract the full conversation.
+              The wrong fact keeps winning.
             </p>
-            <div className="mx-problem-blur" aria-label="Opaque memory representation">
-              ??? ??? ???
+            <div className="mx-problem-blur" style={{ filter: 'none', height: 'auto', flexDirection: 'column', alignItems: 'flex-start', padding: '14px 16px', fontSize: 12, letterSpacing: 0, fontFamily: 'var(--mx-mono)', gap: 6, lineHeight: 1.7 }}>
+              <span>[0.91] &quot;prefers 2BHK&quot; — written 4 months ago</span>
+              <span>[0.87] &quot;now open to 3BHK&quot; — written last week</span>
+              <span style={{ opacity: 0.6 }}>→ stale entry ranked first</span>
             </div>
           </div>
 
           <div className="mx-problem-card">
-            <div className="mx-problem-icon">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-                <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M10 6v4l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </div>
-            <h3>Agents can&apos;t distinguish rules from facts from history</h3>
+            <h3>Rules, facts, and history share one unstructured blob.</h3>
             <p>
-              Everything ends up in a single context blob. The agent doesn&apos;t know
-              what must always apply, what&apos;s true about this user, and what
-              happened in the past. Memory without structure is just noise.
+              Escalation policy, user preferences, and last week&apos;s conversation
+              all arrive as one context string. The model can&apos;t distinguish
+              what always applies from what happened once. Priority is undefined.
             </p>
-            <div className="mx-problem-chat">
-              &ldquo;Why did it suggest that property again? I already rejected it.&rdquo;
+            <div className="mx-problem-chat" style={{ fontFamily: 'var(--mx-mono)', fontStyle: 'normal', fontSize: 12, lineHeight: 1.7 }}>
+              context: &quot;no cold calls | budget 80L |<br />
+              {'  '}viewed ParkRegalia last week...&quot;<br />
+              {'  '}// rules mixed with history, equal weight
             </div>
           </div>
         </Reveal>
