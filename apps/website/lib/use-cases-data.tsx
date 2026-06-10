@@ -1,4 +1,4 @@
-import { type LucideIcon, BrainCircuit, GraduationCap, HeadphonesIcon, Layers, Sparkles, TrendingUp, Users, Wrench } from 'lucide-react'
+import { type LucideIcon, BrainCircuit, GraduationCap, HeadphonesIcon, Layers, MessageSquareText, Scissors, Sparkles, TrendingUp, Users, Wrench } from 'lucide-react'
 
 export type UseCase = {
   slug: string
@@ -168,6 +168,91 @@ const { text } = await generateText({
       { label: 'Shared memory', href: '/docs/concepts/shared-memory' },
       { label: 'Revisions', href: '/docs/concepts/revisions' },
     ],
+  },
+  {
+    slug: 'memory-compaction',
+    icon: Scissors,
+    tag: 'Memory health',
+    title: 'Keep agent memory clean and accurate over time',
+    summary:
+      'As agents write to memory, files grow noisy and redundant. Run a scheduled compaction pass to merge duplicates, remove stale facts, and keep the prompt block tight.',
+    metaTitle: 'Memory compaction — MemexAI',
+    metaDescription:
+      'How to run a scheduled background agent that reads all user memory, uses an LLM to compact and deduplicate, and writes back cleaner files — with full revision history.',
+    problem:
+      'Agent memory degrades over time. Overlapping facts from different sessions, outdated preferences that were never overwritten, partial updates that sit alongside their successors. The prompt block grows bloated; retrieval quality falls; the agent acts on stale context.',
+    solution:
+      'A scheduled compaction agent reads all memory files for a user, passes them through an LLM that merges duplicates and removes stale entries, and writes back a tighter version. MemexAI revision history means every compaction pass is traceable — you can see exactly what was merged and roll back if the LLM got it wrong.',
+    links: [
+      { label: 'Background Dreaming', href: '/docs/operations/dreaming' },
+      { label: 'Revisions', href: '/docs/concepts/revisions' },
+      { label: 'Memory tools', href: '/docs/concepts/memory-tools' },
+    ],
+    codeExample: `import { createMemex } from '@memexai/core'
+import { generateText } from 'ai'
+
+const memex = createMemex(DATABASE_URL)
+
+async function compactMemory(userId: string) {
+  const user = memex.forUser({ userId, actor: 'compaction-agent' })
+
+  const { files } = await user.list()
+  const contents = await Promise.all(files.map(f => user.read(f.path)))
+
+  const { text: compacted } = await generateText({
+    model,
+    system: \`Merge, deduplicate, and tighten these memory files.
+Remove stale or redundant facts. Return one clean Markdown document.\`,
+    prompt: contents.map(c => \`## \${c.path}\\n\${c.content}\`).join('\\n\\n'),
+  })
+
+  await user.write('user/profile.md', compacted, 'scheduled-compaction')
+}`,
+  },
+  {
+    slug: 'conversation-extraction',
+    icon: MessageSquareText,
+    tag: 'Memory bootstrap',
+    title: 'Extract structured memory from conversation transcripts',
+    summary:
+      'Bootstrap agent memory from existing session logs. Turn months of conversation history into structured, inspectable memory files without replaying every message live.',
+    metaTitle: 'Conversation extraction — MemexAI',
+    metaDescription:
+      'How to extract durable memory facts from conversation transcripts and write them as structured MemexAI files — post-session hooks or batch historical ingestion.',
+    problem:
+      'Teams adopting memory infrastructure have months of existing conversation logs. Starting from zero means a cold-start quality problem — the agent behaves like it just met every user. Replaying historical conversations through a live agent is slow and expensive.',
+    solution:
+      'A batch extraction pipeline reads conversation transcripts, uses an LLM to identify durable facts worth remembering, and writes them as structured memory files. MemexAI stores them with full revision history so you always know what came from extraction vs. live sessions.',
+    links: [
+      { label: 'Memory tools', href: '/docs/concepts/memory-tools' },
+      { label: 'Revisions', href: '/docs/concepts/revisions' },
+      { label: 'Access logs', href: '/docs/concepts/access-logs' },
+    ],
+    codeExample: `import { createMemex } from '@memexai/core'
+import { generateText } from 'ai'
+
+const memex = createMemex(DATABASE_URL)
+
+type Message = { role: 'user' | 'assistant'; content: string }
+
+async function extractMemory(userId: string, transcript: Message[]) {
+  const { text: facts } = await generateText({
+    model,
+    system: \`Extract durable facts worth remembering.
+Focus on: preferences, decisions, recurring context.
+Ignore: one-time requests, pleasantries, ephemeral state.
+Return concise Markdown bullet points.\`,
+    prompt: transcript.map(m => \`\${m.role}: \${m.content}\`).join('\\n'),
+  })
+
+  if (!facts.trim()) return
+
+  const user = memex.forUser({ userId, actor: 'extraction-pipeline' })
+  await user.write('user/extracted.md', facts, 'conversation-extraction')
+}
+
+// Run after each session closes
+await extractMemory(userId, session.messages)`,
   },
   {
     slug: 'edtech-ai',
