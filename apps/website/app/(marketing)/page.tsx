@@ -308,7 +308,64 @@ export default function HomePage() {
 
       <hr className="mx-divider" />
 
-      {/* ── §6 COMPARE ───────────────────────────────────────────────── */}
+      {/* ── §6 BUILD VS BUY ──────────────────────────────────────────── */}
+      <section className="mx-section">
+        <Reveal>
+          <span className="mx-kicker">Why not just build it?</span>
+          <h2>Every team builds half of this. The other half shows up at scale.</h2>
+          <p className="mx-lede">
+            These aren&apos;t design decisions — they&apos;re failure modes that appear as usage grows.
+            Each one is a weekend of work that pulls engineers away from the product.
+          </p>
+        </Reveal>
+
+        <Reveal>
+          <div className="mx-compare">
+            <div className="mx-compare-row mx-compare-head" style={{ gridTemplateColumns: '1.6fr 1fr 1.2fr' }}>
+              <div>Failure mode</div>
+              <div>DIY outcome</div>
+              <div data-col="memex">MemexAI</div>
+            </div>
+            <div className="mx-compare-row" style={{ gridTemplateColumns: '1.6fr 1fr 1.2fr' }}>
+              <div>Agent reads another user&apos;s memory</div>
+              <div className="mx-compare-x">Manual validation or silent data leak</div>
+              <div data-col="memex" className="mx-compare-check">Path layer blocks physical paths</div>
+            </div>
+            <div className="mx-compare-row" style={{ gridTemplateColumns: '1.6fr 1fr 1.2fr' }}>
+              <div>Bad write corrupts context, no rollback</div>
+              <div className="mx-compare-x">Overwritten and gone</div>
+              <div data-col="memex" className="mx-compare-check">Full snapshot on every write</div>
+            </div>
+            <div className="mx-compare-row" style={{ gridTemplateColumns: '1.6fr 1fr 1.2fr' }}>
+              <div>&ldquo;What does the agent currently know?&rdquo;</div>
+              <div className="mx-compare-x">Open the DB or hope for logs</div>
+              <div data-col="memex" className="mx-compare-check">Admin UI + access logs + revision history</div>
+            </div>
+            <div className="mx-compare-row" style={{ gridTemplateColumns: '1.6fr 1fr 1.2fr' }}>
+              <div>Loading too much memory degrades output</div>
+              <div className="mx-compare-x">Full file dumped in prompt</div>
+              <div data-col="memex" className="mx-compare-check">Context budget enforced at assembly</div>
+            </div>
+            <div className="mx-compare-row" style={{ gridTemplateColumns: '1.6fr 1fr 1.2fr' }}>
+              <div>Share policy globally, keep user data private</div>
+              <div className="mx-compare-x">Two stores or manual conditional logic</div>
+              <div data-col="memex" className="mx-compare-check"><code>shared/</code> + <code>user/</code> isolation, path-enforced</div>
+            </div>
+            <div className="mx-compare-row" style={{ gridTemplateColumns: '1.6fr 1fr 1.2fr' }}>
+              <div>Write-on-every-call grows storage unbounded</div>
+              <div className="mx-compare-x">Manual cleanup scripts or skip it</div>
+              <div data-col="memex" className="mx-compare-check">Dreaming compacts and deduplicates</div>
+            </div>
+          </div>
+          <p style={{ marginTop: 20, fontSize: 13, color: 'var(--mx-muted)', fontStyle: 'italic' }}>
+            No moat claims. These are failure modes that appear as usage scales, and the mechanisms that prevent them.
+          </p>
+        </Reveal>
+      </section>
+
+      <hr className="mx-divider" />
+
+      {/* ── §7 COMPARE ───────────────────────────────────────────────── */}
       <section className="mx-section">
         <Reveal>
           <span className="mx-kicker">Compare</span>

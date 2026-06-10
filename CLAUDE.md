@@ -166,6 +166,30 @@ Key routing rules:
 
 Simplicity over complicated beauty, prefer consistent elements rather than custom defined components over the usage layer - it should mostly just use a design system and usages should just simply use its variant. 
 
+### Page rationale files
+
+Each public-facing page in `apps/website/app/` has a colocated `page.rationale.md` file. These contain:
+- **Target persona** — who the page is for and what they already know
+- **Page goal** — what a successful visit looks like
+- **Section-by-section rationale** — why each section is structured the way it is
+
+**Rule:** GTM thinking, persona descriptions, and conversion rationale belong in `page.rationale.md` files only. Do not put this in code comments, TSX files, or any other location. These files are safe to push (OSS) but they are product strategy docs, not code docs — keep them contained here.
+
+Current rationale files:
+- `apps/website/app/(marketing)/page.rationale.md` — homepage
+- `apps/website/app/compare/page.rationale.md` — compare page
+- `apps/website/app/use-cases/page.rationale.md` — use cases index
+- `apps/website/app/roadmap/page.rationale.md` — roadmap
+
+---
+
+### Website CSS rule (apps/website)
+
+**Reuse `mx-*` classes — never write new ones when an existing pattern fits.** The `mx-*` classes in `apps/website/app/global.css` are the design system. They encode complex patterns (responsive type via `clamp()`, glassmorphic surfaces, scroll-reveal animations) that would be verbose as inline Tailwind. When adding a new homepage section:
+- Use existing `mx-section`, `mx-kicker`, `mx-lede`, `mx-compare`, `mx-card`, `mx-scope-card`, etc.
+- Inline style overrides are acceptable for minor deviations (e.g. column count on a grid).
+- Only add new CSS to `global.css` when genuinely no existing pattern covers the case.
+
 ## Report generation
 
 when i ask you to analyse something or generate report/dashboard, prefer creating html files with least amount of tokens - ie. use tailwind cdn and use it to reduce the tokens.
