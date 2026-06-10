@@ -1,4 +1,4 @@
-import { type LucideIcon, BrainCircuit, HeadphonesIcon, Layers, Sparkles, Users, Wrench } from 'lucide-react'
+import { type LucideIcon, BrainCircuit, GraduationCap, HeadphonesIcon, Layers, Sparkles, TrendingUp, Users, Wrench } from 'lucide-react'
 
 export type UseCase = {
   slug: string
@@ -145,6 +145,46 @@ const { text } = await generateText({
       "MemexAI's audit surface separates the failure modes. Access logs show every read and write with tool call IDs. Revisions show every version of every file. You can reconstruct exactly what the agent knew at any point in time and trace wrong behavior back to its cause.",
     links: [
       { label: 'Access logs', href: '/docs/concepts/access-logs' },
+      { label: 'Revisions', href: '/docs/concepts/revisions' },
+      { label: 'Admin console', href: '/docs/operations/admin-console' },
+    ],
+  },
+  {
+    slug: 'sales-ai',
+    icon: TrendingUp,
+    tag: 'Sales AI',
+    title: 'Your sales AI should remember the last call. And the one before.',
+    summary:
+      'Deal context, objection history, and stakeholder map persist across every call — and sales ops can correct stale facts before they cost a deal.',
+    metaTitle: 'Sales AI memory — MemexAI',
+    metaDescription:
+      'How sales AI agents use MemexAI to remember prospect context, deal stage, and objection history across every call — and let sales ops correct stale facts before they cost a deal.',
+    problem:
+      'Sales AI agents that forget deal context between sessions repeat questions prospects already answered, re-surface resolved objections, and pitch the wrong tier. Stale memory in sales AI is a pipeline risk.',
+    solution:
+      'MemexAI persists deal context, stakeholder maps, and objection logs across every session. Sales ops can open any deal file, correct stale facts directly, and know the correction takes effect before the next call — without redeployment.',
+    links: [
+      { label: 'Memory tools', href: '/docs/concepts/memory-tools' },
+      { label: 'Shared memory', href: '/docs/concepts/shared-memory' },
+      { label: 'Revisions', href: '/docs/concepts/revisions' },
+    ],
+  },
+  {
+    slug: 'edtech-ai',
+    icon: GraduationCap,
+    tag: 'EdTech AI',
+    title: 'An AI tutor that actually remembers how this student learns.',
+    summary:
+      'Learner profiles that grow with every session — correctable by teachers and parents, never locked in an opaque model.',
+    metaTitle: 'EdTech AI memory — MemexAI',
+    metaDescription:
+      'How AI tutors and personalized learning products use MemexAI to build a learner profile that grows with the student — and stays correctable by teachers, parents, and the student themselves.',
+    problem:
+      'AI tutors accumulate learner context but can\'t surface or correct it. Teachers and parents can\'t verify or fix wrong beliefs about a student. Opacity erodes the trust personalized learning depends on.',
+    solution:
+      'MemexAI stores learner profiles as human-readable files. Teachers can open a student\'s profile, correct wrong assessments, and add context the AI couldn\'t learn from sessions. Revision history gives parents a verifiable record of what the AI knows.',
+    links: [
+      { label: 'Memory tools', href: '/docs/concepts/memory-tools' },
       { label: 'Revisions', href: '/docs/concepts/revisions' },
       { label: 'Admin console', href: '/docs/operations/admin-console' },
     ],
