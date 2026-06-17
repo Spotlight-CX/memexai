@@ -15,6 +15,7 @@ import { observeCommand } from "./commands/observe"
 import { apiCommand, apiSpecCommand } from "./commands/api"
 import { initCommand } from "./commands/init"
 import { sharedCommand } from "./commands/shared"
+import { docsCommand } from "./commands/docs"
 
 const HELP = `
 memex-admin — Agent-friendly CLI for MemexAI memory inspection and management
@@ -32,6 +33,7 @@ Global options:
 
 Commands:
   init                         Guided setup: introspect codebase, start Docker, bootstrap memory
+  docs [topic]                 Read docs in the terminal (setup, sdk, concepts, examples)
   shared                       Sync shared/ memory files (pull from service, push to service)
   serve                        Start web UI (default port 4040)
   users                        User management
@@ -54,6 +56,8 @@ Connection modes:
 
 Getting started:
   npx @memexai/admin init
+  npx @memexai/admin docs setup       # full setup guide
+  npx @memexai/admin docs sdk         # SDK wiring guide
 
 Examples:
   memex-admin -s http://localhost:8080 --admin-secret secret shared push
@@ -89,6 +93,13 @@ async function main() {
   if (!command || command === "--help" || command === "-h" || command === "help") {
     process.stdout.write(HELP)
     process.exit(0)
+  }
+
+  // docs — no service needed, fetches from memexai.space
+  if (command === "docs") {
+    const topic = parsed.positional[1]
+    await docsCommand(topic, { positional: parsed.positional.slice(2), flags: parsed.flags })
+    return
   }
 
   // init — manages its own client lifecycle (service may not be running yet)

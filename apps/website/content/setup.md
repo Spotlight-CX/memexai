@@ -133,39 +133,43 @@ curl -fsS "http://localhost:8080/v1/admin/files/shared/procedural.md" \
 
 ## Discovery
 
-Before wiring the SDK, inspect the target app:
+Read the relevant SDK guide via CLI before editing any code:
 
-1. **Package manager**: `bun.lock` → bun, `pnpm-lock.yaml` → pnpm, `yarn.lock` → yarn, `package-lock.json` → npm
-2. **Language**: TypeScript/JS (`package.json`, `tsconfig.json`), Python (`pyproject.toml`, `requirements.txt`)
-3. **Agent SDK**:
-   - Vercel AI SDK: package `ai`
-   - OpenAI SDK: package `openai`
-   - Anthropic SDK: package `@anthropic-ai/sdk`
-   - LangChain JS: `langchain` or `@langchain/*`
-   - LlamaIndex Python: `llama-index`
-   - CrewAI Python: `crewai`
-   - LangChain Python: `langchain`
-4. **Agent entrypoint**: look for `generateText`, `streamText`, `openai.chat.completions.create`, `client.messages.create`, or agent route handlers
-5. **Extraction boundary**:
-   - Hot path: inline tool loop when the user expects immediate durability
-   - Background path: post-response job, callback, or session-save hook when latency matters
+```bash
+memex-admin docs                        # list all available topics
+memex-admin docs sdk/typescript         # Vercel AI, OpenAI, Anthropic, LangChain adapters
+memex-admin docs sdk/python             # Python SDK and framework adapters
+memex-admin docs concepts/memory-tools  # the four agent tools
+memex-admin docs concepts/shared-memory # shared/ files and CI/CD sync
+memex-admin docs examples               # example repos for each framework
+```
+
+Then inspect the target app to determine which path to take:
+
+1. **Package manager**: `bun.lock` → bun · `pnpm-lock.yaml` → pnpm · `yarn.lock` → yarn · `package-lock.json` → npm
+2. **Language**: TypeScript/JS (`package.json`, `tsconfig.json`) · Python (`pyproject.toml`, `requirements.txt`)
+3. **Agent SDK** (check dependencies):
+
+| SDK | Package | CLI guide |
+|---|---|---|
+| Vercel AI SDK | `ai` | `memex-admin docs sdk/typescript` |
+| OpenAI SDK | `openai` | `memex-admin docs sdk/typescript` |
+| Anthropic SDK | `@anthropic-ai/sdk` | `memex-admin docs sdk/typescript` |
+| LangChain JS | `langchain` or `@langchain/*` | `memex-admin docs sdk/typescript` |
+| LlamaIndex Python | `llama-index` | `memex-admin docs sdk/python` |
+| CrewAI Python | `crewai` | `memex-admin docs sdk/python` |
+| LangChain Python | `langchain` | `memex-admin docs sdk/python` |
+| Google ADK | `google-adk` | `memex-admin docs sdk/python` |
+
+4. **Agent entrypoint**: find `generateText`, `streamText`, `openai.chat.completions.create`, `client.messages.create`, or agent route handlers
+5. **Extraction boundary**: hot path (inline tool loop, immediate durability) vs background path (post-response job, lower latency cost)
 
 Adapter priority:
 
 1. First-party MemexAI adapter when one matches the detected SDK
-2. Framework's native memory abstraction if available (e.g. Google ADK)
-3. Custom tool/function resolver using the HTTP tool contract
-4. Direct HTTP calls as last resort
-
-| SDK/framework | Recommended integration | Extraction boundary |
-|---|---|---|
-| Vercel AI SDK | `createVercelAITools(memory)` | `result.steps` or stream step events |
-| OpenAI SDK | `createOpenAITools(memory)` | manual tool-call loop |
-| Anthropic SDK | `createAnthropicTools(memory)` | Messages tool-use loop |
-| LangChain / LangGraph | LangChain tools | callback or graph node |
-| LlamaIndex | LlamaIndex tools | post-response workflow step |
-| CrewAI | CrewAI tools | task-output extraction |
-| Google ADK | `MemexAdkMemoryService` | ADK session memory lifecycle |
+2. Framework's native memory abstraction (e.g. Google ADK `MemexAdkMemoryService`)
+3. Custom tool resolver using the HTTP tool contract below
+4. Direct HTTP as last resort
 
 ---
 

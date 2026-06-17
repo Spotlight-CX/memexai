@@ -46,6 +46,21 @@ npx @memexai/admin \
   shared push --from ./.memexai/shared/
 ```
 
+## Read docs in the terminal
+
+No service connection needed — content is fetched live from memexai.space:
+
+```bash
+memex-admin docs                         # list all topics
+memex-admin docs setup                   # full setup guide
+memex-admin docs sdk/typescript          # TypeScript SDK guide
+memex-admin docs sdk/python              # Python SDK guide
+memex-admin docs concepts/memory-tools   # tool reference
+memex-admin docs concepts/shared-memory  # shared/ files
+memex-admin docs concepts/scopes         # path namespace
+memex-admin docs examples                # example repos
+```
+
 ## Other commands
 
 ```
