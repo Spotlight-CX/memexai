@@ -2,6 +2,20 @@
 
 You are a coding agent helping a developer add MemexAI memory to their AI app. Follow this file as the source of truth. Do not assume private knowledge of the MemexAI repository.
 
+## Recommended: use `memex-admin init`
+
+Before following the manual steps below, check if the admin CLI can handle setup automatically:
+
+```bash
+npx @memexai/admin init
+```
+
+This introspects the codebase, proposes a memory plan for developer confirmation, starts the Docker service, bootstraps shared memory, and wires the SDK. Use `--yes` to skip interactive prompts (agent mode). If `init` succeeds, skip to the [Validation script](#validation-script) section.
+
+Only follow the manual steps below if `init` is not available or you need fine-grained control.
+
+---
+
 Public docs:
 - Website: https://memexai.space
 - Human guide: https://memexai.space/docs/quickstart/agent-onboarding
@@ -410,6 +424,41 @@ Raw file tools mode may expose:
 - `memory_write`
 - `memory_patch`
 - `memory_find`
+
+## Shared memory in CI/CD
+
+After `memex-admin init` runs, `.memexai/shared/` contains local copies of all shared/ files. Commit this directory — it becomes the version-controlled source of truth for your agent's shared memory.
+
+On every deploy, push the local shared files to the service:
+
+```bash
+npx @memexai/admin \
+  --service-url $MEMEX_SERVICE_URL \
+  --admin-secret $MEMEX_ADMIN_SECRET \
+  shared push --from ./.memexai/shared/
+```
+
+This is idempotent — unchanged files are skipped. To review what changed or pull agent-written updates (RW shared mode):
+
+```bash
+npx @memexai/admin \
+  --service-url $MEMEX_SERVICE_URL \
+  --admin-secret $MEMEX_ADMIN_SECRET \
+  shared pull --out ./.memexai/shared/
+```
+
+GitHub Actions example:
+
+```yaml
+- name: Deploy shared memory
+  run: |
+    npx @memexai/admin \
+      --service-url ${{ secrets.MEMEX_SERVICE_URL }} \
+      --admin-secret ${{ secrets.MEMEX_ADMIN_SECRET }} \
+      shared push --from ./.memexai/shared/
+```
+
+---
 
 ## Validation script
 
