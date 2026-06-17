@@ -62,6 +62,29 @@ export async function setupCommand(
       process.stdout.write("\nNext steps:\n")
       for (const step of result.nextSteps) process.stdout.write(`  • ${step}\n`)
     }
+
+    // Derive a single concrete next command
+    const has = (name: string) => result.sharedFiles.some((p) => p.includes(name))
+    if (!result.bootstrapped) {
+      const S = "-s $MEMEX_SERVICE_URL --admin-secret $MEMEX_ADMIN_SECRET"
+      let nextCmd: string
+      if (!has("procedural")) {
+        nextCmd = `memex-admin ${S} files write shared/procedural.md --content "..." --reason bootstrap`
+      } else if (!has("semantic")) {
+        nextCmd = `memex-admin ${S} files write shared/semantic.md --content "..." --reason bootstrap`
+      } else if (!has("episodic")) {
+        nextCmd = `memex-admin ${S} files write shared/episodic.md --content "..." --reason bootstrap`
+      } else {
+        nextCmd = `memex-admin ${S} setup complete --note "describe your agent"`
+      }
+      process.stdout.write(`\n→ Next:\n  ${nextCmd}\n`)
+      process.stdout.write(`  (or run: npx @memexai/admin init --yes to automate all steps)\n`)
+    } else {
+      const S = "-s $MEMEX_SERVICE_URL --admin-secret $MEMEX_ADMIN_SECRET"
+      process.stdout.write(`\n→ Inspect:\n`)
+      process.stdout.write(`  memex-admin ${S} files list --prefix shared/\n`)
+      process.stdout.write(`  memex-admin ${S} files list --prefix users/USERID/\n`)
+    }
     return
   }
 
@@ -73,11 +96,28 @@ export async function setupCommand(
       sharedFiles: string[]
     }
     if (jsonMode) { printJson(result); return }
-    process.stdout.write(`Setup marked complete at ${result.setupCompletedAt}\n`)
+    process.stdout.write(`✓ Setup complete at ${result.setupCompletedAt}\n`)
     if (result.note) process.stdout.write(`Note: ${result.note}\n`)
-    process.stdout.write(`\nShared files written:\n`)
+    process.stdout.write(`\nShared files:\n`)
     printTable(result.sharedFiles.map((p) => ({ path: p })), ["path"])
-    process.stdout.write(`\nNext: write MEMEX.md to your project repo documenting the memory shape\n`)
+
+    const S = "-s $MEMEX_SERVICE_URL --admin-secret $MEMEX_ADMIN_SECRET"
+    process.stdout.write(`
+→ What to do next:
+
+  Inspect shared files:
+    memex-admin ${S} files list --prefix shared/
+    memex-admin ${S} files get shared/procedural.md
+
+  After your agent runs a session (replace USERID and TOOL_CALL_ID):
+    memex-admin ${S} files list --prefix users/USERID/
+    memex-admin ${S} files get users/USERID/preferences.md
+    memex-admin ${S} logs list --user USERID --limit 20
+    memex-admin ${S} trace TOOL_CALL_ID
+
+  Sync shared memory in CI/CD:
+    memex-admin ${S} shared push --from ./.memexai/shared/
+`)
     return
   }
 

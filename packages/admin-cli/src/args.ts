@@ -11,7 +11,7 @@ export type ParsedArgs = {
 
 // Flags that are always boolean — they never consume the next positional as a value.
 const BOOLEAN_FLAGS = new Set([
-  "json", "help", "h", "no-open", "no-color", "dry-run",
+  "json", "help", "h", "no-open", "no-color", "dry-run", "yes", "skip-docker",
 ])
 
 export function parseArgs(argv: string[]): ParsedArgs {
