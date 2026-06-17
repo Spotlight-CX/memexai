@@ -49,6 +49,9 @@ Examples:
   npx @memexai/admin init
   npx @memexai/admin init --yes --service-url http://localhost:8080
   docker exec memexai memex-admin init --yes --service-url http://localhost:8080
+
+Full setup guide (for coding agents and fallback paths):
+  https://memexai.space/setup.md
 `
 
 // ─── Compose content ──────────────────────────────────────────────────────────
