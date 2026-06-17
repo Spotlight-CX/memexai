@@ -93,11 +93,11 @@ If `init` prints "✓ Complete", skip to [Validation](#validation-script). Other
 
 ---
 
-## Path 3 — curl (no Docker)
+## Path 3 — curl (service already running, no npx)
 
-Use only as a last resort. Requires Postgres running separately with `DATABASE_URL` set.
+Use this when the MemexAI service is already running (Docker or otherwise) but `npx` and `docker exec` are both unavailable. The service still needs Postgres — this path just skips `init` and bootstraps shared memory manually via curl.
 
-Check if the service is already running:
+Check service health:
 
 ```bash
 curl -fsS http://localhost:8080/health
