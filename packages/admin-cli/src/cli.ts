@@ -13,6 +13,9 @@ import { dreamCommand } from "./commands/dream"
 import { setupCommand } from "./commands/setup"
 import { observeCommand } from "./commands/observe"
 import { apiCommand, apiSpecCommand } from "./commands/api"
+import { initCommand } from "./commands/init"
+import { sharedCommand } from "./commands/shared"
+import { docsCommand } from "./commands/docs"
 
 const HELP = `
 memex-admin — Agent-friendly CLI for MemexAI memory inspection and management
@@ -29,6 +32,9 @@ Global options:
   --help, -h                   Show this help
 
 Commands:
+  init                         Guided setup: introspect codebase, start Docker, bootstrap memory
+  docs [topic]                 Read docs in the terminal (setup, sdk, concepts, examples)
+  shared                       Sync shared/ memory files (pull from service, push to service)
   serve                        Start web UI (default port 4040)
   users                        User management
   files                        File management
@@ -37,7 +43,7 @@ Commands:
   trace                        Agentic route tracing
   memory                       Memory state and time-travel
   dream                        Dream cycle management
-  setup                        Bootstrap shared memory
+  setup                        Bootstrap shared memory (manual)
   observe                      Observability and analytics
   api                          Raw HTTP passthrough (service mode only)
   api-spec                     Print OpenAPI spec (service mode only)
@@ -48,7 +54,13 @@ Connection modes:
   Direct Postgres:  --database-url postgresql://user:pass@host/db
   HTTP service:     --service-url http://localhost:8080 --admin-secret <secret>
 
+Getting started:
+  npx @memexai/admin init
+  npx @memexai/admin docs setup       # full setup guide
+  npx @memexai/admin docs sdk         # SDK wiring guide
+
 Examples:
+  memex-admin -s http://localhost:8080 --admin-secret secret shared push
   memex-admin -d $DATABASE_URL --json users list
   memex-admin -d $DATABASE_URL files get shared/index.md
   memex-admin -d $DATABASE_URL memory snapshot --user alice --at "2025-06-01T10:00:00Z"
@@ -83,6 +95,22 @@ async function main() {
     process.exit(0)
   }
 
+  // docs — no service needed, fetches from memexai.space
+  if (command === "docs") {
+    const topic = parsed.positional[1]
+    await docsCommand(topic, { positional: parsed.positional.slice(2), flags: parsed.flags })
+    return
+  }
+
+  // init — manages its own client lifecycle (service may not be running yet)
+  if (command === "init") {
+    await initCommand(
+      { positional: parsed.positional.slice(1), flags: parsed.flags },
+      { serviceUrl, adminSecret, databaseUrl, jsonMode },
+    )
+    return
+  }
+
   // Handle --help for subcommands before creating the client (no DB needed)
   if (boolFlag(parsed.flags, "help", "h")) {
     const helpArgs = { positional: [], flags: { help: true } }
@@ -97,6 +125,7 @@ async function main() {
       case "setup": await setupCommand(undefined, helpArgs, null as never, false); break
       case "observe": await observeCommand(undefined, helpArgs, null as never, false); break
       case "api": await apiCommand(undefined, helpArgs, null as never, false); break
+      case "shared": await sharedCommand(undefined, helpArgs, null as never, false); break
       default: process.stdout.write(HELP)
     }
     process.exit(0)
@@ -166,6 +195,9 @@ async function main() {
         break
       case "api-spec":
         await apiSpecCommand(client)
+        break
+      case "shared":
+        await sharedCommand(subCommand, restArgs, client, jsonMode)
         break
       default:
         printError(`Unknown command: ${command}. Run 'memex-admin --help' for usage.`)

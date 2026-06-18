@@ -70,10 +70,15 @@ jobs:
           git tag "v${{ steps.version.outputs.new }}"
           git push origin HEAD:main --tags
 
+    outputs:
+      version: ${{ steps.version.outputs.new }}
+
   publish:
     name: Publish
     needs: bump-and-tag
     uses: ./.github/workflows/publish.yml
+    with:
+      version: ${{ needs.bump-and-tag.outputs.version }}
     secrets: inherit
     permissions:
       contents: write

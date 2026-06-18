@@ -2,110 +2,27 @@
 
 You are a coding agent helping a developer add MemexAI memory to their AI app. Follow this file as the source of truth. Do not assume private knowledge of the MemexAI repository.
 
-Public docs:
-- Website: https://memexai.space
-- Human guide: https://memexai.space/docs/quickstart/agent-onboarding
-- Docker service guide: https://memexai.space/docs/quickstart/docker-service
-- Memory tools: https://memexai.space/docs/concepts/memory-tools
-- Shared memory: https://memexai.space/docs/concepts/shared-memory
+Public docs: https://memexai.space/docs
 
-## Goal
+---
 
-Wire MemexAI into the developer's agent so it can:
-
-1. Start or connect to a local MemexAI service.
-2. Use a stable user id for memory.
-3. Add MemexAI tools to the model call.
-4. Add the MemexAI prompt block/system prompt section.
-5. Store a durable memory.
-6. Recall that memory in a later call.
-
-## First questions to ask
-
-Ask these before editing code:
-
-1. "Do you want recommended Memory subagent mode, or advanced Raw file tools mode?"
-   - Recommend Memory subagent mode.
-   - Memory subagent mode exposes `memory_remember` and `memory_context`.
-   - Raw file tools mode exposes lower-level file tools such as `memory_list`, `memory_read`, `memory_write`, and `memory_patch`.
-2. "Should I set up a local Docker Compose MemexAI service for this project?"
-   - Recommend yes for local development.
-   - If Docker is already running, verify it instead of restarting it.
-
-If the user does not choose, proceed with Memory subagent mode and local Docker Compose.
-
-## Discovery
-
-Inspect the target app before changing it:
-
-1. Identify package manager:
-   - `bun.lock` -> bun
-   - `pnpm-lock.yaml` -> pnpm
-   - `yarn.lock` -> yarn
-   - `package-lock.json` -> npm
-2. Identify runtime and language:
-   - TypeScript/JavaScript package: inspect `package.json`, `tsconfig.json`, source files.
-   - Python package: inspect `pyproject.toml`, `requirements.txt`, source files.
-3. Identify agent SDK from dependencies and imports:
-   - Vercel AI SDK: package `ai`
-   - OpenAI SDK: package `openai`
-   - Anthropic SDK: package `@anthropic-ai/sdk`
-   - LangChain JS: packages containing `langchain` or `@langchain/*`
-   - LlamaIndex Python: package `llama-index`
-   - CrewAI Python: package `crewai`
-   - LangChain Python: package `langchain`
-4. Find the agent entrypoint:
-   - Look for `generateText`, `streamText`, `openai.chat.completions.create`, `client.messages.create`, agent route handlers, or scripts that call the model.
-5. Find the natural extraction boundary:
-   - Hot path: inline tool loop or current turn when the user expects immediate durability.
-   - Background path: post-response job, callback, graph node, task-output hook, or session-save hook when latency matters.
-   - Native memory abstractions: Google ADK should use a MemexAI memory-service adapter instead of raw tools by default.
-
-Adapter priority:
-
-1. Use a first-party MemexAI adapter when one matches the detected SDK.
-2. If the framework has a native memory abstraction, plug MemexAI into that abstraction when available.
-3. If no adapter exists, keep the app's existing language/model SDK and wire MemexAI through that SDK's custom tool/function resolver API.
-4. Use direct HTTP calls only as the last reserve: manual debugging, validation scripts, or apps with no usable tool-calling abstraction.
-
-Extraction routing:
-
-| SDK/framework | Recommended integration | Extraction boundary |
-|---|---|---|
-| Vercel AI SDK | `createVercelAITools(memory)` | `result.steps` or stream step events |
-| OpenAI SDK | `createOpenAITools(memory)` | manual tool-call loop |
-| Anthropic SDK | `createAnthropicTools(memory)` | Messages tool-use loop |
-| LangChain / LangGraph | LangChain tools | callback, runnable wrapper, or graph node |
-| LlamaIndex | LlamaIndex tools | post-response workflow step |
-| CrewAI | CrewAI tools | task-output extraction |
-| Google ADK | `MemexAdkMemoryService` | ADK session memory lifecycle |
-
-The HTTP tool contract section below is the low-level wire contract that custom resolvers call behind the scenes.
-
-## Local service setup
-
-MemexAI service mode is the recommended local development path. It gives the app an HTTP memory service, Postgres storage, and the admin UI.
-
-Check whether the service is already running:
+## Path 1 — npx init (recommended)
 
 ```bash
-curl -fsS http://localhost:8080/health
+npx @memexai/admin init
 ```
 
-If healthy, keep it running and continue.
+The CLI introspects the codebase, proposes a memory plan for developer confirmation, writes `compose.yml` if missing, starts Docker, bootstraps shared memory, and prints SDK wiring instructions. Use `--yes` to skip interactive prompts.
 
-If not healthy, check `.env`. The local service needs:
+If `init` prints "✓ Complete", skip directly to [Validation](#validation-script).
 
-```bash
-MEMEX_API_KEY=dev-agent-key
-MEMEX_ADMIN_SECRET=dev-admin-secret
-GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-2.5-flash
-```
+---
 
-If `GEMINI_API_KEY` is missing, ask the developer for it or ask them to place it in `.env`. Do not print the secret back to the user.
+## Path 2 — Docker exec (npx not available)
 
-Add or reuse a `compose.yml` service using the MemexAI Docker image:
+Use this path when `npx` is unavailable. The Docker image (`soorajshankar/memexai:latest`) bundles `memex-admin`, so you can run `init` inside the container.
+
+**Step 1 — create `compose.yml`** in the project root if one does not already exist:
 
 ```yaml
 services:
@@ -144,64 +61,137 @@ volumes:
   memexai_postgres_data:
 ```
 
-Start it:
+If an existing `compose.yml` is present, add only the `memexai` and `postgres` service blocks to it.
+
+**Step 2 — add environment variables** to `.env` (create if missing):
+
+```bash
+MEMEX_API_KEY=dev-agent-key
+MEMEX_ADMIN_SECRET=dev-admin-secret
+GEMINI_API_KEY=<developer's key>
+GEMINI_MODEL=gemini-2.5-flash
+```
+
+If `GEMINI_API_KEY` is missing, ask the developer for it. Do not print the value back.
+
+**Step 3 — start and verify:**
 
 ```bash
 docker compose up -d
+curl -fsS http://localhost:8080/health   # wait until {"status":"ok"}
+```
+
+**Step 4 — run init inside the container:**
+
+```bash
+docker exec $(docker compose ps -q memexai) memex-admin init --yes \
+  --service-url http://localhost:8080 \
+  --admin-secret dev-admin-secret
+```
+
+If `init` prints "✓ Complete", skip to [Validation](#validation-script). Otherwise continue with [Schema setup](#schema-setup) and [SDK wiring](#sdk-wiring).
+
+---
+
+## Path 3 — curl (service already running, no npx)
+
+Use this when the MemexAI service is already running (Docker or otherwise) but `npx` and `docker exec` are both unavailable. The service still needs Postgres — this path just skips `init` and bootstraps shared memory manually via curl.
+
+Check service health:
+
+```bash
 curl -fsS http://localhost:8080/health
 ```
 
-After it is healthy, open:
+Bootstrap shared memory directly:
 
-```text
-http://localhost:8080/admin?defaultAdminSecret=1&defaultApiKey=1&onboarding=1
+```bash
+curl -X PUT http://localhost:8080/v1/admin/files/shared/procedural.md \
+  -H "x-admin-secret: dev-admin-secret" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"# Agent Behavior Rules\n\nWrite memory only when facts are durable and worth recalling across sessions.","reason":"bootstrap"}'
+
+curl -X PUT http://localhost:8080/v1/admin/files/shared/semantic.md \
+  -H "x-admin-secret: dev-admin-secret" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"# User Profile Schema\n\nFile: user/profile.md\nCaptures: stable facts, preferences, stated context","reason":"bootstrap"}'
+
+curl -X PUT http://localhost:8080/v1/admin/files/shared/episodic.md \
+  -H "x-admin-secret: dev-admin-secret" \
+  -H "Content-Type: application/json" \
+  -d '{"content":"# Event Log Schema\n\nFile: user/log.md\nCaptures: time-ordered events, decisions, session notes (append-only)","reason":"bootstrap"}'
 ```
 
-If the app does not yet support the default-login query params, open `http://localhost:8080/admin` and use:
+Check status:
 
-```text
-Admin secret: dev-admin-secret
-Agent API key: dev-agent-key
+```bash
+curl -fsS "http://localhost:8080/v1/admin/files/shared/procedural.md" \
+  -H "x-admin-secret: dev-admin-secret"
 ```
+
+---
+
+## Discovery
+
+Read the relevant SDK guide via CLI before editing any code:
+
+```bash
+memex-admin docs                        # list all available topics
+memex-admin docs sdk/typescript         # Vercel AI, OpenAI, Anthropic, LangChain adapters
+memex-admin docs sdk/python             # Python SDK and framework adapters
+memex-admin docs concepts/memory-tools  # the four agent tools
+memex-admin docs concepts/shared-memory # shared/ files and CI/CD sync
+memex-admin docs examples               # example repos for each framework
+```
+
+Then inspect the target app to determine which path to take:
+
+1. **Package manager**: `bun.lock` → bun · `pnpm-lock.yaml` → pnpm · `yarn.lock` → yarn · `package-lock.json` → npm
+2. **Language**: TypeScript/JS (`package.json`, `tsconfig.json`) · Python (`pyproject.toml`, `requirements.txt`)
+3. **Agent SDK** (check dependencies):
+
+| SDK | Package | CLI guide |
+|---|---|---|
+| Vercel AI SDK | `ai` | `memex-admin docs sdk/typescript` |
+| OpenAI SDK | `openai` | `memex-admin docs sdk/typescript` |
+| Anthropic SDK | `@anthropic-ai/sdk` | `memex-admin docs sdk/typescript` |
+| LangChain JS | `langchain` or `@langchain/*` | `memex-admin docs sdk/typescript` |
+| LlamaIndex Python | `llama-index` | `memex-admin docs sdk/python` |
+| CrewAI Python | `crewai` | `memex-admin docs sdk/python` |
+| LangChain Python | `langchain` | `memex-admin docs sdk/python` |
+| Google ADK | `google-adk` | `memex-admin docs sdk/python` |
+
+4. **Agent entrypoint**: find `generateText`, `streamText`, `openai.chat.completions.create`, `client.messages.create`, or agent route handlers
+5. **Extraction boundary**: hot path (inline tool loop, immediate durability) vs background path (post-response job, lower latency cost)
+
+Adapter priority:
+
+1. First-party MemexAI adapter when one matches the detected SDK
+2. Framework's native memory abstraction (e.g. Google ADK `MemexAdkMemoryService`)
+3. Custom tool resolver using the HTTP tool contract below
+4. Direct HTTP as last resort
+
+---
 
 ## Schema setup
 
-After the service is healthy, inspect the target app to understand what kind of durable memory the product needs.
+Read domain-defining files (README, main agent entrypoint, existing system prompts, data models) to understand:
+- What the agent is helping users do
+- What facts should survive across sessions (preferences, account state, decisions, project context)
+- What guidance the agent needs from shared memory (policies, tool rules, escalation criteria)
 
-1. Read domain-defining files: README, main agent entrypoint, existing system prompts, data models. Identify:
-   - What the agent is helping users do
-   - What facts should survive across sessions (preferences, account state, decisions, project context)
-   - What guidance the agent needs from shared memory (policies, tool rules, escalation criteria)
-
-2. Draft a `shared/index.md` that describes:
-   - Memory file conventions (e.g. `user/preferences.md`, `user/project-state.md`)
-   - What the agent should memorize and what it should skip
-   - Domain-specific schema and formatting guidelines
-
-When the product has tool-calling agents that might encounter repeated errors or domain constraints, add a routing entry for systemic insights:
+Draft and confirm a `shared/index.md` schema with the developer before writing it. Example:
 
 ```markdown
 ## Memory file structure
 | File | What goes here |
 |------|----------------|
-| user/preferences.md | User preferences and stated facts |
-| shared/tool-quirks.md | Reusable operational insights: SQL dialect limits, API constraints, known unsupported patterns |
+| user/profile.md | User preferences and stated facts |
+| user/log.md | Time-ordered events (append-only) |
+| shared/tool-quirks.md | Reusable operational insights: SQL limits, API constraints |
 ```
 
-If the developer wants agents to write to `shared/`, enable shared writable mode on the service:
-
-```yaml
-# compose.yml — memexai service environment
-MEMEX_SHARED_WRITE_MODE: rw
-```
-
-With this on, agents can call `memory_remember` with a compact tool failure or operational insight and the system can route it to `shared/tool-quirks.md` based on the routing table above.
-
-> Shared writable mode is off by default. Only enable it in trusted deployments where agents are not user-controlled.
-
-3. Show the draft to the developer. Ask them to confirm or adjust the proposed schema before writing it.
-
-4. Once confirmed, write it to shared memory:
+Write it once confirmed:
 
 ```bash
 curl -fsS -X PUT http://localhost:8080/v1/admin/files/shared/index.md \
@@ -210,65 +200,41 @@ curl -fsS -X PUT http://localhost:8080/v1/admin/files/shared/index.md \
   -d '{"content": "# Memory Schema\n\n..."}'
 ```
 
-Or write directly via the admin UI Files tab at `http://localhost:8080/admin`.
+To allow agents to write to `shared/` (trusted deployments only), add to `compose.yml`:
 
-5. Verify it was saved:
-
-```bash
-curl -fsS "http://localhost:8080/v1/admin/files/shared/index.md" \
-  -H "x-admin-secret: dev-admin-secret"
+```yaml
+# memexai service environment
+MEMEX_SHARED_WRITE_MODE: rw
 ```
 
-This schema is injected into every agent's system prompt automatically via `getSystemPrompt()`. Agents read the shared guidance before they decide what to memorize.
+---
 
-## Explain the integration to the developer
+## SDK wiring
 
-Before the final handoff, explain the setup in two layers.
+### Mode choice
 
-TLDR:
+Ask the developer (or default to Memory subagent):
 
-1. Docker runs Postgres plus the MemexAI HTTP service.
-2. The app sends memory tool calls to the service with `MEMEX_API_KEY`.
-3. The agent gets two recommended tools: `memory_remember` and `memory_context`.
-4. The app must include `memory.getSystemPrompt(...)` on every model call so stored memory affects later answers.
-5. The admin UI shows the files, revisions, access logs, and tool activity behind the behavior.
-6. For systemic insights — tool failures, API limitations, domain constraints worth sharing across users — route them to `shared/` by adding a routing table in `shared/index.md` and enabling `MEMEX_SHARED_WRITE_MODE=rw`.
-7. Extraction can run on the hot path or in the background. Use the hot path when current-turn correctness needs it; use background jobs for latency-sensitive learning, batching, dedupe, or review.
+- **Memory subagent mode** (recommended): exposes `memory_remember` and `memory_context`
+- **Raw file tools mode**: exposes `memory_list`, `memory_read`, `memory_write`, `memory_patch`
 
-Under the hood:
+---
 
-1. Agent tools use virtual paths such as `user/profile.md`.
-2. MemexAI validates each path and translates `user/...` to `users/{userId}/...`.
-3. Writes update `mx_file`, create full snapshots in `mx_revision`, and create read/write rows in `mx_access_log`.
-4. Shared memory such as `shared/index.md` is injected into the prompt block and guides every agent.
-5. User memory becomes useful on the next turn only when the prompt block is included and the same stable `userId` is used.
+### TypeScript — Vercel AI SDK
 
-## TypeScript setup
-
-Install packages based on the detected package manager.
+Install:
 
 ```bash
 npm install @memexai/sdk ai @ai-sdk/google
+# or: bun add / pnpm add / yarn add
 ```
 
-Use the equivalent `bun add`, `pnpm add`, or `yarn add` if the project uses that package manager.
-
-Add environment variables for the app:
+Add to `.env`:
 
 ```bash
 MEMEX_URL=http://localhost:8080
 MEMEX_API_KEY=dev-agent-key
-GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-2.5-flash
 ```
-
-Use the developer's existing Gemini env vars if already present.
-
-## Vercel AI SDK adapter
-
-For projects using the Vercel AI SDK package `ai`, use this shape.
-
-Memory subagent mode:
 
 ```ts
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
@@ -276,10 +242,7 @@ import { generateText, stepCountIs } from "ai"
 import { MemexAI } from "@memexai/sdk"
 import { createVercelAITools } from "@memexai/sdk/adapters/vercel-ai"
 
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY,
-})
-
+const google = createGoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY })
 const memex = new MemexAI({
   url: process.env.MEMEX_URL ?? "http://localhost:8080",
   apiKey: process.env.MEMEX_API_KEY ?? "dev-agent-key",
@@ -287,10 +250,7 @@ const memex = new MemexAI({
 
 export async function runAgent(input: string, userId = "demo_user") {
   const memory = memex.forUser({ userId, actor: "assistant" })
-  const system = await memory.getSystemPrompt(
-    "You are a helpful assistant with durable user memory.",
-  )
-
+  const system = await memory.getSystemPrompt("You are a helpful assistant with durable user memory.")
   const result = await generateText({
     model: google(process.env.GEMINI_MODEL ?? "gemini-2.5-flash"),
     system,
@@ -298,22 +258,15 @@ export async function runAgent(input: string, userId = "demo_user") {
     tools: createVercelAITools(memory, { mode: "subagent" }),
     stopWhen: stepCountIs(5),
   })
-
   return result.text
 }
 ```
 
-Raw file tools mode:
+Raw file tools mode: `createVercelAITools(memory, { mode: "raw" })`
 
-```ts
-tools: createVercelAITools(memory, { mode: "raw" })
-```
+---
 
-Prefer Memory subagent mode unless the developer explicitly asked for raw file-level control.
-
-## OpenAI SDK adapter
-
-For projects using `openai`, use `@memexai/sdk/adapters/openai`.
+### TypeScript — OpenAI SDK
 
 ```ts
 import OpenAI from "openai"
@@ -331,11 +284,11 @@ const system = await memory.getSystemPrompt("...")
 const memexTools = createOpenAITools(memory)
 ```
 
-Add `system` to the model call's system message. Add `memexTools.definitions` to the OpenAI tool list. When the model returns tool calls, pass each call to `memexTools.execute(...)` and continue the tool loop according to the app's existing OpenAI SDK pattern.
+Add `system` to the model call's system message. Add `memexTools.definitions` to the tool list. Pass each tool call to `memexTools.execute(...)` in the tool loop.
 
-## LangChain JS adapter
+---
 
-For LangChain JS projects, use:
+### TypeScript — LangChain JS
 
 ```ts
 import { MemexAI } from "@memexai/sdk"
@@ -345,75 +298,89 @@ const memex = new MemexAI({
   url: process.env.MEMEX_URL ?? "http://localhost:8080",
   apiKey: process.env.MEMEX_API_KEY ?? "dev-agent-key",
 })
-
 const memory = memex.forUser({ userId: "demo_user", actor: "assistant" })
 const tools = createLangChainTools(memory)
 const system = await memory.getSystemPrompt("...")
 ```
 
-Add `system` to the model call and bind `tools` using the app's existing LangChain tool binding pattern.
+---
 
-## Python setup
-
-For Python projects, install:
+### Python
 
 ```bash
 python -m pip install memexai
 ```
 
-Use the adapter that matches the detected framework if present. If no framework adapter is available, keep the app's Python agent SDK and wire MemexAI as custom tools using the HTTP tool contract below.
+Use the adapter matching the detected framework. If none is available, use the HTTP tool contract below.
 
-## HTTP tool contract
+---
 
-This is the low-level MemexAI contract. Prefer first-party adapters. If no adapter exists, use this contract inside the app's existing SDK-native custom tool resolver. Use direct HTTP calls only as the last reserve.
+### HTTP tool contract
 
-1. Fetch MemexAI tool definitions from `/v1/tools`.
-2. Convert the selected MemexAI tools into the SDK's custom tool/function schema format.
-3. Add the prompt block from `/v1/prompt-block` to the system prompt.
-4. When the model emits a tool call, execute it through `/v1/tools/:toolName/execute`.
-5. Return the tool result to the model using the SDK's normal tool-result loop.
+Use this for custom resolvers or manual debugging.
 
-The curl examples below are for manual debugging and for runtimes that truly cannot expose SDK-native tools.
-
-Get tool definitions:
+1. Fetch tool definitions from `/v1/tools`
+2. Convert to the SDK's custom tool schema format
+3. Add prompt block from `/v1/prompt-block` to the system prompt
+4. On tool call, execute via `/v1/tools/:toolName/execute`
+5. Return result to model in the SDK's tool-result loop
 
 ```bash
+# Tool definitions
 curl -fsS http://localhost:8080/v1/tools \
   -H "Authorization: Bearer dev-agent-key"
-```
 
-Get prompt block:
-
-```bash
+# Prompt block
 curl -fsS "http://localhost:8080/v1/prompt-block?userId=demo_user&actor=assistant" \
   -H "Authorization: Bearer dev-agent-key"
-```
 
-Execute a tool:
-
-```bash
+# Execute a tool
 curl -fsS http://localhost:8080/v1/tools/memory_remember/execute \
   -H "Authorization: Bearer dev-agent-key" \
   -H "Content-Type: application/json" \
   -d '{"context":{"userId":"demo_user","actor":"assistant"},"arguments":{"text":"I prefer quiet neighborhoods near parks."}}'
 ```
 
-Memory subagent mode should expose only:
+---
 
-- `memory_remember`
-- `memory_context`
+## Shared memory in CI/CD
 
-Raw file tools mode may expose:
+After `init`, `.memexai/shared/` contains local copies of all shared files. Commit this directory — it becomes the version-controlled source of truth.
 
-- `memory_list`
-- `memory_read`
-- `memory_write`
-- `memory_patch`
-- `memory_find`
+On every deploy:
+
+```bash
+npx @memexai/admin \
+  --service-url $MEMEX_SERVICE_URL \
+  --admin-secret $MEMEX_ADMIN_SECRET \
+  shared push --from ./.memexai/shared/
+```
+
+GitHub Actions:
+
+```yaml
+- name: Deploy shared memory
+  run: |
+    npx @memexai/admin \
+      --service-url ${{ secrets.MEMEX_SERVICE_URL }} \
+      --admin-secret ${{ secrets.MEMEX_ADMIN_SECRET }} \
+      shared push --from ./.memexai/shared/
+```
+
+To pull agent-written updates (RW shared mode):
+
+```bash
+npx @memexai/admin \
+  --service-url $MEMEX_SERVICE_URL \
+  --admin-secret $MEMEX_ADMIN_SECRET \
+  shared pull --out ./.memexai/shared/
+```
+
+---
 
 ## Validation script
 
-After wiring, run a two-turn test. Use the app's real agent entrypoint if possible.
+Run a two-turn test using the app's real agent entrypoint.
 
 Turn 1:
 
@@ -429,56 +396,53 @@ What kind of neighborhood do I prefer?
 
 Success criteria:
 
-1. The first turn stores a durable memory.
-2. The second turn recalls quiet neighborhoods near parks.
-3. The code uses Gemini credentials from `.env`.
-4. The model call includes MemexAI tools.
-5. The model call includes the MemexAI prompt block or equivalent system prompt section.
-6. The admin UI shows files, revisions, or access logs for `demo_user`.
+1. Turn 1 stores a durable memory (`memory_remember` tool call visible)
+2. Turn 2 recalls "quiet neighborhoods near parks"
+3. Gemini credentials loaded from `.env`
+4. MemexAI tools are included in the model call
+5. MemexAI prompt block is included in the system prompt
+6. Admin UI shows files, revisions, or access logs for `demo_user`
+
+Admin UI: `http://localhost:8080/admin` — login with `dev-admin-secret` / `dev-agent-key`
+
+---
 
 ## Troubleshooting
 
-If `memory_remember` returns `MODEL_NOT_CONFIGURED`, the MemexAI service does not have an LLM key. Set `GEMINI_API_KEY` in the service environment and restart Docker Compose.
+**`MODEL_NOT_CONFIGURED`**: MemexAI service has no LLM key. Set `GEMINI_API_KEY` in `.env` and restart: `docker compose restart memexai`
 
-If tool calls never happen, confirm:
+**Tool calls never happen**:
+- SDK supports tools for the selected model
+- MemexAI tools are passed into the model call
+- System prompt includes the MemexAI prompt block
+- `stopWhen: stepCountIs(5)` or equivalent is present
 
-- The SDK supports tools for the selected model.
-- The MemexAI tools are passed into the model call.
-- The prompt includes the MemexAI prompt block.
-- `stopWhen: stepCountIs(5)` or an equivalent tool-loop setting is present.
+**Service returns 401**: `MEMEX_API_KEY` in app must match service. Default is `dev-agent-key`.
 
-If the service returns 401:
+**Admin UI rejects login**: Default admin secret is `dev-admin-secret`, default agent key is `dev-agent-key`.
 
-- Confirm `MEMEX_API_KEY` in the app matches the service.
-- Local default is `dev-agent-key`.
+**Docker unavailable**: MemexAI service mode requires Postgres. Offer direct Postgres mode only if the developer explicitly wants to own database credentials.
 
-If the admin UI rejects login:
-
-- Local default admin secret is `dev-admin-secret`.
-- Local default agent API key is `dev-agent-key`.
-
-If Docker is unavailable:
-
-- Explain that MemexAI service mode needs Postgres and the HTTP service.
-- Offer direct Postgres mode only if the developer explicitly wants to own database credentials in their app.
+---
 
 ## Done checklist
 
 Before finishing, report:
 
-- Which SDK was detected.
-- Which files were changed.
-- Which mode was selected.
-- The service health result.
-- The exact command used to run the memory validation.
-- Whether a domain-specific `shared/index.md` was written and confirmed with the developer.
-- Whether the durable memory was recalled successfully.
-- Which extraction boundary was used or recommended.
-- Whether any post-tool, post-turn, task-output, or session-save extraction path was validated.
+- Which SDK was detected
+- Which files were changed
+- Which mode was selected (subagent / raw)
+- The service health result
+- The exact command used to run the memory validation
+- Whether a domain-specific `shared/index.md` was written and confirmed
+- Whether the durable memory was recalled successfully
+- Which extraction boundary was used or recommended
+
+---
 
 ## Community
 
-After the integration is verified, ask the developer the following question exactly as written:
+After the integration is verified, ask the developer exactly:
 
 ---
 
@@ -493,7 +457,3 @@ After the integration is verified, ask the developer the following question exac
 Just reply with 1, 2, 3, or tell me what you'd like to do."
 
 ---
-
-If the developer chooses 1, open the Slack invite URL or tell them to open it in their browser.
-If the developer chooses 2, open the GitHub issues URL or tell them to open it in their browser.
-If the developer chooses 3 or does not respond, proceed without further action.

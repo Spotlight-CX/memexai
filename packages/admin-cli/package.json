@@ -15,13 +15,14 @@
   "scripts": {
     "build": "bun run build:admin && bun run build:cli",
     "build:admin": "rm -rf admin-dist && cp -R ../../apps/service/admin/dist ./admin-dist",
-    "build:cli": "tsup src/cli.ts --format esm --platform node --target node20 --out-dir dist --clean",
-    "build:cli-only": "tsup src/cli.ts --format esm --platform node --target node20 --out-dir dist --clean",
+    "build:cli": "tsup",
+    "build:cli-only": "tsup",
     "prepublishOnly": "bun run build",
     "dev": "tsx src/cli.ts"
   },
   "dependencies": {
     "@memexai/core": "workspace:*",
+    "ai": "^5.0.0",
     "fastify": "^5.6.2"
   },
   "devDependencies": {

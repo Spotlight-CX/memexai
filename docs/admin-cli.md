@@ -2,6 +2,14 @@
 
 `@memexai/admin` is an agent-friendly CLI for inspecting and managing MemexAI agent memory. Every capability is available as a subcommand with `--json` output for scripting.
 
+## Getting started
+
+```bash
+npx @memexai/admin init
+```
+
+`init` is the single entry point for first-time setup. It introspects your codebase, proposes a memory plan, starts the Docker service, bootstraps shared memory, and prints code snippets. The CLI guides you to the next step at every stage — no docs needed.
+
 ## Install / run
 
 ```bash
@@ -44,6 +52,103 @@ memex-admin -s http://localhost:8080 --admin-secret $SECRET users list
 ---
 
 ## Commands
+
+### `init` — Guided first-time setup
+
+```bash
+npx @memexai/admin init [options]
+```
+
+One command that covers the full onboarding flow. Runs in four phases:
+
+1. **Introspect** — reads your codebase (README, system prompts, agent entrypoints, data models) and calls Gemini or OpenAI to propose a memory plan. Falls back to a static template if no LLM key is configured.
+2. **Docker** — checks service health; if not running, writes `compose.yml` and starts `docker compose up -d`. Polls until healthy.
+3. **Bootstrap** — writes the confirmed shared/ files to the service, appends `MEMEX_*` vars to `.env`, marks setup complete.
+4. **Finish** — writes `MEMEX.md` to the project, prints TypeScript + Python integration snippets and six inspect commands.
+
+**Files written to project:**
+```
+compose.yml            ← Docker stack (only if no compose file present)
+.env                   ← MEMEX_* vars appended (never overwrites existing keys)
+MEMEX.md               ← memory contract — commit this
+.memexai/plan.md       ← inferred memory plan — commit this
+.memexai/shared/       ← local copy of shared/ files — commit this
+```
+
+**Options:**
+```
+--service-url, -s <url>    Service URL (default: http://localhost:8080)
+--admin-secret <secret>    Admin secret (default: dev-admin-secret)
+--yes                      Skip interactive confirmations (agent-friendly)
+--skip-docker              Skip Docker steps (use when service is already running)
+--compose-file <path>      Write compose file to this path (default: ./compose.yml)
+```
+
+```bash
+# Human-interactive (confirms memory plan before proceeding)
+npx @memexai/admin init
+
+# Non-interactive (for coding agents)
+npx @memexai/admin init --yes
+
+# Service already running, skip Docker
+npx @memexai/admin init --yes --skip-docker --service-url http://localhost:8080
+
+# Via Docker exec (no npx needed)
+docker exec $(docker compose ps -q memexai) memex-admin init --yes
+```
+
+---
+
+### `shared` — Sync shared/ memory files
+
+```bash
+memex-admin shared pull [--out <dir>]
+memex-admin shared push [--from <dir>] [--dry-run]
+```
+
+Sync `.memexai/shared/` on the local filesystem with `shared/` on the service. Use for version-controlled shared memory and CI/CD deploys.
+
+**`shared pull`** — downloads `shared/*` from the service to the local directory. Skips unchanged files (content comparison).
+
+**`shared push`** — uploads local files to the service. Content-hash comparison makes it idempotent — unchanged files are skipped. Exits non-zero on connection failure (CI/CD safe).
+
+```bash
+S="-s $MEMEX_SERVICE_URL --admin-secret $MEMEX_ADMIN_SECRET"
+
+# Pull shared files from service to .memexai/shared/
+memex-admin $S shared pull
+
+# Push .memexai/shared/ to service
+memex-admin $S shared push
+
+# Preview what push would change
+memex-admin $S shared push --dry-run
+
+# Use a different local directory
+memex-admin $S shared push --from ./my-shared-files/
+memex-admin $S shared pull --out ./my-shared-files/
+```
+
+**CI/CD (GitHub Actions):**
+```yaml
+- name: Deploy shared memory
+  run: |
+    npx @memexai/admin \
+      --service-url ${{ secrets.MEMEX_SERVICE_URL }} \
+      --admin-secret ${{ secrets.MEMEX_ADMIN_SECRET }} \
+      shared push --from ./.memexai/shared/
+```
+
+**When to use pull vs. push:**
+
+| Scenario | Command |
+|----------|---------|
+| Deploy updated shared schemas on release | `shared push` |
+| Review what agents wrote (RW shared mode) | `shared pull` → review → `shared push` to correct |
+| Initial setup after `memex-admin init` | Not needed — init bootstraps both service and `.memexai/shared/` |
+
+---
 
 ### `serve` — Start web UI
 ```bash
